@@ -1,5 +1,19 @@
 # ReleaseLog
 
+## 8.13.0
+
+Release Data: 2026-08-02.
+
+### Runtime
+
+- fix **CRITICAL**: set finalizer bit for Il2CppTypeDefinition.bitfield when defines Finalizer method in parent
+- fix: TransformContext::CreateLoadExpandDataToStackVarVar create LdlocVarVar for generic enum type which underlying type size < 4 incorrectly. the right is LdlocExpandVarVar_xxx.
+- fix: ComputLocationDescInfo may use uninitialized klass->has_references when compiler computes arguments from right to left
+- fix: CallIntrp will save next instruction position to ip so in exception handler unwinding frame, a instruct adjacent to a try-catch block is treated as in try-block incorrectly
+- merge: merge il2cpp changes from 6000.3.0 to 6000.3.21
+- merge: merge il2cpp changes from 6000.0.60 to 6000.0.80
+- merge: merge tuanjie il2cpp changes from 1.8.0 - 1.10.0
+
 ## 8.12.0
 
 Release Date: 2026-06-01.
