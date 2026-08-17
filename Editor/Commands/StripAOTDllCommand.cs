@@ -148,6 +148,13 @@ namespace HybridCLR.Editor.Commands
                 {
                     throw new Exception("GenerateStripedAOTDlls failed");
                 }
+
+                string strippedAotDllDir = SettingsUtil.GetAssembliesPostIl2CppStripDir(target);
+                if (!Directory.Exists(strippedAotDllDir) ||
+                    Directory.GetFiles(strippedAotDllDir, "*.dll", SearchOption.TopDirectoryOnly).Length == 0)
+                {
+                    throw new Exception($"GenerateStripedAOTDlls succeeded, but no AOT assembly was copied. target:{target} path:{strippedAotDllDir}");
+                }
             }
             finally
             {

@@ -35,23 +35,16 @@ namespace HybridCLR.MonoHook
 
         private static string BuildMainWindowTitle()
         {
-        var cacheDir = $"{Application.dataPath}/../Library/PlayerDataCache";
-        if (Directory.Exists(cacheDir))
+            var cacheDir = $"{Application.dataPath}/../Library/PlayerDataCache";
+            if (Directory.Exists(cacheDir))
             {
                 foreach (var tempJsonPath in Directory.GetDirectories(cacheDir, "*", SearchOption.TopDirectoryOnly))
                 {
                     string dirName = Path.GetFileName(tempJsonPath);
- #if UNITY_WEIXINMINIGAME
-                    if (!dirName.Contains("WeixinMiniGame"))
+                    if (!IsWebGLPlayerDataCacheDirectory(dirName))
                     {
                         continue;
                     }
-#else
-                    if (!dirName.Contains("WebGL"))
-                    {
-                        continue;
-                    }
-#endif
 
                     var patcher = new PatchScriptingAssemblyList();
                     patcher.PathScriptingAssembilesFile(tempJsonPath);
@@ -60,6 +53,13 @@ namespace HybridCLR.MonoHook
 
             string newTitle = BuildMainWindowTitleProxy();
             return newTitle;
+        }
+
+        private static bool IsWebGLPlayerDataCacheDirectory(string dirName)
+        {
+            return dirName.Contains("WebGL") ||
+                   dirName.Contains("WeixinMiniGame") ||
+                   dirName.Contains("WinxinMiniGame");
         }
 
         [MethodImpl(MethodImplOptions.NoOptimization)]

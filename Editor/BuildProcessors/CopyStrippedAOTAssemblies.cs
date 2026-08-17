@@ -58,6 +58,10 @@ namespace HybridCLR.Editor.BuildProcessors
 #endif
                 case BuildTarget.WebGL:
                     return $"{projectDir}/Library/Bee/artifacts/WebGL/ManagedStripped";
+#if TUANJIE_1_5_OR_NEWER
+                case BuildTarget.MiniGame:
+                    return $"{projectDir}/Library/Bee/artifacts/WeixinMiniGame/ManagedStripped";
+#endif
                 case BuildTarget.StandaloneOSX:
                     return $"{projectDir}/Library/Bee/artifacts/MacStandalonePlayerBuildProgram/ManagedStripped";
                 case BuildTarget.PS4:
@@ -67,10 +71,6 @@ namespace HybridCLR.Editor.BuildProcessors
                 case BuildTarget.GameCoreXboxOne:
                 case BuildTarget.GameCoreXboxSeries:
                     return $"{projectDir}/Library/Bee/artifacts/GameCorePlayerBuildProgram/ManagedStripped";
-#if UNITY_WEIXINMINIGAME
-                case BuildTarget.WeixinMiniGame:
-                    return $"{projectDir}/Library/Bee/artifacts/WeixinMiniGame/ManagedStripped";
-#endif
 #if UNITY_OPENHARMONY
                 case BuildTarget.OpenHarmony:
                     return $"{projectDir}/Library/Bee/artifacts/OpenHarmonyPlayerBuildProgram/ManagedStripped";
@@ -103,11 +103,22 @@ namespace HybridCLR.Editor.BuildProcessors
             }
             Debug.Log($"[CopyStrippedAOTAssemblies] CopyScripDlls. src:{srcStripDllPath} target:{target}");
 
+            if (string.IsNullOrEmpty(srcStripDllPath) || !Directory.Exists(srcStripDllPath))
+            {
+                throw new DirectoryNotFoundException($"stripped AOT assembly directory not found. target:{target} path:{srcStripDllPath}");
+            }
+
+            string[] strippedAotDlls = Directory.GetFiles(srcStripDllPath, "*.dll");
+            if (strippedAotDlls.Length == 0)
+            {
+                throw new InvalidOperationException($"no stripped AOT assembly found. target:{target} path:{srcStripDllPath}");
+            }
+
             var dstPath = SettingsUtil.GetAssembliesPostIl2CppStripDir(target);
 
             Directory.CreateDirectory(dstPath);
 
-            foreach (var fileFullPath in Directory.GetFiles(srcStripDllPath, "*.dll"))
+            foreach (var fileFullPath in strippedAotDlls)
             {
                 var file = Path.GetFileName(fileFullPath);
                 Debug.Log($"[CopyStrippedAOTAssemblies] copy strip dll {fileFullPath} ==> {dstPath}/{file}");
