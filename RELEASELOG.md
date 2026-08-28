@@ -6,7 +6,7 @@ Release Data: 2026-08-02.
 
 ### Runtime
 
-- [integration] Assembly.Load metadata candidate refs are available for Tuanjie 2022, Unity 2022, and Unity 2021; the Unity 2022 entry uses the dedicated `optimize/assembly-load-metadata-unity2022-v8.11.0` il2cpp line.
+- [integration] select the `opt3` Assembly.Load metadata runtime tags for Tuanjie 2022, Unity 2022, and Unity 2021.
 - [new] add `RuntimeApi.PrewarmClass(Type)` and `RuntimeApi.PrewarmMethod(MethodInfo)` for moving first-use metadata/interpreter preparation into loading phases
 - [new] add `RuntimeApi.PrewarmMethodBase(MethodBase)` and `RuntimePrewarmMethodBaseQueue` so generated call graphs can prewarm constructors as well as methods
 - [new] batch method-base prewarm requests under one native preparation pass to reduce per-method lock and internal-call overhead
