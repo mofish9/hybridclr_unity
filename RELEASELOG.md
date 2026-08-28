@@ -6,6 +6,26 @@ Release Data: 2026-08-02.
 
 ### Runtime
 
+- [integration] Assembly.Load metadata candidate refs are available for Tuanjie 2022, Unity 2022, and Unity 2021; the Unity 2022 entry uses the dedicated `optimize/assembly-load-metadata-unity2022-v8.11.0` il2cpp line.
+- [new] add `RuntimeApi.PrewarmClass(Type)` and `RuntimeApi.PrewarmMethod(MethodInfo)` for moving first-use metadata/interpreter preparation into loading phases
+- [new] add `RuntimeApi.PrewarmMethodBase(MethodBase)` and `RuntimePrewarmMethodBaseQueue` so generated call graphs can prewarm constructors as well as methods
+- [new] batch method-base prewarm requests under one native preparation pass to reduce per-method lock and internal-call overhead
+- [new] add `RuntimeApi.PrewarmMethodToken(Type, int)` and `PrewarmMethodTokenBatch` for token-addressed non-generic entry methods; Tuanjie 2022 can prepare one method slot without materializing the complete `MethodInfo[]`
+- [note] token prewarm is an entry-first optimization. Workloads that later require exhaustive reflection should use `PrewarmClass`/`PrewarmMethodBase` or a separate reflection manifest so deferred method-table construction does not become a tail-latency spike
+- [new] add `RuntimeApi.PrewarmClassBatch(Type[], int)` and failure-mask batch APIs; queues account for each failed item without re-running successful items
+- [perf] cache manifest type and member discovery results while resolving method graphs, avoiding repeated `Assembly.GetType`/`GetMethods` work for duplicate declaring types
+- [fix] explicitly set up fields, methods, interfaces, nested types, properties, events, and the Tuanjie vtable during class prewarm because lazy-init builds intentionally leave them deferred after `Class::Init`
+- [new] add `RuntimePrewarmQueue` for advancing a type manifest under a per-call time budget during loading or lobby phases
+- [perf] adapt prewarm queue batch sizes from recent per-item cost, with a conservative `1.25x` estimate and first-item ramp-up to protect frame and tail latency budgets
+- [new] add `RuntimePrewarmManifest.CreateQueue` for resolving generated type-name manifests after a hot-update assembly is loaded
+- [new] add `CreateIncrementalQueue` and `CreateIncrementalMethodBaseQueue`; defer manifest type/method reflection and native preparation until budgeted queue processing
+- [new] add `CreateIncrementalMethodTokenQueue`; defer declaring-type lookup for large token manifests while preserving the token fast path
+- [fix] count manifest type-name resolution in the per-batch budget so the first frame cannot accidentally submit a burst after an expensive generic type construction
+- [fix] identify manifest methods by metadata token and full signature so overloads with equal parameter counts cannot overwrite or ambiguously resolve each other
+- [fix] publish prewarm batch failure masks from both metadata and FGS runtimes, keeping the managed/native API surface compatible
+- [fix] resolve constructor descriptors without calling the unsupported `ConstructorInfo.GetGenericArguments()` implementation on Unity IL2CPP
+- [new] prewarm-manifest tooling and lab runner support `entry-graph`, with assembly-hash validation and budgeted call-graph warmup
+- [fix] keep `PreJitClass` semantics unchanged; metadata warmup is exposed only through the new `PrewarmClass` API
 - fix **CRITICAL**: set finalizer bit for Il2CppTypeDefinition.bitfield when defines Finalizer method in parent
 - fix: TransformContext::CreateLoadExpandDataToStackVarVar create LdlocVarVar for generic enum type which underlying type size < 4 incorrectly. the right is LdlocExpandVarVar_xxx.
 - fix: ComputLocationDescInfo may use uninitialized klass->has_references when compiler computes arguments from right to left
@@ -1125,7 +1145,3 @@ Release Date: 2023-07-03.
 
 - [new] The Installer supports copying modified libil2cpp from a local directory.
 - [fix] Fixes the bug where the MonoBleedingEdge subdirectory in version 2019 includes files with excessively long paths, causing the Installer to fail when copying files.
-
-
-
-
