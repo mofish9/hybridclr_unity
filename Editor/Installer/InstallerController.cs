@@ -58,7 +58,7 @@ namespace HybridCLR.Editor.Installer
 
         private PackageInfo LoadPackageInfo()
         {
-            string packageJson = $"{SettingsUtil.ProjectDir}/Packages/{SettingsUtil.PackageName}/package.json";
+            string packageJson = Path.Combine(SettingsUtil.ProjectDir, SettingsUtil.PackagePathInProject, "package.json");
             return JsonUtility.FromJson<PackageInfo>(File.ReadAllText(packageJson, Encoding.UTF8));
         }
 
