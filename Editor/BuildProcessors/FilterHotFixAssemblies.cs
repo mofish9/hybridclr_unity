@@ -26,6 +26,24 @@ namespace HybridCLR.Editor.BuildProcessors
                 return assemblies;
             }
             List<string> allHotUpdateDllNames = SettingsUtil.HotUpdateAssemblyNamesExcludePreserved;
+            List<string> dheAotDllNames = SettingsUtil.DheAotAssemblyNames;
+            var allHotUpdateDllSet = new HashSet<string>(allHotUpdateDllNames, StringComparer.Ordinal);
+            var dheAotDllSet = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var dheAotDll in dheAotDllNames)
+            {
+                if (string.IsNullOrWhiteSpace(dheAotDll))
+                {
+                    throw new BuildFailedException("DHE AOT assembly name can't be empty");
+                }
+                if (!dheAotDllSet.Add(dheAotDll))
+                {
+                    throw new BuildFailedException($"DHE AOT assembly:{dheAotDll} is duplicated");
+                }
+                if (!allHotUpdateDllSet.Contains(dheAotDll))
+                {
+                    throw new BuildFailedException($"DHE AOT assembly:{dheAotDll} must also be listed in hotUpdateAssemblies");
+                }
+            }
 
             // 检查是否重复填写
             var hotUpdateDllSet = new HashSet<string>();
@@ -52,11 +70,16 @@ namespace HybridCLR.Editor.BuildProcessors
                 }
             }
 
-            // 将热更dll从打包列表中移除
+            // Ordinary hot-update DLLs stay external. DHE assemblies are a
+            // deliberate exception: their baseline image must be compiled
+            // into the player while the current image is loaded at runtime.
+            var assembliesToFilter = new HashSet<string>(
+                allHotUpdateDllNames.Where(name => !dheAotDllSet.Contains(name)),
+                StringComparer.Ordinal);
             return assemblies.Where(ass =>
             {
                 string assName = Path.GetFileNameWithoutExtension(ass);
-                bool reserved = allHotUpdateDllNames.All(dll => !assName.Equals(dll, StringComparison.Ordinal));
+                bool reserved = !assembliesToFilter.Contains(assName);
                 if (!reserved)
                 {
                     Debug.Log($"[FilterHotFixAssemblies] filter assembly:{assName}");

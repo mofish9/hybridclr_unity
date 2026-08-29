@@ -44,6 +44,62 @@ namespace HybridCLR
 #endif
 
         /// <summary>
+        /// Legacy DHE entry point. It is retained for ABI compatibility, but
+        /// the strict overload must be used because a snapshot hash is
+        /// required to bind the MV to the player AOT image.
+        /// </summary>
+#if UNITY_EDITOR
+        [Obsolete("Use the overload with aotSnapshotHash for DHE loading.")]
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes)
+        {
+            return LoadImageErrorCode.DHE_MV_BAD_SNAPSHOT_HASH;
+        }
+
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes, byte[] aotSnapshotHash)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [Obsolete("Use the overload with aotSnapshotHash for DHE loading.")]
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes);
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes, byte[] aotSnapshotHash);
+#endif
+
+        /// <summary>Returns whether a loaded DHE MV marks this method as changed.</summary>
+#if UNITY_EDITOR
+        public static bool IsDifferentialMethodChanged(MethodInfo method)
+        {
+            return false;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern bool IsDifferentialMethodChanged(MethodInfo method);
+#endif
+
+        /// <summary>Returns diagnostic counters for DHE dispatch.</summary>
+#if UNITY_EDITOR
+        public static int GetDifferentialInterpreterEntryCount() { return 0; }
+        public static int GetDifferentialAotBridgeCallCount() { return 0; }
+        public static int GetDifferentialAotEntryCount() { return 0; }
+        public static void ResetDifferentialDispatchCounters() { }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern int GetDifferentialInterpreterEntryCount();
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern int GetDifferentialAotBridgeCallCount();
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern int GetDifferentialAotEntryCount();
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern void ResetDifferentialDispatchCounters();
+#endif
+
+        /// <summary>
         /// initialize metadata and the interpreter entry point for one method.
         /// This is useful when a loading phase knows the exact methods that the
         /// next scene will invoke and a whole-class warmup would be too broad.

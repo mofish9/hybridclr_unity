@@ -16,6 +16,7 @@ namespace HybridCLR.Editor.Settings
         private SerializedProperty _il2cppPlusRepoURL;
         private SerializedProperty _hotUpdateAssemblyDefinitions;
         private SerializedProperty _hotUpdateAssemblies;
+        private SerializedProperty _dheAotAssemblies;
         private SerializedProperty _preserveHotUpdateAssemblies;
         private SerializedProperty _hotUpdateDllCompileOutputRootDir;
         private SerializedProperty _externalHotUpdateAssemblyDirs;
@@ -44,6 +45,7 @@ namespace HybridCLR.Editor.Settings
             _il2cppPlusRepoURL = _serializedObject.FindProperty("il2cppPlusRepoURL");
             _hotUpdateAssemblyDefinitions = _serializedObject.FindProperty("hotUpdateAssemblyDefinitions");
             _hotUpdateAssemblies = _serializedObject.FindProperty("hotUpdateAssemblies");
+            _dheAotAssemblies = _serializedObject.FindProperty("dheAotAssemblies");
             _preserveHotUpdateAssemblies = _serializedObject.FindProperty("preserveHotUpdateAssemblies");
             _hotUpdateDllCompileOutputRootDir = _serializedObject.FindProperty("hotUpdateDllCompileOutputRootDir");
             _externalHotUpdateAssemblyDirs = _serializedObject.FindProperty("externalHotUpdateAssembliyDirs");
@@ -69,6 +71,7 @@ namespace HybridCLR.Editor.Settings
             EditorGUILayout.PropertyField(_useGlobalIl2cpp);
             EditorGUILayout.PropertyField(_hotUpdateAssemblyDefinitions);
             EditorGUILayout.PropertyField(_hotUpdateAssemblies);
+            EditorGUILayout.PropertyField(_dheAotAssemblies);
             EditorGUILayout.PropertyField(_preserveHotUpdateAssemblies);
             EditorGUILayout.PropertyField(_hotUpdateDllCompileOutputRootDir);
             EditorGUILayout.PropertyField(_externalHotUpdateAssemblyDirs);

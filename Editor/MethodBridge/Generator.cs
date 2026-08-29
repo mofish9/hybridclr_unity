@@ -217,6 +217,13 @@ namespace HybridCLR.Editor.MethodBridge
             var m2nMethod = CreateMethodDesc(method, false, returnType, parameters);
             AddManaged2NativeMethod(m2nMethod);
 
+            // DHE can execute any changed AOT method through the interpreter,
+            // including non-virtual static methods with value-type returns.
+            // Keep a native-to-managed bridge for every preserved method so
+            // reflection and method-pointer calls do not fall back to the
+            // NotSupportNative2Managed sentinel.
+            AddNative2ManagedMethod(m2nMethod);
+
             if (method.IsVirtual)
             {
                 if (method.DeclaringType.IsInterface)
@@ -224,7 +231,6 @@ namespace HybridCLR.Editor.MethodBridge
                     AddAdjustThunkMethod(m2nMethod);
                 }
                 //var adjustThunkMethod = CreateMethodDesc(method, true, returnType, parameters);
-                AddNative2ManagedMethod(m2nMethod);
             }
             if (method.Name == "Invoke" && method.DeclaringType.IsDelegate)
             {

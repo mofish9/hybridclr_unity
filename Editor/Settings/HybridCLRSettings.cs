@@ -25,6 +25,9 @@ namespace HybridCLR.Editor.Settings
         [Tooltip("hot update assembly names(without .dll suffix)")]
         public string[] hotUpdateAssemblies;
 
+        [Tooltip("DHE hot update assemblies that must also be retained in the AOT player")]
+        public string[] dheAotAssemblies;
+
         [Tooltip("preserved hot update assembly names(without .dll suffix)")]
         public string[] preserveHotUpdateAssemblies;
 
