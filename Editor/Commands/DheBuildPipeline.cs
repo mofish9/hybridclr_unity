@@ -75,10 +75,15 @@ namespace HybridCLR.Editor.Commands
             Directory.CreateDirectory(outputRoot);
 
             DheProjectPlan plan = JsonUtility.FromJson<DheProjectPlan>(File.ReadAllText(planPath));
-            if (plan == null || plan.assemblies == null || plan.assemblies.Length == 0)
+            if (plan == null || plan.schemaVersion != 1 ||
+                !string.Equals(plan.format, "hybridclr.dhe-project-plan.json", StringComparison.Ordinal) ||
+                !plan.complete || plan.assemblies == null || plan.assemblies.Length == 0)
             {
-                throw new BuildFailedException("DHE project plan is empty: " + planPath);
+                throw new BuildFailedException(
+                    "DHE project plan must be a complete hybridclr.dhe-project-plan.json document: " + planPath);
             }
+
+            string planDirectory = Path.GetDirectoryName(planPath);
 
             ClearRuntimeAssets(currentAssetRoot);
             string handoffRoot = Path.Combine(outputRoot, "runtime-plan");
@@ -99,10 +104,17 @@ namespace HybridCLR.Editor.Commands
                 {
                     throw new BuildFailedException("DHE project plan contains an empty or duplicate assembly.");
                 }
+                if (!string.Equals(assembly?.status, "compatible", StringComparison.Ordinal))
+                {
+                    throw new BuildFailedException("DHE project plan assembly is not compatible: " + assemblyName);
+                }
 
-                string currentPath = RequireFile(assembly.current, assemblyName + " current assembly");
-                string baselinePath = RequireFile(assembly.baseline, assemblyName + " baseline assembly");
-                string mvPath = RequireFile(assembly.mvBytes, assemblyName + " MV binary");
+                string currentPath = RequireFile(ResolvePlanReference(planDirectory, assembly.current),
+                    assemblyName + " current assembly");
+                string baselinePath = RequireFile(ResolvePlanReference(planDirectory, assembly.baseline),
+                    assemblyName + " baseline assembly");
+                string mvPath = RequireFile(ResolvePlanReference(planDirectory, assembly.mvBytes),
+                    assemblyName + " MV binary");
                 byte[] currentBytes = File.ReadAllBytes(currentPath);
                 if (options.CurrentAssemblyTransform != null)
                 {
@@ -278,8 +290,27 @@ namespace HybridCLR.Editor.Commands
         {
             if (string.IsNullOrWhiteSpace(name)) return string.Empty;
             string trimmed = name.Trim();
-            return trimmed.EndsWith(DllExtension, StringComparison.OrdinalIgnoreCase)
+            string normalized = trimmed.EndsWith(DllExtension, StringComparison.OrdinalIgnoreCase)
                 ? Path.GetFileNameWithoutExtension(trimmed) : trimmed;
+            if (Path.IsPathRooted(trimmed) || trimmed.Contains('/') || trimmed.Contains('\\') ||
+                trimmed.Contains("..", StringComparison.Ordinal) ||
+                string.Equals(normalized, ".", StringComparison.Ordinal) ||
+                string.Equals(normalized, "..", StringComparison.Ordinal) ||
+                Path.GetFileName(normalized) != normalized)
+            {
+                throw new BuildFailedException("DHE assembly name is unsafe: " + name);
+            }
+            return normalized;
+        }
+
+        private static string ResolvePlanReference(string planDirectory, string reference)
+        {
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                return string.Empty;
+            }
+            return Path.GetFullPath(Path.IsPathRooted(reference)
+                ? reference : Path.Combine(planDirectory, reference));
         }
 
         private static void EnsureUnique(IEnumerable<string> names, string description)
@@ -361,6 +392,9 @@ namespace HybridCLR.Editor.Commands
         [Serializable]
         public sealed class DheProjectPlan
         {
+            public int schemaVersion;
+            public string format;
+            public bool complete;
             public DheProjectAssembly[] assemblies;
         }
 
@@ -368,6 +402,7 @@ namespace HybridCLR.Editor.Commands
         public sealed class DheProjectAssembly
         {
             public string assemblyName;
+            public string status;
             public string current;
             public string baseline;
             public string mvBytes;
