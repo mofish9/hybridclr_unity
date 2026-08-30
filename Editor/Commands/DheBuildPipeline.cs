@@ -189,7 +189,7 @@ namespace HybridCLR.Editor.Commands
             DheRuntimePlanDocument runtimePlan = new DheRuntimePlanDocument
             {
                 schemaVersion = 1,
-                format = "hybridclr.dhe-runtime-plan.json",
+                format = "hybridclr.dhe-runtime-asset-plan.json",
                 assemblies = runtimeRecords.ToArray(),
             };
             File.WriteAllText(Path.Combine(currentAssetRoot, "DheRuntimePlan.json"),
@@ -197,7 +197,7 @@ namespace HybridCLR.Editor.Commands
             DheRuntimePlanHandoffDocument handoffPlan = new DheRuntimePlanHandoffDocument
             {
                 schemaVersion = 1,
-                format = "hybridclr.dhe-runtime-plan.json",
+                format = "hybridclr.dhe-runtime-handoff-plan.json",
                 assemblies = handoffRecords.ToArray(),
             };
             string handoffPlanPath = Path.Combine(handoffRoot, "dhe-runtime-plan.json");
