@@ -676,6 +676,7 @@ namespace HybridCLR.Editor.Commands
         [Serializable]
         private sealed class DheAotMetadataEngine
         {
+            public string family;
             public string version;
             public string unityVersion;
         }
