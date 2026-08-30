@@ -239,14 +239,27 @@ namespace HybridCLR.Editor.Commands
             Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, baselineRoot);
             try
             {
-                BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                BuildPlayerOptions buildOptions = new BuildPlayerOptions
                 {
                     scenes = options.Scenes,
                     locationPathName = outputPath,
                     target = options.Target,
                     targetGroup = group,
                     options = options.BuildOptions,
-                });
+                };
+                // The package owns the baseline binding and result contract,
+                // while a project may wrap the actual Unity build with its
+                // resource scopes, signing settings, or platform options.
+                // Keeping this callback at the package boundary avoids making
+                // the generic DHE workflow depend on a project's build
+                // framework (YooAsset, Addressables, or a custom builder).
+                BuildReport report = options.BuildPlayerCallback == null
+                    ? BuildPipeline.BuildPlayer(buildOptions)
+                    : options.BuildPlayerCallback(buildOptions);
+                if (report == null || report.summary == null)
+                {
+                    throw new BuildFailedException("DHE Player build callback returned no BuildReport.");
+                }
                 if (report.summary.result != BuildResult.Succeeded)
                 {
                     throw new BuildFailedException("DHE Player build failed: " + report.summary.result);
@@ -482,5 +495,11 @@ namespace HybridCLR.Editor.Commands
         public BuildTarget Target;
         public BuildOptions BuildOptions;
         public string[] Scenes;
+        /// <summary>
+        /// Optional project-owned build wrapper. The callback receives the
+        /// fully populated Unity options after the package has bound the
+        /// previous stripped-AOT baseline in the process environment.
+        /// </summary>
+        public Func<BuildPlayerOptions, BuildReport> BuildPlayerCallback;
     }
 }
