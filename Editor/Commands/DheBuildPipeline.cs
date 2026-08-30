@@ -256,7 +256,7 @@ namespace HybridCLR.Editor.Commands
                 BuildReport report = options.BuildPlayerCallback == null
                     ? BuildPipeline.BuildPlayer(buildOptions)
                     : options.BuildPlayerCallback(buildOptions);
-                if (report == null || report.summary == null)
+                if (report == null)
                 {
                     throw new BuildFailedException("DHE Player build callback returned no BuildReport.");
                 }
