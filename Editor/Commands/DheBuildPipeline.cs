@@ -96,6 +96,8 @@ namespace HybridCLR.Editor.Commands
             List<DheRuntimePlanAssembly> runtimeRecords = new List<DheRuntimePlanAssembly>();
             List<DheRuntimePlanHandoffAssembly> handoffRecords =
                 new List<DheRuntimePlanHandoffAssembly>();
+            List<DheRuntimePlanAotMetadata> handoffAotMetadata =
+                new List<DheRuntimePlanAotMetadata>();
             HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (DheProjectAssembly assembly in plan.assemblies)
             {
@@ -176,11 +178,61 @@ namespace HybridCLR.Editor.Commands
             string[] aotAssemblies = options.AotMetadataAssemblyNames ?? Array.Empty<string>();
             string strippedAotRoot = aotAssemblies.Length == 0
                 ? string.Empty : RequireDirectory(options.StrippedAotRoot, "DHE stripped AOT root");
+            string fallbackAotRoot = string.IsNullOrWhiteSpace(options.AotMetadataFallbackRoot)
+                ? string.Empty : RequireDirectory(options.AotMetadataFallbackRoot,
+                    "DHE fallback AOT metadata root");
+            if (!string.IsNullOrWhiteSpace(options.AotMetadataFallbackManifestPath) &&
+                string.IsNullOrWhiteSpace(fallbackAotRoot))
+            {
+                throw new BuildFailedException(
+                    "DHE AOT metadata fallback manifest requires AotMetadataFallbackRoot.");
+            }
+            DheAotMetadataManifest fallbackManifest = null;
+            string fallbackManifestSha256 = string.Empty;
+            if (!string.IsNullOrWhiteSpace(fallbackAotRoot))
+            {
+                fallbackManifest = ValidateAotMetadataFallback(options, fallbackAotRoot,
+                    NormalizeAssemblyNames(aotAssemblies));
+                fallbackManifestSha256 = Sha256Hex(File.ReadAllBytes(
+                    RequireFile(options.AotMetadataFallbackManifestPath,
+                        "DHE AOT metadata fallback manifest")));
+            }
+            List<DheRuntimePlanAotMetadata> aotMetadata = new List<DheRuntimePlanAotMetadata>();
             foreach (string name in NormalizeAssemblyNames(aotAssemblies))
             {
-                string source = RequireFile(Path.Combine(strippedAotRoot,
-                    name + DllExtension), name + " stripped AOT metadata");
+                string source = Path.Combine(strippedAotRoot, name + DllExtension);
+                string sourceKind = "current-stripped";
+                if (!File.Exists(source) && !string.IsNullOrWhiteSpace(fallbackAotRoot))
+                {
+                    source = Path.Combine(fallbackAotRoot, name + DllExtension);
+                    sourceKind = "fallback-root";
+                }
+                source = RequireFile(source, name + " AOT metadata");
                 File.Copy(source, Path.Combine(currentAssetRoot, name + ".bytes"), true);
+                aotMetadata.Add(new DheRuntimePlanAotMetadata
+                {
+                    assemblyName = name,
+                    sourceKind = sourceKind,
+                    sha256 = Sha256Hex(File.ReadAllBytes(source)),
+                    manifestSha256 = fallbackManifest == null ? string.Empty : fallbackManifestSha256,
+                    path = ToProjectAssetPath(projectRoot,
+                        Path.Combine(currentAssetRoot, name + ".bytes")),
+                });
+            }
+            foreach (DheRuntimePlanAotMetadata metadata in aotMetadata)
+            {
+                string name = NormalizeAssemblyName(metadata.assemblyName);
+                string handoffFileName = name + ".aot-metadata.bytes";
+                File.Copy(Path.Combine(currentAssetRoot, name + ".bytes"),
+                    Path.Combine(handoffRoot, handoffFileName), true);
+                handoffAotMetadata.Add(new DheRuntimePlanAotMetadata
+                {
+                    assemblyName = name,
+                    sourceKind = metadata.sourceKind,
+                    sha256 = metadata.sha256,
+                    manifestSha256 = metadata.manifestSha256,
+                    path = handoffFileName,
+                });
             }
             File.WriteAllText(Path.Combine(currentAssetRoot, "AotFileList.txt"),
                 SerializeStringArray(NormalizeAssemblyNames(aotAssemblies)),
@@ -190,6 +242,8 @@ namespace HybridCLR.Editor.Commands
             {
                 schemaVersion = 1,
                 format = "hybridclr.dhe-runtime-asset-plan.json",
+                aotMetadata = aotMetadata.ToArray(),
+                aotMetadataManifestSha256 = fallbackManifest == null ? string.Empty : fallbackManifestSha256,
                 assemblies = runtimeRecords.ToArray(),
             };
             File.WriteAllText(Path.Combine(currentAssetRoot, "DheRuntimePlan.json"),
@@ -198,6 +252,8 @@ namespace HybridCLR.Editor.Commands
             {
                 schemaVersion = 1,
                 format = "hybridclr.dhe-runtime-handoff-plan.json",
+                aotMetadataManifestSha256 = fallbackManifest == null ? string.Empty : fallbackManifestSha256,
+                aotMetadata = handoffAotMetadata.ToArray(),
                 assemblies = handoffRecords.ToArray(),
             };
             string handoffPlanPath = Path.Combine(handoffRoot, "dhe-runtime-plan.json");
@@ -274,7 +330,10 @@ namespace HybridCLR.Editor.Commands
 
         private static void ClearRuntimeAssets(string root)
         {
-            foreach (string pattern in new[] { "*.dll.bytes", "*.mv.bytes", "*.aot-snapshot.bytes" })
+            // RuntimeAssetRoot is a package-owned generated directory. Remove
+            // every byte payload so an assembly removed from the settings can
+            // never leave stale AOT metadata for a later resource build.
+            foreach (string pattern in new[] { "*.bytes" })
             {
                 foreach (string path in Directory.GetFiles(root, pattern, SearchOption.TopDirectoryOnly))
                 {
@@ -386,6 +445,139 @@ namespace HybridCLR.Editor.Commands
             return BitConverter.ToString(Sha256(bytes)).Replace("-", string.Empty).ToLowerInvariant();
         }
 
+        private static DheAotMetadataManifest ValidateAotMetadataFallback(
+            DheRuntimePlanOptions options, string fallbackRoot, string[] expectedAssemblies)
+        {
+            string manifestPath = RequireFile(options.AotMetadataFallbackManifestPath,
+                "DHE AOT metadata fallback manifest");
+            DheAotMetadataManifest manifest;
+            try
+            {
+                manifest = JsonUtility.FromJson<DheAotMetadataManifest>(File.ReadAllText(manifestPath));
+            }
+            catch (Exception exception)
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback manifest is invalid: " +
+                    manifestPath + " (" + exception.Message + ")");
+            }
+            if (manifest == null || manifest.schemaVersion != 1 ||
+                !string.Equals(manifest.format, "hybridclr.dhe-aot-metadata-manifest.json",
+                    StringComparison.Ordinal) ||
+                !string.Equals(manifest.pathSemantics, "workspace-absolute-v1",
+                    StringComparison.Ordinal) ||
+                !string.Equals(manifest.kind, "patch-aot-metadata", StringComparison.Ordinal))
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback manifest has an unsupported schema: " +
+                    manifestPath);
+            }
+
+            string expectedTarget = string.IsNullOrWhiteSpace(options.AotMetadataFallbackExpectedTarget)
+                ? EditorUserBuildSettings.activeBuildTarget.ToString()
+                : options.AotMetadataFallbackExpectedTarget.Trim();
+            if (!string.Equals(manifest.target, expectedTarget, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback target does not match: " +
+                    manifest.target + " / " + expectedTarget);
+            }
+            if (!string.Equals(Path.GetFullPath(manifest.sourceRoot),
+                    Path.GetFullPath(fallbackRoot), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback sourceRoot does not match the supplied root.");
+            }
+            if (!MatchesCurrentEngine(manifest.engine))
+            {
+                throw new BuildFailedException(
+                    "DHE AOT metadata fallback engine identity does not match the current editor.");
+            }
+            if (manifest.runtime == null ||
+                string.IsNullOrWhiteSpace(manifest.runtime.profile) ||
+                !IsSha256(manifest.runtime.stagedRuntimeSha256) ||
+                !IsSha256(manifest.runtime.runtimeManifestSha256) ||
+                !Sha256Equals(manifest.runtime.stagedRuntimeSha256,
+                    options.AotMetadataFallbackExpectedStagedRuntimeSha256, false) ||
+                !Sha256Equals(manifest.runtime.runtimeManifestSha256,
+                    options.AotMetadataFallbackExpectedRuntimeManifestSha256, false) ||
+                (!string.IsNullOrWhiteSpace(options.AotMetadataFallbackExpectedPackageTreeSha256) &&
+                 !Sha256Equals(manifest.runtime.packageTreeSha256,
+                    options.AotMetadataFallbackExpectedPackageTreeSha256, true)))
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback runtime identity does not match the requested identity.");
+            }
+
+            string[] expected = NormalizeAssemblyNames(expectedAssemblies)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+            DheAotMetadataRecord[] records = manifest.assemblies ?? Array.Empty<DheAotMetadataRecord>();
+            string[] actual = records.Select(record => NormalizeAssemblyName(
+                    record == null ? null : record.assemblyName))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+            if (expected.Length == 0 || records.Length != expected.Length ||
+                !expected.SequenceEqual(actual, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new BuildFailedException("DHE AOT metadata fallback manifest assembly set does not match patchAOTAssemblies.");
+            }
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DheAotMetadataRecord record in records)
+            {
+                string name = NormalizeAssemblyName(record == null ? null : record.assemblyName);
+                if (!seen.Add(name) || string.IsNullOrWhiteSpace(record.sha256) ||
+                    record.sha256.Length != 64)
+                {
+                    throw new BuildFailedException("DHE AOT metadata fallback manifest contains an invalid assembly record.");
+                }
+                string path = RequireFile(Path.Combine(fallbackRoot, name + DllExtension),
+                    name + " DHE fallback AOT metadata");
+                if (!string.Equals(Sha256Hex(File.ReadAllBytes(path)), record.sha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BuildFailedException("DHE fallback AOT metadata hash does not match manifest: " + name);
+                }
+            }
+            return manifest;
+        }
+
+        private static bool MatchesCurrentEngine(DheAotMetadataEngine engine)
+        {
+            if (engine == null || string.IsNullOrWhiteSpace(engine.family) ||
+                string.IsNullOrWhiteSpace(engine.version) ||
+                string.IsNullOrWhiteSpace(engine.unityVersion))
+            {
+                return false;
+            }
+
+            // Tuanjie exposes its own product version (for example 1.10.0)
+            // alongside the Unity-compatible editor version (for example
+            // 2022.3.62t12). Unity exposes the same value in both fields.
+            // Bind the editor ABI to unityVersion, while retaining the product
+            // version as provenance instead of incorrectly requiring equality.
+            if (string.Equals(engine.family, "Tuanjie", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Equals(engine.unityVersion, Application.unityVersion,
+                    StringComparison.Ordinal);
+            }
+            if (string.Equals(engine.family, "Unity", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Equals(engine.unityVersion, Application.unityVersion,
+                           StringComparison.Ordinal) &&
+                    string.Equals(engine.version, Application.unityVersion,
+                        StringComparison.Ordinal);
+            }
+            return false;
+        }
+
+        private static bool Sha256Equals(string actual, string expected, bool required)
+        {
+            if (string.IsNullOrWhiteSpace(expected)) return !required;
+            return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSha256(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length != 64) return false;
+            return value.All(character => (character >= '0' && character <= '9') ||
+                (character >= 'a' && character <= 'f') ||
+                (character >= 'A' && character <= 'F'));
+        }
+
         private static string SerializeStringArray(IEnumerable<string> values)
         {
             System.Text.StringBuilder builder = new System.Text.StringBuilder("[");
@@ -426,6 +618,8 @@ namespace HybridCLR.Editor.Commands
         {
             public int schemaVersion;
             public string format;
+            public DheRuntimePlanAotMetadata[] aotMetadata;
+            public string aotMetadataManifestSha256;
             public DheRuntimePlanAssembly[] assemblies;
         }
 
@@ -434,6 +628,8 @@ namespace HybridCLR.Editor.Commands
         {
             public int schemaVersion;
             public string format;
+            public string aotMetadataManifestSha256;
+            public DheRuntimePlanAotMetadata[] aotMetadata;
             public DheRuntimePlanHandoffAssembly[] assemblies;
         }
 
@@ -450,6 +646,54 @@ namespace HybridCLR.Editor.Commands
             public string current;
             public string mv;
             public string snapshot;
+        }
+
+        [Serializable]
+        private sealed class DheRuntimePlanAotMetadata
+        {
+            public string assemblyName;
+            public string sourceKind;
+            public string sha256;
+            public string manifestSha256;
+            public string path;
+        }
+
+        [Serializable]
+        private sealed class DheAotMetadataManifest
+        {
+            public int schemaVersion;
+            public string format;
+            public string pathSemantics;
+            public string kind;
+            public string target;
+            public string sourceRoot;
+            public string engineWorkflow;
+            public DheAotMetadataEngine engine;
+            public DheAotMetadataRuntime runtime;
+            public DheAotMetadataRecord[] assemblies;
+        }
+
+        [Serializable]
+        private sealed class DheAotMetadataEngine
+        {
+            public string version;
+            public string unityVersion;
+        }
+
+        [Serializable]
+        private sealed class DheAotMetadataRuntime
+        {
+            public string profile;
+            public string stagedRuntimeSha256;
+            public string runtimeManifestSha256;
+            public string packageTreeSha256;
+        }
+
+        [Serializable]
+        private sealed class DheAotMetadataRecord
+        {
+            public string assemblyName;
+            public string sha256;
         }
 
         [Serializable]
@@ -472,6 +716,18 @@ namespace HybridCLR.Editor.Commands
         public string RuntimeAssetRoot;
         public string OutputRoot;
         public string StrippedAotRoot;
+        /// <summary>
+        /// Optional target-bound fallback for patch-AOT metadata that Unity did
+        /// not emit in the current stripped directory because it was not linked.
+        /// The project adapter owns the provenance and must bind this root to
+        /// the same target/release baseline before calling the package API.
+        /// </summary>
+        public string AotMetadataFallbackRoot;
+        public string AotMetadataFallbackManifestPath;
+        public string AotMetadataFallbackExpectedTarget;
+        public string AotMetadataFallbackExpectedStagedRuntimeSha256;
+        public string AotMetadataFallbackExpectedRuntimeManifestSha256;
+        public string AotMetadataFallbackExpectedPackageTreeSha256;
         public string[] AotMetadataAssemblyNames;
         public Func<string, byte[], byte[]> CurrentAssemblyTransform;
         public Func<string[], string[]> HotfixLoadOrderResolver;
