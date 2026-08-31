@@ -482,10 +482,12 @@ namespace HybridCLR.Editor.Commands
                     });
                 }
             }
-            if (requested.Count == 0)
-                throw new BuildFailedException("DHE MV set contains no changed methods to inject.");
-
-            Dictionary<string, List<DheCppDefinition>> definitions = IndexCppDefinitions(generatedRoot);
+            // A release with no changed method bodies is a valid DHE no-op.
+            // Emit an empty, auditable native manifest and let the final
+            // Player build continue without injecting a guard.
+            Dictionary<string, List<DheCppDefinition>> definitions = requested.Count == 0
+                ? new Dictionary<string, List<DheCppDefinition>>(StringComparer.OrdinalIgnoreCase)
+                : IndexCppDefinitions(generatedRoot);
             List<DheNativeManifestMethod> manifestMethods = new List<DheNativeManifestMethod>();
             List<string> unsupported = new List<string>();
             Dictionary<string, List<DheNativeManifestMethod>> methodsByFile =
