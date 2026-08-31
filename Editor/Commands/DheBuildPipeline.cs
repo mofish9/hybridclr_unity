@@ -18,6 +18,9 @@ namespace HybridCLR.Editor.Commands
     public static class DheBuildPipeline
     {
         private const string BaselineEnvironmentVariable = "HYBRIDCLR_DHE_AOT_BASELINE_ROOT";
+        private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
+        internal const string CurrentGenerationBuildPhase = "current-generation";
+        internal const string FinalPlayerBuildPhase = "final-player";
         private const string DllExtension = ".dll";
         private const string DllBytesExtension = ".dll.bytes";
 
@@ -75,11 +78,52 @@ namespace HybridCLR.Editor.Commands
             }
         }
 
+        /// <summary>
+        /// Generates the current stripped-AOT artifacts used as the right-hand
+        /// side of a DHE diff. This is deliberately separate from BuildPlayer:
+        /// a current-generation pass must retain the current DHE assemblies,
+        /// while the final Player pass must inject the previous baseline.
+        /// </summary>
+        public static void GenerateCurrentArtifacts(BuildTarget target)
+        {
+            string[] dheAssemblies = GetDheAotAssemblyNames();
+            if (dheAssemblies.Length == 0)
+            {
+                throw new BuildFailedException(
+                    "DHE current artifact generation requires at least one dheAotAssemblies entry.");
+            }
+
+            EnsureActiveBuildTarget(target);
+            string previousPhase = Environment.GetEnvironmentVariable(
+                BuildPhaseEnvironmentVariable);
+            string previousBaseline = Environment.GetEnvironmentVariable(
+                BaselineEnvironmentVariable);
+            Environment.SetEnvironmentVariable(BuildPhaseEnvironmentVariable,
+                CurrentGenerationBuildPhase);
+            // A caller may have inherited a final-player baseline binding. Do
+            // not allow that process state to silently turn current artifacts
+            // into another copy of the previous release.
+            Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, null);
+            try
+            {
+                PrebuildCommand.GenerateAll();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(BuildPhaseEnvironmentVariable, previousPhase);
+                Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, previousBaseline);
+            }
+        }
+
         public static DheRuntimePlanResult StageRuntimePlan(DheRuntimePlanOptions options)
         {
             if (options == null)
             {
                 throw new ArgumentNullException(nameof(options));
+            }
+            if (options.Target != BuildTarget.NoTarget)
+            {
+                EnsureActiveBuildTarget(options.Target);
             }
             string projectRoot = RequireDirectory(options.ProjectRoot, "DHE project root");
             string planPath = RequireFile(options.ProjectPlanPath, "DHE project plan");
@@ -321,15 +365,12 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("DHE Player build requires at least one scene.");
             }
 
-            BuildTargetGroup group = BuildPipeline.GetBuildTargetGroup(options.Target);
-            if (EditorUserBuildSettings.activeBuildTarget != options.Target &&
-                !EditorUserBuildSettings.SwitchActiveBuildTarget(group, options.Target))
-            {
-                throw new BuildFailedException("Unable to switch active build target to " + options.Target);
-            }
+            BuildTargetGroup group = EnsureActiveBuildTarget(options.Target);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
             string previousBaseline = Environment.GetEnvironmentVariable(BaselineEnvironmentVariable);
+            string previousPhase = Environment.GetEnvironmentVariable(BuildPhaseEnvironmentVariable);
             Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, baselineRoot);
+            Environment.SetEnvironmentVariable(BuildPhaseEnvironmentVariable, FinalPlayerBuildPhase);
             try
             {
                 BuildPlayerOptions buildOptions = new BuildPlayerOptions
@@ -362,7 +403,19 @@ namespace HybridCLR.Editor.Commands
             finally
             {
                 Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, previousBaseline);
+                Environment.SetEnvironmentVariable(BuildPhaseEnvironmentVariable, previousPhase);
             }
+        }
+
+        private static BuildTargetGroup EnsureActiveBuildTarget(BuildTarget target)
+        {
+            BuildTargetGroup group = BuildPipeline.GetBuildTargetGroup(target);
+            if (EditorUserBuildSettings.activeBuildTarget != target &&
+                !EditorUserBuildSettings.SwitchActiveBuildTarget(group, target))
+            {
+                throw new BuildFailedException("Unable to switch active build target to " + target);
+            }
+            return group;
         }
 
         private static void ClearRuntimeAssets(string root)
@@ -551,7 +604,9 @@ namespace HybridCLR.Editor.Commands
             }
 
             string expectedTarget = string.IsNullOrWhiteSpace(options.AotMetadataFallbackExpectedTarget)
-                ? EditorUserBuildSettings.activeBuildTarget.ToString()
+                ? (options.Target == BuildTarget.NoTarget
+                    ? EditorUserBuildSettings.activeBuildTarget.ToString()
+                    : options.Target.ToString())
                 : options.AotMetadataFallbackExpectedTarget.Trim();
             if (!string.Equals(manifest.target, expectedTarget, StringComparison.OrdinalIgnoreCase))
             {
@@ -791,6 +846,11 @@ namespace HybridCLR.Editor.Commands
 
     public sealed class DheRuntimePlanOptions
     {
+        /// <summary>
+        /// Target used for all target-bound output and fallback validation.
+        /// NoTarget keeps the editor's active target for legacy callers.
+        /// </summary>
+        public BuildTarget Target = BuildTarget.NoTarget;
         public string ProjectRoot;
         public string ProjectPlanPath;
         public string RuntimeAssetRoot;

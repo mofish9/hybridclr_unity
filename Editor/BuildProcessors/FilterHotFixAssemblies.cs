@@ -17,6 +17,9 @@ namespace HybridCLR.Editor.BuildProcessors
     internal class FilterHotFixAssemblies : IFilterBuildAssemblies
     {
         private const string DheAotBaselineRootEnvironmentVariable = "HYBRIDCLR_DHE_AOT_BASELINE_ROOT";
+        private const string DheBuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
+        private const string CurrentGenerationBuildPhase = "current-generation";
+        private const string FinalPlayerBuildPhase = "final-player";
 
         public int callbackOrder => 0;
 
@@ -88,6 +91,28 @@ namespace HybridCLR.Editor.BuildProcessors
             string baselineRoot = Environment.GetEnvironmentVariable(
                 DheAotBaselineRootEnvironmentVariable);
             bool useBaseline = !string.IsNullOrWhiteSpace(baselineRoot);
+            string buildPhase = Environment.GetEnvironmentVariable(
+                DheBuildPhaseEnvironmentVariable);
+            bool currentGeneration = string.Equals(buildPhase, CurrentGenerationBuildPhase,
+                StringComparison.OrdinalIgnoreCase);
+            bool finalPlayer = string.Equals(buildPhase, FinalPlayerBuildPhase,
+                StringComparison.OrdinalIgnoreCase);
+            if (dheAotDllSet.Count > 0 && !currentGeneration && !finalPlayer)
+            {
+                throw new BuildFailedException(
+                    "DHE AOT assemblies are configured; use DheBuildPipeline.GenerateCurrentArtifacts " +
+                    "for current generation or DheBuildPipeline.BuildPlayer for the final Player.");
+            }
+            if (currentGeneration && useBaseline)
+            {
+                throw new BuildFailedException(
+                    "DHE current-generation phase cannot use HYBRIDCLR_DHE_AOT_BASELINE_ROOT.");
+            }
+            if (finalPlayer && !useBaseline)
+            {
+                throw new BuildFailedException(
+                    "DHE final-player phase requires HYBRIDCLR_DHE_AOT_BASELINE_ROOT.");
+            }
             if (useBaseline)
             {
                 baselineRoot = Path.GetFullPath(baselineRoot).TrimEnd(
