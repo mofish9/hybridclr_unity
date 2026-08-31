@@ -1,4 +1,5 @@
 ﻿using HybridCLR.Editor.Meta;
+using HybridCLR.Editor.Commands;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -122,6 +123,8 @@ namespace HybridCLR.Editor.BuildProcessors
                     throw new BuildFailedException(
                         "DHE AOT baseline root was not found: " + baselineRoot);
                 }
+                DheBuildPipeline.PrepareBaselineAssemblyInputs(
+                    assemblies, baselineRoot, dheAotDllNames);
             }
 
             var result = new List<string>();
@@ -133,35 +136,10 @@ namespace HybridCLR.Editor.BuildProcessors
                     Debug.Log($"[FilterHotFixAssemblies] filter assembly:{assemblyName}");
                     continue;
                 }
-                if (useBaseline && dheAotDllSet.Contains(assemblyName))
-                {
-                    // All current DHE paths are replaced below in a stable
-                    // name-ordered pass. This also handles accidental duplicate
-                    // current/plugin paths without leaking one into the Player.
-                    continue;
-                }
                 result.Add(assemblyPath);
             }
 
-            if (useBaseline)
-            {
-                foreach (string assemblyName in dheAotDllNames)
-                {
-                    string baselinePath = Path.GetFullPath(Path.Combine(
-                        baselineRoot, assemblyName + ".dll"));
-                    string baselinePrefix = baselineRoot + Path.DirectorySeparatorChar;
-                    if (!baselinePath.StartsWith(baselinePrefix,
-                            StringComparison.OrdinalIgnoreCase) ||
-                        !File.Exists(baselinePath))
-                    {
-                        throw new BuildFailedException(
-                            "DHE AOT baseline assembly was not found: " + baselinePath);
-                    }
-                    result.Add(baselinePath);
-                    Debug.Log($"[FilterHotFixAssemblies] use DHE baseline assembly:{baselinePath}");
-                }
-            }
-            else
+            if (!useBaseline)
             {
                 foreach (string assemblyPath in assemblies)
                 {
