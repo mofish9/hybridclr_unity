@@ -31,6 +31,38 @@ namespace HybridCLR.Editor.Commands
             return NormalizeAssemblyNames(SettingsUtil.DheAotAssemblyNames);
         }
 
+        /// <summary>
+        /// Removes only the generated DHE payload from a project's hot-update
+        /// asset directory. Legacy hotfix/AOT metadata remains intact so a
+        /// normal base-package build can explicitly opt out of DHE without
+        /// inheriting a plan from an earlier DHE build.
+        /// </summary>
+        public static void ClearDheRuntimePlanAssets(string runtimeAssetRoot)
+        {
+            string root = Path.GetFullPath(runtimeAssetRoot ?? string.Empty);
+            if (!Directory.Exists(root))
+            {
+                return;
+            }
+
+            foreach (string pattern in new[] { "*.dll.bytes", "*.mv.bytes", "*.aot-snapshot.bytes" })
+            {
+                foreach (string path in Directory.GetFiles(root, pattern, SearchOption.TopDirectoryOnly))
+                {
+                    File.Delete(path);
+                }
+            }
+
+            foreach (string fileName in new[] { "DheRuntimePlan.json", "DheSmokeConfig.json" })
+            {
+                string path = Path.Combine(root, fileName);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+
         public static void ValidateAssemblyScope(bool requireExactMatch,
             out string[] hotUpdateAssemblies, out string[] dheAotAssemblies)
         {
