@@ -44,23 +44,7 @@ namespace HybridCLR.Editor.Commands
             {
                 return;
             }
-
-            foreach (string pattern in new[] { "*.dll.bytes", "*.mv.bytes", "*.aot-snapshot.bytes" })
-            {
-                foreach (string path in Directory.GetFiles(root, pattern, SearchOption.TopDirectoryOnly))
-                {
-                    File.Delete(path);
-                }
-            }
-
-            foreach (string fileName in new[] { "DheRuntimePlan.json", "DheSmokeConfig.json" })
-            {
-                string path = Path.Combine(root, fileName);
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
+            ClearDhePayloadFiles(root);
         }
 
         public static void ValidateAssemblyScope(bool requireExactMatch,
@@ -117,6 +101,9 @@ namespace HybridCLR.Editor.Commands
 
             string planDirectory = Path.GetDirectoryName(planPath);
 
+            // Remove only DHE payloads from the previous plan. Legacy hotfix
+            // bytes in the same directory are owned by the project adapter and
+            // must survive a mixed DHE/legacy staging pass.
             ClearRuntimeAssets(currentAssetRoot);
             string handoffRoot = Path.Combine(outputRoot, "runtime-plan");
             if (Directory.Exists(handoffRoot))
@@ -193,7 +180,24 @@ namespace HybridCLR.Editor.Commands
                 });
             }
 
-            string[] loadList = names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            string[] hotfixAssemblyNames = NormalizeAssemblyNames(options.HotfixAssemblyNames);
+            if (hotfixAssemblyNames.Length == 0)
+            {
+                hotfixAssemblyNames = names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+            }
+            EnsureUnique(hotfixAssemblyNames, "hotfixAssemblyNames");
+            HashSet<string> hotfixNameSet = new HashSet<string>(hotfixAssemblyNames,
+                StringComparer.OrdinalIgnoreCase);
+            foreach (string dheName in names)
+            {
+                if (!hotfixNameSet.Contains(dheName))
+                {
+                    throw new BuildFailedException(
+                        "Every DHE assembly must also be present in hotfixAssemblyNames: " + dheName);
+                }
+            }
+
+            string[] loadList = hotfixAssemblyNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .Select(name => name + DllExtension).ToArray();
             if (options.HotfixLoadOrderResolver != null)
             {
@@ -207,7 +211,8 @@ namespace HybridCLR.Editor.Commands
                 options.DependencyMapWriter(currentAssetRoot);
             }
 
-            string[] aotAssemblies = options.AotMetadataAssemblyNames ?? Array.Empty<string>();
+            string[] aotAssemblies = NormalizeAssemblyNames(options.AotMetadataAssemblyNames);
+            EnsureUnique(aotAssemblies, "AotMetadataAssemblyNames");
             string strippedAotRoot = aotAssemblies.Length == 0
                 ? string.Empty : RequireDirectory(options.StrippedAotRoot, "DHE stripped AOT root");
             string fallbackAotRoot = string.IsNullOrWhiteSpace(options.AotMetadataFallbackRoot)
@@ -362,18 +367,61 @@ namespace HybridCLR.Editor.Commands
 
         private static void ClearRuntimeAssets(string root)
         {
-            // RuntimeAssetRoot is a package-owned generated directory. Remove
-            // every byte payload so an assembly removed from the settings can
-            // never leave stale AOT metadata for a later resource build.
-            foreach (string pattern in new[] { "*.bytes" })
+            ClearDhePayloadFiles(root);
+        }
+
+        private static void ClearDhePayloadFiles(string root)
+        {
+            // A DHE sidecar is identifiable by its MV or snapshot companion.
+            // Use both the existing plan and sidecar names so removed DHE
+            // assemblies are cleaned without touching legacy hotfix payloads.
+            HashSet<string> generatedAssemblies = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            string planPath = Path.Combine(root, "DheRuntimePlan.json");
+            if (File.Exists(planPath))
             {
-                foreach (string path in Directory.GetFiles(root, pattern, SearchOption.TopDirectoryOnly))
+                try
                 {
-                    File.Delete(path);
+                    DheRuntimePlanDocument previousPlan = JsonUtility.FromJson<DheRuntimePlanDocument>(
+                        File.ReadAllText(planPath));
+                    foreach (DheRuntimePlanAssembly record in previousPlan?.assemblies ??
+                        Array.Empty<DheRuntimePlanAssembly>())
+                    {
+                        string name = NormalizeAssemblyName(record?.assemblyName);
+                        if (!string.IsNullOrWhiteSpace(name)) generatedAssemblies.Add(name);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    throw new BuildFailedException(
+                        "Previous DHE runtime plan is invalid: " + planPath + " (" +
+                        exception.Message + ")");
                 }
             }
-            foreach (string fileName in new[] { "DheRuntimePlan.json", "HotfixFileList.txt",
-                "HotfixAotDependencyMap.txt", "AotFileList.txt" })
+
+            foreach (string path in Directory.GetFiles(root, "*.mv.bytes", SearchOption.TopDirectoryOnly))
+            {
+                string fileName = Path.GetFileName(path);
+                generatedAssemblies.Add(fileName.Substring(0,
+                    fileName.Length - ".mv.bytes".Length));
+            }
+            foreach (string path in Directory.GetFiles(root, "*.aot-snapshot.bytes",
+                SearchOption.TopDirectoryOnly))
+            {
+                string fileName = Path.GetFileName(path);
+                generatedAssemblies.Add(fileName.Substring(0,
+                    fileName.Length - ".aot-snapshot.bytes".Length));
+            }
+
+            foreach (string name in generatedAssemblies)
+            {
+                foreach (string suffix in new[] { ".dll.bytes", ".mv.bytes", ".aot-snapshot.bytes" })
+                {
+                    string path = Path.Combine(root, name + suffix);
+                    if (File.Exists(path)) File.Delete(path);
+                }
+            }
+            foreach (string fileName in new[] { "DheRuntimePlan.json", "DheSmokeConfig.json" })
             {
                 string path = Path.Combine(root, fileName);
                 if (File.Exists(path)) File.Delete(path);
@@ -386,7 +434,6 @@ namespace HybridCLR.Editor.Commands
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Select(NormalizeAssemblyName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
 
@@ -762,6 +809,12 @@ namespace HybridCLR.Editor.Commands
         public string AotMetadataFallbackExpectedRuntimeManifestSha256;
         public string AotMetadataFallbackExpectedPackageTreeSha256;
         public string[] AotMetadataAssemblyNames;
+        /// <summary>
+        /// Complete hot-update load set. It may contain legacy hotfix
+        /// assemblies in addition to the DHE subset; the package only stages
+        /// DHE payloads and leaves the other project-owned bytes intact.
+        /// </summary>
+        public string[] HotfixAssemblyNames;
         public Func<string, byte[], byte[]> CurrentAssemblyTransform;
         public Func<string[], string[]> HotfixLoadOrderResolver;
         public Action<string> DependencyMapWriter;

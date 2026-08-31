@@ -117,15 +117,12 @@ namespace HybridCLR.Editor
         {
             get
             {
-                // An empty DHE list means "all configured hot-update
-                // assemblies". Keep this fallback aligned with the offline
-                // project preflight so the Unity build cannot silently filter
-                // every hot-update assembly while the plan expects DHE AOT
-                // images for them.
+                // DHE is an explicit build feature. An empty list preserves
+                // the legacy HybridCLR filtering behavior; project workflows
+                // that opt into DHE must provide the exact intended assembly
+                // set and validate it before building a Player.
                 var configured = HybridCLRSettings.Instance.dheAotAssemblies;
-                return configured != null && configured.Length > 0
-                    ? configured.ToList()
-                    : HotUpdateAssemblyNamesExcludePreserved;
+                return configured == null ? new List<string>() : configured.ToList();
             }
         }
 
