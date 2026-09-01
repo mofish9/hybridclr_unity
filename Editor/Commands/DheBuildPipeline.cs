@@ -239,6 +239,7 @@ namespace HybridCLR.Editor.Commands
                 string mvPath = RequireFile(ResolvePlanReference(planDirectory, assembly.mvBytes),
                     assemblyName + " MV binary");
                 byte[] currentBytes = File.ReadAllBytes(currentPath);
+                byte[] mvBytes = File.ReadAllBytes(mvPath);
                 if (options.CurrentAssemblyTransform != null)
                 {
                     currentBytes = options.CurrentAssemblyTransform(assemblyName, currentBytes) ??
@@ -251,9 +252,10 @@ namespace HybridCLR.Editor.Commands
                 string snapshotFileName = assemblyName + ".aot-snapshot.bytes";
                 File.WriteAllBytes(Path.Combine(currentAssetRoot, dllFileName), currentBytes);
                 byte[] baselineBytes = File.ReadAllBytes(baselinePath);
+                byte[] snapshotBytes = Sha256(baselineBytes);
                 File.WriteAllBytes(Path.Combine(currentAssetRoot, baselineFileName), baselineBytes);
-                File.Copy(mvPath, Path.Combine(currentAssetRoot, mvFileName), true);
-                File.WriteAllBytes(Path.Combine(currentAssetRoot, snapshotFileName), Sha256(baselineBytes));
+                File.WriteAllBytes(Path.Combine(currentAssetRoot, mvFileName), mvBytes);
+                File.WriteAllBytes(Path.Combine(currentAssetRoot, snapshotFileName), snapshotBytes);
 
                 runtimeRecords.Add(new DheRuntimePlanAssembly
                 {
@@ -268,6 +270,8 @@ namespace HybridCLR.Editor.Commands
                         Path.Combine(currentAssetRoot, snapshotFileName)),
                     currentSha256 = Sha256Hex(currentBytes),
                     baselineSha256 = Sha256Hex(baselineBytes),
+                    mvSha256 = Sha256Hex(mvBytes),
+                    snapshotSha256 = Sha256Hex(snapshotBytes),
                 });
 
                 string handoffCurrent = assemblyName + ".current.dll";
@@ -288,6 +292,8 @@ namespace HybridCLR.Editor.Commands
                     snapshot = handoffSnapshot,
                     baselineSha256 = Sha256Hex(baselineBytes),
                     currentSha256 = Sha256Hex(currentBytes),
+                    mvSha256 = Sha256Hex(mvBytes),
+                    snapshotSha256 = Sha256Hex(snapshotBytes),
                 });
             }
 
@@ -1908,6 +1914,8 @@ namespace HybridCLR.Editor.Commands
             public string snapshot;
             public string currentSha256;
             public string baselineSha256;
+            public string mvSha256;
+            public string snapshotSha256;
         }
 
         [Serializable]
@@ -1969,6 +1977,8 @@ namespace HybridCLR.Editor.Commands
             public string snapshot;
             public string baselineSha256;
             public string currentSha256;
+            public string mvSha256;
+            public string snapshotSha256;
         }
     }
 
