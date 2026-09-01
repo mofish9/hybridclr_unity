@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -22,6 +23,10 @@ namespace HybridCLR.Editor.Commands
     {
         private const string BaselineEnvironmentVariable = "HYBRIDCLR_DHE_AOT_BASELINE_ROOT";
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
+        private const string NativeGuardHashContract = "guard-block-set-v1";
+        private const string NativeGuardBeginPrefix = "HYBRIDCLR_DHE_GUARD_BEGIN_V5:";
+        private const string NativeGuardEndPrefix = "HYBRIDCLR_DHE_GUARD_END_V5:";
+        private const string LegacyNativeGuardPrefix = "HYBRIDCLR_DHE_GUARD_V4:";
         internal const string CurrentGenerationBuildPhase = "current-generation";
         internal const string FinalPlayerBuildPhase = "final-player";
         private const string DllExtension = ".dll";
@@ -618,8 +623,28 @@ namespace HybridCLR.Editor.Commands
                 List<Tuple<int, string>> insertions = new List<Tuple<int, string>>();
                 foreach (DheNativeManifestMethod method in pair.Value)
                 {
-                    string marker = "HYBRIDCLR_DHE_GUARD_V4:" + method.functionName + ":" + method.methodToken;
-                    if (source.Contains(marker, StringComparison.Ordinal)) continue;
+                    string beginMarker = GetGuardMarker(NativeGuardBeginPrefix, method);
+                    string endMarker = GetGuardMarker(NativeGuardEndPrefix, method);
+                    bool hasBegin = source.Contains(beginMarker, StringComparison.Ordinal);
+                    bool hasEnd = source.Contains(endMarker, StringComparison.Ordinal);
+                    if (hasBegin || hasEnd)
+                    {
+                        string actual = ExtractGuardBlock(source, method);
+                        string expected = NormalizeGuardBlock(CreateGuard(method));
+                        if (!string.Equals(actual, expected, StringComparison.Ordinal))
+                        {
+                            throw new BuildFailedException("Existing DHE guard block differs from the expected " +
+                                "generated block: " + method.functionName + "/" + method.methodToken);
+                        }
+                        continue;
+                    }
+                    string legacyMarker = GetGuardMarker(LegacyNativeGuardPrefix, method);
+                    if (source.Contains(legacyMarker, StringComparison.Ordinal))
+                    {
+                        throw new BuildFailedException("Generated C++ contains a legacy DHE guard. Regenerate the " +
+                            "scripts-only IL2CPP output before continuing: " + method.functionName + "/" +
+                            method.methodToken);
+                    }
                     Match match = Regex.Match(source,
                         @"(?m)^(?<signature>[^\r\n{};]*\b" + Regex.Escape(method.functionName) +
                         @"\s*\([^\r\n{};]*\)\s*)\{");
@@ -645,8 +670,9 @@ namespace HybridCLR.Editor.Commands
             DheNativeManifestDocument manifest = new DheNativeManifestDocument
             {
                 schemaVersion = 1,
-                resolverVersion = 2,
+                resolverVersion = 3,
                 abiContract = "il2cpp-generated-cpp-signature-v2",
+                guardHashContract = NativeGuardHashContract,
                 generatedCppRoot = generatedRoot,
                 changedMethodCount = requested.Count,
                 supportedChangedMethodCount = requested.Count - unsupported.Count,
@@ -667,7 +693,7 @@ namespace HybridCLR.Editor.Commands
                 UnsupportedMethodCount = unsupported.Count,
                 GeneratedCppPaths = generatedCppPaths,
                 NativeManifestSha256 = Sha256Hex(File.ReadAllBytes(manifestPath)),
-                NativeGuardSourceSha256 = Sha256FileSet(generatedCppPaths, generatedRoot),
+                NativeGuardSourceSha256 = Sha256GuardBlockSet(manifestMethods, generatedRoot),
             };
         }
 
@@ -1349,7 +1375,8 @@ namespace HybridCLR.Editor.Commands
 
         private static string CreateGuard(DheNativeManifestMethod method)
         {
-            string marker = "HYBRIDCLR_DHE_GUARD_V4:" + method.functionName + ":" + method.methodToken;
+            string beginMarker = GetGuardMarker(NativeGuardBeginPrefix, method);
+            string endMarker = GetGuardMarker(NativeGuardEndPrefix, method);
             string[] allNames = method.parameters.Select(parameter => parameter.Name).ToArray();
             bool hasThis = method.hasThis;
             int firstManaged = hasThis ? 1 : 0;
@@ -1420,7 +1447,7 @@ namespace HybridCLR.Editor.Commands
                 else
                     throw new BuildFailedException("Unsupported DHE native shape: " + shape);
             }
-            return "    // " + marker + "\r\n" +
+            return "    // " + beginMarker + "\r\n" +
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
@@ -1428,7 +1455,56 @@ namespace HybridCLR.Editor.Commands
                 method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) +
                 "\", " + method.methodToken + ");\r\n    }\r\n" +
                 "    if (hybridclr::dhe::ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
-                "        " + helper.Replace("\r\n", "\r\n        ", StringComparison.Ordinal) + "\r\n    }\r\n";
+                "        " + helper.Replace("\r\n", "\r\n        ", StringComparison.Ordinal) + "\r\n    }\r\n" +
+                "    // " + endMarker;
+        }
+
+        private static string GetGuardMarker(string prefix, DheNativeManifestMethod method)
+        {
+            return prefix + method.functionName + ":" +
+                method.methodToken.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string ExtractGuardBlock(string source, DheNativeManifestMethod method)
+        {
+            string beginMarker = GetGuardMarker(NativeGuardBeginPrefix, method);
+            string endMarker = GetGuardMarker(NativeGuardEndPrefix, method);
+            int begin = RequireSingleMarker(source, beginMarker, method);
+            int end = RequireSingleMarker(source, endMarker, method);
+            if (end <= begin)
+            {
+                throw new BuildFailedException("DHE guard end marker precedes its begin marker: " +
+                    method.functionName + "/" + method.methodToken);
+            }
+            int lineStart = source.LastIndexOf('\n', begin);
+            lineStart = lineStart < 0 ? 0 : lineStart + 1;
+            int blockEnd = end + endMarker.Length;
+            int lineEnd = source.IndexOf('\n', blockEnd);
+            if (lineEnd < 0) lineEnd = source.Length;
+            string suffix = source.Substring(blockEnd, lineEnd - blockEnd).TrimEnd('\r');
+            if (suffix.Any(character => character != ' ' && character != '\t'))
+            {
+                throw new BuildFailedException("DHE guard end marker has unexpected trailing content: " +
+                    method.functionName + "/" + method.methodToken);
+            }
+            return NormalizeGuardBlock(source.Substring(lineStart, blockEnd - lineStart));
+        }
+
+        private static int RequireSingleMarker(string source, string marker, DheNativeManifestMethod method)
+        {
+            int first = source.IndexOf(marker, StringComparison.Ordinal);
+            if (first < 0 || source.IndexOf(marker, first + marker.Length, StringComparison.Ordinal) >= 0)
+            {
+                throw new BuildFailedException("DHE guard marker is missing or duplicated: " + marker + " (" +
+                    method.functionName + "/" + method.methodToken + ")");
+            }
+            return first;
+        }
+
+        private static string NormalizeGuardBlock(string block)
+        {
+            return (block ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\r", "\n", StringComparison.Ordinal).TrimEnd('\n');
         }
 
         private static string[] NormalizeAssemblyNames(IEnumerable<string> names)
@@ -1580,26 +1656,48 @@ namespace HybridCLR.Editor.Commands
             return BitConverter.ToString(Sha256(bytes)).Replace("-", string.Empty).ToLowerInvariant();
         }
 
-        private static string Sha256FileSet(IEnumerable<string> paths, string relativeRoot)
+        private static string Sha256GuardBlockSet(IEnumerable<DheNativeManifestMethod> methods,
+            string relativeRoot)
         {
             string root = RequireDirectory(relativeRoot, "DHE generated C++ hash root")
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string prefix = root + Path.DirectorySeparatorChar;
+            List<DheGuardHashRecord> records = new List<DheGuardHashRecord>();
+            HashSet<string> identities = new HashSet<string>(StringComparer.Ordinal);
+            foreach (DheNativeManifestMethod method in methods ?? Array.Empty<DheNativeManifestMethod>())
+            {
+                string path = Path.GetFullPath(RequireFile(method.sourceFile,
+                    "DHE generated C++ guard source"));
+                if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    throw new BuildFailedException("DHE generated C++ guard source escapes its root: " + path);
+                string relative = path.Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/');
+                string identity = relative + "\n" + method.functionName + "\n" +
+                    method.methodToken.ToString(CultureInfo.InvariantCulture);
+                if (!identities.Add(identity))
+                    throw new BuildFailedException("DHE native manifest contains a duplicate guard identity: " +
+                        method.functionName + "/" + method.methodToken);
+                records.Add(new DheGuardHashRecord
+                {
+                    RelativePath = relative,
+                    FunctionName = method.functionName,
+                    MethodToken = method.methodToken,
+                    Block = ExtractGuardBlock(File.ReadAllText(path, Encoding.UTF8), method),
+                });
+            }
             using (SHA256 sha = SHA256.Create())
             {
-                foreach (string path in (paths ?? Array.Empty<string>()).Select(Path.GetFullPath)
-                             .Distinct(StringComparer.OrdinalIgnoreCase)
-                             .OrderBy(item => item, StringComparer.Ordinal))
+                byte[] domain = Encoding.UTF8.GetBytes(NativeGuardHashContract + "\n");
+                sha.TransformBlock(domain, 0, domain.Length, domain, 0);
+                foreach (DheGuardHashRecord record in records
+                             .OrderBy(item => item.RelativePath, StringComparer.Ordinal)
+                             .ThenBy(item => item.FunctionName, StringComparer.Ordinal)
+                             .ThenBy(item => item.MethodToken))
                 {
-                    if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                        throw new BuildFailedException("DHE generated C++ hash input escapes its root: " + path);
-                    string relative = path.Substring(prefix.Length).Replace(Path.DirectorySeparatorChar, '/');
-                    byte[] name = Encoding.UTF8.GetBytes(relative + "\n");
-                    sha.TransformBlock(name, 0, name.Length, name, 0);
-                    byte[] bytes = File.ReadAllBytes(RequireFile(path, "DHE generated C++ hash input"));
-                    sha.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
-                    byte[] separator = Encoding.UTF8.GetBytes("\n");
-                    sha.TransformBlock(separator, 0, separator.Length, separator, 0);
+                    byte[] header = Encoding.UTF8.GetBytes(record.RelativePath + "\n" + record.FunctionName +
+                        "\n" + record.MethodToken.ToString(CultureInfo.InvariantCulture) + "\n");
+                    sha.TransformBlock(header, 0, header.Length, header, 0);
+                    byte[] block = Encoding.UTF8.GetBytes(record.Block + "\n");
+                    sha.TransformBlock(block, 0, block.Length, block, 0);
                 }
                 sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                 return BitConverter.ToString(sha.Hash).Replace("-", string.Empty).ToLowerInvariant();
@@ -1849,6 +1947,7 @@ namespace HybridCLR.Editor.Commands
             public int schemaVersion;
             public int resolverVersion;
             public string abiContract;
+            public string guardHashContract;
             public string generatedCppRoot;
             public int changedMethodCount;
             public int supportedChangedMethodCount;
@@ -1856,6 +1955,14 @@ namespace HybridCLR.Editor.Commands
             public int nativeEntryCount;
             public DheNativeManifestMethod[] methods;
             public string[] unsupportedChangedMethods;
+        }
+
+        private sealed class DheGuardHashRecord
+        {
+            public string RelativePath;
+            public string FunctionName;
+            public uint MethodToken;
+            public string Block;
         }
 
         [Serializable]
