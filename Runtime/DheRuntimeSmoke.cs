@@ -40,12 +40,180 @@ namespace HybridCLR
         public int AotEntryCount;
     }
 
+    public sealed class DhePlayerSmokeOptions
+    {
+        public bool StartupFinished;
+        public string StartupError;
+        public int ExpectedChangedMethodCount;
+        public string ExpectedTarget;
+        public string ExpectedNativeManifestSha256;
+        public string ExpectedNativeGuardSourceSha256;
+    }
+
+    [Serializable]
+    public sealed class DhePlayerSmokeResult
+    {
+        public int schemaVersion = 1;
+        public string format = "hybridclr.dhe-player-result.json";
+        public bool passed;
+        public string error;
+        public string loadError;
+        public string[] plannedDheAssemblies;
+        public string[] loadedDheAssemblies;
+        public bool retryValidated;
+        public string retryAssemblyName;
+        public string retryFailure;
+        public string transactionStatus;
+        public DheAssemblySmokeValidation[] assemblyValidations;
+        public bool multiAssemblyValidated;
+        public bool buildIdentityValidated;
+        public int identityVersion;
+        public string aotSnapshotKind;
+        public string nativeGuardSourceSha256;
+        public string nativeManifestSha256;
+        public string target;
+        public bool dheEnabled;
+        public int changedMethodCount;
+        public int expectedChangedMethodCount;
+        public int interpreterEntryCount;
+        public int aotBridgeCallCount;
+        public int aotEntryCount;
+        public bool dispatchProbeValidated;
+        public bool noOpAotBehaviorValidated;
+        public bool changedProbeChanged;
+        public bool unchangedProbeChanged;
+        public DheSmokeProbeDescription selectedChangedProbe;
+        public DheSmokeProbeDescription selectedUnchangedProbe;
+        public string dispatchProbeError;
+    }
+
+    [Serializable]
+    public sealed class DheAssemblySmokeValidation
+    {
+        public string assemblyName;
+        public bool loaded;
+        public bool hashValidated;
+        public string loadError;
+    }
+
+    [Serializable]
+    public sealed class DheSmokeProbeDescription
+    {
+        public string assemblyName;
+        public string typeName;
+        public string methodName;
+    }
+
     /// <summary>
     /// Project-independent DHE dispatch validation. Projects provide only the
     /// probe configuration and optional result comparison policy.
     /// </summary>
     public static class DheRuntimeSmoke
     {
+        public static DhePlayerSmokeResult EvaluatePlayer(DhePlayerSmokeOptions options,
+            DheSmokeConfig config, Action<object, DheSmokeProbe> validateResult)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            string startupError = options.StartupError;
+            string[] planned = DheRuntime.PlannedAssemblyNames;
+            string[] loaded = DheRuntime.LoadedAssemblyNames;
+            var loadedSet = new HashSet<string>(loaded, StringComparer.OrdinalIgnoreCase);
+            bool assemblySetValid = DheRuntime.Enabled && planned.Length == loaded.Length &&
+                new HashSet<string>(planned, StringComparer.OrdinalIgnoreCase).SetEquals(loadedSet);
+            string identityError = string.Empty;
+            bool identityValid = DheRuntime.Enabled &&
+                DheRuntime.ValidateEmbeddedIdentityForRuntime(options.ExpectedTarget,
+                    options.ExpectedNativeManifestSha256,
+                    options.ExpectedNativeGuardSourceSha256, out identityError);
+            if (!identityValid && string.IsNullOrWhiteSpace(startupError))
+                startupError = identityError;
+
+            bool hasChangedMethods = options.ExpectedChangedMethodCount > 0;
+            if (hasChangedMethods && options.StartupFinished && DheRuntime.Enabled)
+            {
+                try
+                {
+                    if (!DheRuntime.RunTransactionProbe(out string transactionError) &&
+                        string.IsNullOrWhiteSpace(startupError))
+                        startupError = transactionError;
+                }
+                catch (Exception exception)
+                {
+                    if (string.IsNullOrWhiteSpace(startupError))
+                        startupError = exception.GetBaseException().Message;
+                }
+            }
+            bool retryValidated = hasChangedMethods && assemblySetValid &&
+                DheRuntime.TransactionRetryValidated;
+            string transactionStatus = hasChangedMethods
+                ? (retryValidated ? "validated" : "failed") : "notApplicable";
+
+            bool dispatchValid = RunDispatchProbes(config, hasChangedMethods, validateResult,
+                out DheDispatchProbeResult dispatch, out string dispatchError);
+            bool noOpValid = !hasChangedMethods && options.StartupFinished && identityValid &&
+                assemblySetValid && dispatchValid && !dispatch.ChangedProbeChanged &&
+                !dispatch.UnchangedProbeChanged && dispatch.InterpreterEntryCount == 0;
+            bool passed = options.StartupFinished && string.IsNullOrWhiteSpace(startupError) &&
+                identityValid && assemblySetValid && (!hasChangedMethods || retryValidated) &&
+                dispatchValid;
+            string error = passed ? null : startupError ??
+                (!DheRuntime.Enabled ? "DHE runtime plan was not enabled." :
+                (!identityValid ? "DHE Player build identity did not match the requested build." :
+                (!assemblySetValid ? "DHE planned/loaded assembly sets differ." :
+                (hasChangedMethods && !retryValidated
+                    ? "DHE transaction retry did not return registration failure." :
+                (!dispatchValid ? dispatchError ??
+                    "DHE changed/unchanged dispatch probe did not pass." :
+                    "DHE dispatch probe failed.")))));
+
+            var validations = new DheAssemblySmokeValidation[planned.Length];
+            for (int index = 0; index < planned.Length; index++)
+            {
+                bool isLoaded = loadedSet.Contains(planned[index]);
+                validations[index] = new DheAssemblySmokeValidation
+                {
+                    assemblyName = planned[index],
+                    loaded = isLoaded,
+                    hashValidated = identityValid && isLoaded,
+                    loadError = identityValid && isLoaded ? "OK" :
+                        "DHE_ASSEMBLY_VALIDATION_FAILED",
+                };
+            }
+            return new DhePlayerSmokeResult
+            {
+                passed = passed,
+                error = error,
+                loadError = passed ? "OK" : error,
+                plannedDheAssemblies = planned,
+                loadedDheAssemblies = loaded,
+                retryValidated = retryValidated,
+                retryAssemblyName = DheRuntime.TransactionRetryAssemblyName,
+                retryFailure = retryValidated ? DheRuntime.TransactionRetryFailure.ToString() : null,
+                transactionStatus = transactionStatus,
+                assemblyValidations = validations,
+                multiAssemblyValidated = assemblySetValid,
+                buildIdentityValidated = identityValid,
+                identityVersion = DheRuntime.EmbeddedIdentityVersion,
+                aotSnapshotKind = "managed-assembly-plus-generated-cpp-v1",
+                nativeGuardSourceSha256 = options.ExpectedNativeGuardSourceSha256,
+                nativeManifestSha256 = options.ExpectedNativeManifestSha256,
+                target = options.ExpectedTarget,
+                dheEnabled = DheRuntime.Enabled,
+                changedMethodCount = options.ExpectedChangedMethodCount,
+                expectedChangedMethodCount = options.ExpectedChangedMethodCount,
+                interpreterEntryCount = dispatch.InterpreterEntryCount,
+                aotBridgeCallCount = dispatch.AotBridgeCallCount,
+                aotEntryCount = dispatch.AotEntryCount,
+                dispatchProbeValidated = dispatchValid,
+                noOpAotBehaviorValidated = noOpValid,
+                changedProbeChanged = dispatch.ChangedProbeChanged,
+                unchangedProbeChanged = dispatch.UnchangedProbeChanged,
+                selectedChangedProbe = DescribeProbe(dispatch.SelectedChangedProbe),
+                selectedUnchangedProbe = DescribeProbe(dispatch.SelectedUnchangedProbe),
+                dispatchProbeError = dispatchError,
+            };
+        }
+
         public static bool RunDispatchProbes(DheSmokeConfig config, bool requireChanged,
             Action<object, DheSmokeProbe> validateResult, out DheDispatchProbeResult result,
             out string error)
@@ -212,6 +380,16 @@ namespace HybridCLR
             return string.IsNullOrWhiteSpace(name) ? string.Empty :
                 (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                     ? Path.GetFileNameWithoutExtension(name) : name.Trim());
+        }
+
+        private static DheSmokeProbeDescription DescribeProbe(DheSmokeProbe probe)
+        {
+            return probe == null ? null : new DheSmokeProbeDescription
+            {
+                assemblyName = probe.assemblyName,
+                typeName = probe.typeName,
+                methodName = probe.methodName,
+            };
         }
     }
 }
