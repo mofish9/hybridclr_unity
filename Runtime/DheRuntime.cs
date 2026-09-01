@@ -316,6 +316,22 @@ namespace HybridCLR
 
             try
             {
+                // The transaction probe must target an assembly image before
+                // the normal valid MV registration has happened. Once the
+                // image is registered, the native API correctly rejects a
+                // second registration as already loaded, which would make a
+                // post-load smoke probe test the wrong state transition.
+                if (!transactionProbeAttempted &&
+                    GetMetaVersionMethodCount(artifact.MetaVersion) > 0)
+                {
+                    if (!TryRunTransactionProbe(normalizedName, artifact, currentDll,
+                            out code, out error))
+                    {
+                        return false;
+                    }
+                    return true;
+                }
+
                 code = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
                     currentDll, artifact.MetaVersion, artifact.Snapshot);
                 if (code == LoadImageErrorCode.OK)
@@ -326,6 +342,47 @@ namespace HybridCLR
                 }
                 error = "DHE runtime returned " + code;
                 return false;
+            }
+            catch (Exception exception)
+            {
+                code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        private static bool TryRunTransactionProbe(string assemblyName,
+            DheAssemblyArtifact artifact, byte[] currentDll, out LoadImageErrorCode code,
+            out string error)
+        {
+            transactionProbeAttempted = true;
+            transactionAssemblyName = assemblyName;
+            error = string.Empty;
+            try
+            {
+                transactionFailureCode = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
+                    currentDll, CreateInvalidMetaVersion(artifact.MetaVersion), artifact.Snapshot);
+                if (transactionFailureCode != LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED)
+                {
+                    code = transactionFailureCode;
+                    error = "DHE transaction probe returned " + transactionFailureCode +
+                        " for " + assemblyName;
+                    return false;
+                }
+
+                code = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
+                    currentDll, artifact.MetaVersion, artifact.Snapshot);
+                if (code != LoadImageErrorCode.OK)
+                {
+                    error = "DHE transaction probe retry returned " + code +
+                        " for " + assemblyName;
+                    return false;
+                }
+
+                artifact.Current = currentDll == null ? null : (byte[])currentDll.Clone();
+                LoadedAssemblies.Add(assemblyName);
+                transactionRetryValidated = true;
+                return true;
             }
             catch (Exception exception)
             {
@@ -362,25 +419,8 @@ namespace HybridCLR
                     return false;
                 }
 
-                transactionAssemblyName = assemblyName;
-                transactionFailureCode = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
-                    artifact.Current, CreateInvalidMetaVersion(artifact.MetaVersion), artifact.Snapshot);
-                if (transactionFailureCode != LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED)
-                {
-                    error = "DHE transaction probe returned " + transactionFailureCode +
-                        " for " + assemblyName;
-                    return false;
-                }
-                LoadImageErrorCode retryCode = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
-                    artifact.Current, artifact.MetaVersion, artifact.Snapshot);
-                if (retryCode != LoadImageErrorCode.OK)
-                {
-                    error = "DHE transaction probe retry returned " + retryCode +
-                        " for " + assemblyName;
-                    return false;
-                }
-                transactionRetryValidated = true;
-                return true;
+                return TryRunTransactionProbe(assemblyName, artifact, artifact.Current,
+                    out _, out error);
             }
 
             error = "DHE transaction probe found no MV with changed methods.";
