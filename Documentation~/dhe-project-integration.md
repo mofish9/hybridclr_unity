@@ -15,6 +15,8 @@ A Unity project supplies only framework-specific callbacks.
 
 Package lock, source-boundary, and smoke-probe JSON files are project policy
 data. Keep them under `ProjectSettings/DHE`; they are not package logic.
+Pass `-PackageLockPath` and `-SourceBoundaryPath` explicitly when invoking a
+toolchain version whose generated config still uses the legacy Assets path.
 
 ## Editor adapter
 
