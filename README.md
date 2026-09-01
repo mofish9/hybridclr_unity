@@ -22,6 +22,7 @@ HybridCLR扩充了il2cpp运行时代码，使它由纯[AOT](https://en.wikipedia
 ## 文档
 
 - [官方文档](https://www.hybridclr.cn/docs/intro)
+- [定制 DHE 项目接入](Documentation~/dhe-project-integration.md)
 - [快速上手](https://www.hybridclr.cn/docs/beginner/quickstart)
 - [商业项目案例](https://www.hybridclr.cn/docs/other/businesscase)
 - [LeanCLR](https://github.com/focus-creative-games/leanclr)
