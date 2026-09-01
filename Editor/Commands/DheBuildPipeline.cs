@@ -277,13 +277,11 @@ namespace HybridCLR.Editor.Commands
                 }
 
                 string dllFileName = assemblyName + DllBytesExtension;
-                string baselineFileName = assemblyName + ".baseline.dll.bytes";
                 string mvFileName = assemblyName + ".mv.bytes";
                 string snapshotFileName = assemblyName + ".aot-snapshot.bytes";
                 File.WriteAllBytes(Path.Combine(currentAssetRoot, dllFileName), currentBytes);
                 byte[] baselineBytes = File.ReadAllBytes(baselinePath);
                 byte[] snapshotBytes = Sha256(baselineBytes);
-                File.WriteAllBytes(Path.Combine(currentAssetRoot, baselineFileName), baselineBytes);
                 File.WriteAllBytes(Path.Combine(currentAssetRoot, mvFileName), mvBytes);
                 File.WriteAllBytes(Path.Combine(currentAssetRoot, snapshotFileName), snapshotBytes);
 
@@ -292,8 +290,6 @@ namespace HybridCLR.Editor.Commands
                     assemblyName = assemblyName,
                     current = ResolveRuntimeAssetPath(options, projectRoot,
                         Path.Combine(currentAssetRoot, dllFileName)),
-                    baseline = ResolveRuntimeAssetPath(options, projectRoot,
-                        Path.Combine(currentAssetRoot, baselineFileName)),
                     mv = ResolveRuntimeAssetPath(options, projectRoot,
                         Path.Combine(currentAssetRoot, mvFileName)),
                     snapshot = ResolveRuntimeAssetPath(options, projectRoot,
@@ -2041,7 +2037,6 @@ namespace HybridCLR.Editor.Commands
         {
             public string assemblyName;
             public string current;
-            public string baseline;
             public string mv;
             public string snapshot;
             public string currentSha256;

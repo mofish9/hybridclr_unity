@@ -49,6 +49,10 @@ scene and Player callbacks. Set the assembly transform, load-order, dependency
 map, extra runtime assets, and Player smoke callbacks only when the project
 needs them.
 
+Runtime assets contain the current DLL, MV binary, and baseline snapshot hash.
+The complete baseline DLL is retained only in the workflow handoff output for
+independent validation and must not be collected into the resource package.
+
 Map the project's resource build report to `DheProjectResourceAsset` and
 `DheProjectResourceBundle`, then call
 `DheProjectResourceSupport.ValidateAndWrite`. The package derives the required
