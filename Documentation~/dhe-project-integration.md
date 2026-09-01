@@ -47,6 +47,12 @@ scene and Player callbacks. Set the assembly transform, load-order, dependency
 map, extra runtime assets, and Player smoke callbacks only when the project
 needs them.
 
+Map the project's resource build report to `DheProjectResourceAsset` and
+`DheProjectResourceBundle`, then call
+`DheProjectResourceSupport.ValidateAndWrite`. The package derives the required
+asset set from the runtime plan and writes the standard evidence. Use
+`DheProjectSmokeSupport.Run` for the standard headless Player protocol.
+
 The initial Android/iOS Player build can call
 `DheBuildPipeline.BuildBootstrapPlayer`. Normal non-DHE builds should call
 `DheBuildPipeline.ClearDheRuntimePlanAssets` before collecting legacy hotfix
