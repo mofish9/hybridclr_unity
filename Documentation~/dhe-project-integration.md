@@ -112,6 +112,10 @@ may differ under `dhe-runtime-protocol-v1`; a Base is accepted only
 when its declared capability set contains every capability required by its own
 Base-to-current diff. Keep every still-supported production Base in the command
 input. Omitting an old Base is equivalent to ending support for it.
+Every resource update requires `resource-update-plan-integrity-v1`; updates carrying
+supplemental metadata also require `resource-update-aot-metadata-path-v1`. Both are
+part of BuildIdentity/baseId, so a Player built with an older managed runtime is
+rejected instead of being treated as an equivalent Base.
 
 ## Runtime adapter
 
