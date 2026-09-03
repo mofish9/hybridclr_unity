@@ -635,6 +635,7 @@ namespace HybridCLR.Editor.Commands
                 requestedAssemblies.Add(mv.assemblyName);
                 foreach (DheMvMethod method in mv.methods.Where(item => item != null &&
                     item.token != 0 &&
+                    (item.flags & 8u) != 0 &&
                     !item.isAbstract && !item.isPInvoke))
                 {
                     requested.Add(new DheGuardMethod
@@ -1314,6 +1315,7 @@ namespace HybridCLR.Editor.Commands
                     stableId = ReadJsonString(objectText, "stableId"),
                     name = ReadJsonString(objectText, "name"),
                     token = checked((uint)ReadJsonInt(objectText, "token")),
+                    flags = checked((uint)ReadJsonInt(objectText, "flags")),
                     declaringType = ReadJsonString(objectText, "declaringType"),
                     returnType = ReadJsonString(objectText, "returnType"),
                     parameterTypes = ReadJsonStringArray(objectText, "parameterTypes"),
@@ -2337,6 +2339,7 @@ namespace HybridCLR.Editor.Commands
             public string stableId;
             public string name;
             public uint token;
+            public uint flags;
             public string declaringType;
             public string returnType;
             public string[] parameterTypes;
