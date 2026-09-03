@@ -44,28 +44,36 @@ namespace HybridCLR
 #endif
 
         /// <summary>
-        /// Legacy DHE entry point. It is retained for ABI compatibility, but
-        /// the strict overload must be used because a snapshot hash is
-        /// required to bind the MV to the player AOT image.
+        /// Loads one current interpreter image and compares its MetaVersion
+        /// with the immutable MetaVersion embedded by this Base Player.
         /// </summary>
 #if UNITY_EDITOR
-        [Obsolete("Use the overload with aotSnapshotHash for DHE loading.")]
-        public static LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes)
-        {
-            return LoadImageErrorCode.DHE_MV_BAD_SNAPSHOT_HASH;
-        }
-
-        public static LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes, byte[] aotSnapshotHash)
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(
+            byte[] dllBytes, byte[] baseMetaVersion, byte[] currentMetaVersion)
         {
             return LoadImageErrorCode.NOT_IMPLEMENT;
         }
 #else
-        [Obsolete("Use the overload with aotSnapshotHash for DHE loading.")]
         [MethodImpl(MethodImplOptions.InternalCall)]
-        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes);
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(
+            byte[] dllBytes, byte[] baseMetaVersion, byte[] currentMetaVersion);
+#endif
 
+        /// <summary>
+        /// Loads and registers a complete DHE assembly set as one dispatch
+        /// transaction. No assembly becomes DHE-visible unless all entries
+        /// validate and prepare successfully.
+        /// </summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersion(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
         [MethodImpl(MethodImplOptions.InternalCall)]
-        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyWithMetaVersion(byte[] dllBytes, byte[] mvBytes, byte[] aotSnapshotHash);
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersion(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions);
 #endif
 
         /// <summary>Returns whether a loaded DHE MV marks this method as changed.</summary>

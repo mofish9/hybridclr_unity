@@ -1,80 +1,136 @@
 # DHE project integration
 
-The customized package owns DHE assembly generation, runtime-plan staging,
-native guard finalization, build identity generation, and runtime validation.
-A Unity project supplies only framework-specific callbacks.
+The customized package owns DHE current-assembly generation, Base MetaVersion and
+BuildIdentity staging, native guard finalization, runtime-plan validation, and
+runtime dispatch. A Unity project supplies only resource, signing, Player
+output, and device-smoke callbacks.
 
 ## Project-owned files
 
-- `ProjectSettings/HybridCLRSettings.asset`: `dheAotAssemblies` policy.
-- A build adapter: scenes, Player build scopes, resource packaging evidence,
-  platform output naming, and target smoke launch.
-- A runtime asset provider for the project's resource framework.
-- A generated build-identity template under `Assets`.
-- Runtime bootstrap calls at the existing hot-update load points.
+- `ProjectSettings/HybridCLRSettings.asset`: explicit, equal
+  `hotUpdateAssemblies` and `dheAotAssemblies` sets.
+- A build adapter: scenes, Player output, resource evidence, signing, and smoke.
+- An `IDheRuntimeAssetProvider` for the project's resource framework.
+- The generated zero BuildIdentity template under `Assets`.
+- One runtime bootstrap call at the existing hot-update load point.
+- Package lock, source boundary, and release policy under
+  `ProjectSettings/DHE`.
 
-Package lock, source-boundary, and smoke-probe JSON files are project policy
-data. Keep them under `ProjectSettings/DHE`; they are not package logic.
-Pass `-PackageLockPath` and `-SourceBoundaryPath` explicitly when invoking a
-toolchain version whose generated config still uses the legacy Assets path.
+The package directory may retain a Unity version suffix such as
+`com.code-philosophy.hybridclr@8.13.0`; do not rename it.
 
-## Editor adapter
+## Base Player adapter
 
 Create a `DheProjectWorkflowAdapter` and delegate the generic entry points:
 
 ```csharp
-public static void Prepare()
-{
+public static void Prepare() =>
     DheProjectWorkflowRunner.Prepare(CreateAdapter());
-}
 
-public static void StageRuntimePlan()
-{
+public static void StageRuntimePlan() =>
     DheProjectWorkflowRunner.StageRuntimePlan(CreateAdapter());
-}
 
-public static void BuildScriptsOnly()
-{
+public static void BuildScriptsOnly() =>
     DheProjectWorkflowRunner.BuildScriptsOnly(CreateAdapter());
-}
 
-public static void BuildFinalPlayer()
-{
+public static void BuildFinalPlayer() =>
     DheProjectWorkflowRunner.BuildFinalPlayer(CreateAdapter());
-}
 ```
 
-The adapter must set `ProjectRoot`, `RuntimeAssetRoot`, build identity fields,
-scene and Player callbacks. Set the assembly transform, load-order, dependency
-map, extra runtime assets, and Player smoke callbacks only when the project
-needs them.
+The adapter sets `ProjectRoot`, `RuntimeAssetRoot`, BuildIdentity fields,
+scene and Player callbacks. Assembly transform, load order, dependency map,
+extra assets, and smoke callbacks are optional project policies.
 
-Runtime assets contain the current DLL, MV binary, and baseline snapshot hash.
-The complete baseline DLL is retained only in the workflow handoff output for
-independent validation and must not be collected into the resource package.
+Run the host with `-Bootstrap -RunPlayer` for a new Base. The scripts-only
+phase emits universal guards and stages Base MetaVersion plus a
+`state=staged-for-final-player` identity. The final phase compiles the exact
+identity and always restores the source template. Archive `baseline/`,
+`build-identity.json`, and `native/dhe-native-manifest.json` for every
+online Base.
 
-Map the project's resource build report to `DheProjectResourceAsset` and
-`DheProjectResourceBundle`, then call
-`DheProjectResourceSupport.ValidateAndWrite`. The package derives the required
-asset set from the runtime plan and writes the standard evidence. Use
-`DheProjectSmokeSupport.Run` for the standard headless Player protocol.
+`DheBuildPipeline.BuildPlayer` adds `HYBRIDCLR_DHE_BASE_PLAYER` only to the
+Base Player compilation. A project may use this symbol for Base-only AOT
+contract probes that intentionally reference APIs removed from a later current
+assembly; ordinary Editor and current-generation compilation do not receive
+that symbol.
 
-The initial Android/iOS Player build can call
-`DheBuildPipeline.BuildBootstrapPlayer`. Normal non-DHE builds should call
-`DheBuildPipeline.ClearDheRuntimePlanAssets` before collecting legacy hotfix
-assets so a previous DHE plan cannot leak into the package.
+`build-identity.json` uses identity v1. Its `baseId` is a composite SHA-256 over
+the target, managed/AOT/Base-MetaVersion sets, native guard/manifest, runtime
+protocol/contract/capabilities, and runtime asset roots. Do not use an app
+version or managed assembly hash as a Base selector.
+`runtimeContract` is an immutable runtime implementation release identifier;
+every managed or native runtime implementation change must allocate a new
+value. Compatibility across those values is decided by protocol and capability
+subset, never by treating two implementation builds as the same Base.
+
+Android and iOS use the same complete `DheProjectWorkflowRunner` lifecycle;
+building a Player directly is not a bootstrap because it would omit the
+runtime plan, universal guards, and BuildIdentity stages. Normal non-DHE builds
+must call `DheBuildPipeline.ClearDheRuntimePlanAssets` before collecting legacy
+hotfix assets.
+
+## Resource-only update
+
+Later releases call `DheBuildPipeline.GenerateCurrentArtifacts` (or the
+package workflow's Prepare phase) to compile one current DLL set. The C# host
+`resource-update` command validates that set against all archived online Base
+identities and emits one payload:
+
+```text
+payload/<assembly>.dll.bytes
+payload/<assembly>.mv.bytes
+payload/<patch-aot-assembly>.bytes   # when supplemental metadata is enabled
+dhe-runtime-plan.json
+dhe-resource-update.json
+dhe-resource-update-validation.json
+```
+
+`PrepareProjectArtifacts` brackets a project-owned current-input callback
+with an `AfterCurrentGeneration` callback in `finally`. Projects that swap
+precompiled DHE inputs must restore the Base-compatible inputs there so a
+failed generation cannot leave the Unity project uncompilable.
+
+No Base DLL or Base MetaVersion is copied into this payload. Use the host
+`stage-resource-update` command before the project's YooAsset, Addressables,
+or custom catalog build, and pass the exact Player archive's
+`build-identity.json` with `-BaseBuildIdentity`. It validates the identity
+schema, composite `baseId`, and file SHA, selects that exact `supportedBases`
+record, and checks every embedded Base MetaVersion against it. This remains
+unambiguous when two Player builds share the same Base MetaVersion set but have
+different runtime/native identities. It also proves that the embedded tree and
+optional Player/GameAssembly files did not change.
+The manifest binds `dhe-runtime-plan.json` with `runtimePlanSha256`; staging validates
+that hash and every current DLL, MetaVersion, and optional supplemental AOT metadata
+payload before copying. Missing or modified bytes reject the whole update.
+`DheProjectResourceSupport.ValidateAndWrite` remains the structured evidence
+boundary for a project-owned resource build.
+
+The host derives `runtimeAssetRoot` and `baseMetaVersionAssetRoot` from the
+archived identities and requires every supported Base to agree. It also derives
+`requiredRuntimeCapabilities` independently for each Base. Runtime build labels
+may differ under `dhe-runtime-protocol-v1`; a Base is accepted only
+when its declared capability set contains every capability required by its own
+Base-to-current diff. Keep every still-supported production Base in the command
+input. Omitting an old Base is equivalent to ending support for it.
 
 ## Runtime adapter
 
-Implement `IDheRuntimeAssetProvider` for YooAsset, Addressables, StreamingAssets,
-or the project's custom resource system. During the existing hot-update load
-flow:
+Implement `IDheRuntimeAssetProvider` for the resource system. During the
+existing hot-update load flow:
 
-1. Call `DheRuntime.Reset` and `DheRuntime.Initialize`.
-2. Validate the supplemental AOT metadata list and each metadata payload.
-3. Before `Assembly.Load`, call `DheRuntime.LoadAssemblyImage` for assemblies
-   selected by `DheRuntime.IsDheAssembly`.
+1. Construct the compile-time `DheRuntimeIdentity` from the generated identity
+   class.
+2. Call `DheRuntime.Reset`, then
+   `DheRuntime.InitializeFromResourceUpdate(provider, identity,
+   manifestAssetPath, out error)`.
+3. Call `DheRuntime.LoadAotMetadataImages`; it resolves paths from the validated
+   runtime plan, verifies every payload before the first native load, and then loads
+   the complete supplemental metadata set.
+4. Read every planned current DLL, preserve the project load order, and call
+   `DheRuntime.LoadAssemblyImages` once before any ordinary `Assembly.Load`
+   or game logic. The batch call publishes the complete DHE set atomically.
 
-Project code must not reimplement MV parsing, snapshot validation, transaction
-retry, changed-method dispatch checks, or native identity convergence. Those
-operations belong to this package.
+Every Player reads Base MetaVersion from its immutable built-in asset root and compares
+it with the one remote current MetaVersion. Project code must not select a per-Base
+remote delta or reimplement MV parsing, Base identity matching, transaction
+retry, changed-method dispatch, or native identity checks.

@@ -135,6 +135,11 @@ namespace HybridCLR.Editor.Commands
                     options = buildOptions,
                     target = target,
                     targetGroup = BuildPipeline.GetBuildTargetGroup(target),
+#if UNITY_2021_2_OR_NEWER
+                    extraScriptingDefines = DheBuildPipeline.IsCurrentGenerationBuild
+                        ? new[] { DheBuildPipeline.CurrentGenerationScriptingDefine }
+                        : Array.Empty<string>(),
+#endif
 #if UNITY_SERVER
                     subtarget = (int)StandaloneBuildSubtarget.Server,
 #endif

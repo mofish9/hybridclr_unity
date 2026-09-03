@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using UnityEngine;
 
@@ -26,12 +27,19 @@ namespace HybridCLR
         public int IdentityVersion;
         public string Target;
         public string AotSnapshotKind;
-        public string BaselineAssemblySha256;
+        public string BaseId;
+        public string ManagedAssemblySetSha256;
         public string AotSnapshotSha256;
         public string NativeGuardSourceSha256;
         public string NativeManifestSha256;
+        public string BaseMetaVersionSetSha256;
+        public string RuntimeProtocol;
+        public string RuntimeContract;
+        public string[] RuntimeCapabilities;
+        public string RuntimeAssetRoot;
+        public string BaseMetaVersionAssetRoot;
         public string[] AssemblyNames;
-        public string[] SnapshotHashes;
+        public string[] BaseMetaVersionHashes;
     }
 
     /// <summary>
@@ -43,10 +51,31 @@ namespace HybridCLR
     {
         private const string PlanAssetPath = "Assets/GameMain/HotfixDlls/DheRuntimePlan.json";
         private const string DefaultAssetRoot = "Assets/GameMain/HotfixDlls/";
+		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
+		private const string NativeRuntimeContract = "dhe-runtime-v1";
+        private static readonly string[] NativeRuntimeCapabilities =
+        {
+            "aot-guard-v1",
+            "single-current-multibase-v1",
+            "atomic-multi-assembly-registration-v1",
+			"supplemental-existing-type-instance-fields-v1",
+            "supplemental-existing-type-static-fields-v1",
+			"supplemental-existing-type-methods-v1",
+			"removed-existing-type-methods-v1",
+			"existing-type-method-signature-replacement-v1",
+			"removed-existing-type-fields-v1",
+			"removed-types-v1",
+			"logical-existing-type-properties-events-v1",
+			"logical-existing-member-custom-attributes-v1",
+            "supplemental-nested-types-v1",
+            "supplemental-top-level-types-v1",
+        };
 
         private static readonly Dictionary<string, DheAssemblyArtifact> Artifacts =
             new Dictionary<string, DheAssemblyArtifact>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> AotMetadataHashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> AotMetadataPaths =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedAssemblies =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -54,6 +83,7 @@ namespace HybridCLR
         private static bool enabled;
         private static bool transactionProbeAttempted;
         private static bool transactionRetryValidated;
+        private static bool validationProbesEnabled;
         private static string transactionAssemblyName;
         private static LoadImageErrorCode transactionFailureCode =
             LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
@@ -65,6 +95,10 @@ namespace HybridCLR
         {
             public int schemaVersion;
             public string format;
+            public string selection;
+            public string currentAssemblySetSha256;
+            public string runtimeAssetRoot;
+            public string baseMetaVersionAssetRoot;
             public DheAotMetadataRecord[] aotMetadata;
             public DheAssemblyRecord[] assemblies;
         }
@@ -73,8 +107,69 @@ namespace HybridCLR
         private sealed class DheAssemblyRecord
         {
             public string assemblyName;
-            public string mv;
-            public string snapshot;
+            public string current;
+            public string currentSha256;
+            public string currentMetaVersion;
+            public string baseMetaVersion;
+            public string currentMetaVersionSha256;
+        }
+
+        [Serializable]
+        private sealed class DheSupportedBase
+        {
+            public string baseId;
+            public string target;
+            public string aotSnapshotSha256;
+            public string baseMetaVersionSetSha256;
+            public string nativeGuardSourceSha256;
+            public string nativeManifestSha256;
+            public string managedAssemblySetSha256;
+            public string runtimeProtocol;
+            public string nativeRuntimeContract;
+            public string[] runtimeCapabilities;
+            public string[] requiredRuntimeCapabilities;
+            public string runtimeAssetRoot;
+            public string baseMetaVersionAssetRoot;
+            public string buildIdentitySha256;
+            public string compatibilityPolicy;
+            public bool compatible;
+            public bool guardCoverageValidated;
+            public int unsupportedChangeCount;
+        }
+
+        [Serializable]
+        private sealed class ResourceUpdateManifest
+        {
+            public int schemaVersion;
+            public string format;
+            public string payloadModel;
+            public int metaVersionSchema;
+            public string runtimeComparison;
+            public string compatibilityPolicy;
+            public string runtimeProtocol;
+            public bool compatibilityValidated;
+            public bool playerUpdateRequired;
+            public bool guardCoverageValidated;
+            public string currentAssemblySetSha256;
+            public string runtimeAssetRoot;
+            public string baseMetaVersionAssetRoot;
+            public string runtimePlan;
+            public string runtimePlanSha256;
+            public string validation;
+            public string validationSha256;
+            public DheSupportedBase[] supportedBases;
+        }
+
+        [Serializable]
+        private sealed class ResourceUpdateValidation
+        {
+            public int schemaVersion;
+            public string format;
+            public bool passed;
+            public string compatibilityPolicy;
+            public string runtimeProtocol;
+            public string currentAssemblySetSha256;
+            public DheSupportedBase[] bases;
         }
 
         [Serializable]
@@ -82,13 +177,15 @@ namespace HybridCLR
         {
             public string assemblyName;
             public string sha256;
+            public string path;
         }
 
         private sealed class DheAssemblyArtifact
         {
             public byte[] MetaVersion;
-            public byte[] Snapshot;
+            public byte[] BaseMetaVersion;
             public byte[] Current;
+            public string ExpectedCurrentSha256;
         }
 
         public static bool Enabled => enabled;
@@ -135,6 +232,7 @@ namespace HybridCLR
         {
             Artifacts.Clear();
             AotMetadataHashes.Clear();
+            AotMetadataPaths.Clear();
             LoadedAssemblies.Clear();
             identity = null;
             assetRoot = DefaultAssetRoot;
@@ -144,10 +242,12 @@ namespace HybridCLR
             transactionRetryValidated = false;
             transactionAssemblyName = null;
             transactionFailureCode = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            validationProbesEnabled = false;
         }
 
         public static bool Initialize(IDheRuntimeAssetProvider provider, DheRuntimeIdentity buildIdentity,
-            out string error, string planAssetPath = PlanAssetPath, string runtimeAssetRoot = DefaultAssetRoot)
+            out string error, string planAssetPath = PlanAssetPath, string runtimeAssetRoot = DefaultAssetRoot,
+            bool enableValidationProbes = false)
         {
             error = string.Empty;
             if (initialized)
@@ -178,6 +278,7 @@ namespace HybridCLR
                 assetRoot = NormalizeAssetRoot(runtimeAssetRoot);
                 identity = buildIdentity ?? throw new InvalidDataException(
                     "DHE Player build identity is missing.");
+                validationProbesEnabled = enableValidationProbes;
                 RuntimePlan plan = JsonUtility.FromJson<RuntimePlan>(provider.LoadText(planAssetPath));
                 if (plan == null || plan.schemaVersion != 1 ||
                     !string.Equals(plan.format, "hybridclr.dhe-runtime-asset-plan.json",
@@ -185,6 +286,20 @@ namespace HybridCLR
                 {
                     throw new InvalidDataException("DHE runtime plan has an invalid schema or no assemblies.");
                 }
+                if (!string.Equals(NormalizeAssetRoot(plan.runtimeAssetRoot), assetRoot,
+                         StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(NormalizeAssetRoot(plan.baseMetaVersionAssetRoot),
+                         NormalizeAssetRoot(identity.BaseMetaVersionAssetRoot),
+                         StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(assetRoot, NormalizeAssetRoot(identity.RuntimeAssetRoot),
+                         StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "DHE runtime plan asset roots do not match the Player identity.");
+                }
+                if (!string.Equals(plan.selection, "embedded-base-metaversion",
+                        StringComparison.Ordinal))
+                    throw new InvalidDataException("DHE runtime plan has an invalid selection mode.");
 
                 foreach (DheAssemblyRecord record in plan.assemblies)
                 {
@@ -194,11 +309,23 @@ namespace HybridCLR
                         throw new InvalidDataException(
                             "DHE runtime plan contains an empty or duplicate assembly.");
                     }
+                    byte[] currentMetaVersion = provider.LoadBytes(ValidateAssetPath(
+                        record.currentMetaVersion, assemblyName + " current MetaVersion"));
+                    if (!IsSha256(record.currentSha256) ||
+                        !IsSha256(record.currentMetaVersionSha256) ||
+                        !string.Equals(Sha256Hex(currentMetaVersion),
+                            record.currentMetaVersionSha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            "DHE runtime plan current payload hash binding is invalid: " + assemblyName);
+                    }
                     Artifacts.Add(assemblyName, new DheAssemblyArtifact
                     {
-                        MetaVersion = provider.LoadBytes(ValidateAssetPath(record.mv, assemblyName + " mv")),
-                        Snapshot = provider.LoadBytes(ValidateAssetPath(record.snapshot,
-                            assemblyName + " snapshot")),
+                        MetaVersion = currentMetaVersion,
+                        BaseMetaVersion = provider.LoadBytes(ValidateBaseMetaVersionAssetPath(
+                            record.baseMetaVersion, plan.baseMetaVersionAssetRoot,
+                            assemblyName + " Base MetaVersion")),
+                        ExpectedCurrentSha256 = record.currentSha256.ToLowerInvariant(),
                     });
                 }
 
@@ -207,6 +334,8 @@ namespace HybridCLR
                 {
                     string assemblyName = NormalizeAssemblyName(record?.assemblyName);
                     string hash = record?.sha256;
+                    string path = ValidateAssetPath(record?.path,
+                        assemblyName + " AOT metadata");
                     if (string.IsNullOrWhiteSpace(assemblyName) ||
                         AotMetadataHashes.ContainsKey(assemblyName) || !IsSha256(hash))
                     {
@@ -214,6 +343,7 @@ namespace HybridCLR
                             "DHE runtime plan contains an invalid AOT metadata record.");
                     }
                     AotMetadataHashes.Add(assemblyName, hash.ToLowerInvariant());
+                    AotMetadataPaths.Add(assemblyName, path);
                 }
 
                 ValidateEmbeddedIdentity();
@@ -227,6 +357,7 @@ namespace HybridCLR
             {
                 Artifacts.Clear();
                 AotMetadataHashes.Clear();
+                AotMetadataPaths.Clear();
                 LoadedAssemblies.Clear();
                 identity = null;
                 enabled = false;
@@ -234,6 +365,273 @@ namespace HybridCLR
                 error = exception.Message;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Validates that the one current payload was audited for this Base.
+        /// Base-specific MetaVersion bytes remain embedded in the Player and
+        /// are never selected from the remote update.
+        /// </summary>
+        public static bool TryValidateResourceUpdate(IDheRuntimeAssetProvider provider,
+            DheRuntimeIdentity buildIdentity, string manifestAssetPath, out string error)
+        {
+            error = string.Empty;
+            if (provider == null || buildIdentity == null)
+            {
+                error = "DHE resource update selection requires a provider and Player identity.";
+                return false;
+            }
+            try
+            {
+                if (!provider.Exists(manifestAssetPath))
+                {
+                    error = "DHE resource update manifest was not found: " + manifestAssetPath;
+                    return false;
+                }
+                ResourceUpdateManifest manifest = JsonUtility.FromJson<ResourceUpdateManifest>(
+                    provider.LoadText(manifestAssetPath));
+                if (manifest == null || manifest.schemaVersion != 1 ||
+                    !string.Equals(manifest.format, "hybridclr.dhe-resource-update.json",
+                        StringComparison.Ordinal) ||
+                    !string.Equals(manifest.payloadModel, "single-current-payload",
+                        StringComparison.Ordinal) ||
+                    manifest.metaVersionSchema != 1 || manifest.playerUpdateRequired ||
+                    !manifest.guardCoverageValidated ||
+                    !string.Equals(manifest.runtimeComparison,
+                        "embedded-base-mv-vs-current-mv", StringComparison.Ordinal) ||
+                    !IsCompatibilityPolicy(manifest.compatibilityPolicy) ||
+                    !string.Equals(manifest.runtimeProtocol, buildIdentity.RuntimeProtocol,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(NormalizeAssetRoot(manifest.runtimeAssetRoot),
+                        NormalizeAssetRoot(buildIdentity.RuntimeAssetRoot),
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(NormalizeAssetRoot(manifest.baseMetaVersionAssetRoot),
+                        NormalizeAssetRoot(buildIdentity.BaseMetaVersionAssetRoot),
+                        StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(manifest.runtimeAssetRoot) ||
+                    string.IsNullOrWhiteSpace(manifest.baseMetaVersionAssetRoot) ||
+                    !manifest.compatibilityValidated || !IsSha256(manifest.currentAssemblySetSha256) ||
+                    !IsSha256(manifest.validationSha256) ||
+                    !IsSha256(manifest.runtimePlanSha256) ||
+                    !string.Equals(manifest.runtimePlan, "dhe-runtime-plan.json",
+                        StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(manifest.validation) ||
+                    manifest.validation.Contains("/") || manifest.validation.Contains("\\") ||
+                    manifest.supportedBases == null)
+                {
+                    error = "DHE single-payload resource update schema is invalid.";
+                    return false;
+                }
+                string manifestDirectory = Path.GetDirectoryName(
+                    manifestAssetPath.Replace('/', Path.DirectorySeparatorChar))?
+                    .Replace(Path.DirectorySeparatorChar, '/') ?? string.Empty;
+                string validationPath = string.IsNullOrEmpty(manifestDirectory)
+                    ? manifest.validation : manifestDirectory.TrimEnd('/') + "/" + manifest.validation;
+                if (!provider.Exists(validationPath))
+                {
+                    error = "DHE resource compatibility validation was not found: " + validationPath;
+                    return false;
+                }
+                byte[] validationBytes = provider.LoadBytes(validationPath);
+                if (!string.Equals(Sha256Hex(validationBytes), manifest.validationSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE resource compatibility validation hash mismatch.";
+                    return false;
+                }
+                ResourceUpdateValidation validation = JsonUtility.FromJson<ResourceUpdateValidation>(
+                    System.Text.Encoding.UTF8.GetString(validationBytes));
+                if (validation == null || validation.schemaVersion != 1 || !validation.passed ||
+                    !string.Equals(validation.format,
+                        "hybridclr.dhe-resource-update-validation.json", StringComparison.Ordinal) ||
+                    !string.Equals(validation.compatibilityPolicy, manifest.compatibilityPolicy,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(validation.runtimeProtocol, manifest.runtimeProtocol,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(validation.currentAssemblySetSha256,
+                        manifest.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase) ||
+                    validation.bases == null)
+                {
+                    error = "DHE resource compatibility validation is invalid.";
+                    return false;
+                }
+                string baseId = buildIdentity.BaseId;
+                if (buildIdentity.IdentityVersion != 1 || !IsSha256(baseId) ||
+                    string.IsNullOrWhiteSpace(buildIdentity.Target) ||
+                    !IsSha256(buildIdentity.ManagedAssemblySetSha256) ||
+                    !IsSha256(buildIdentity.AotSnapshotSha256) ||
+                    !IsSha256(buildIdentity.BaseMetaVersionSetSha256) ||
+                    !IsSha256(buildIdentity.NativeGuardSourceSha256) ||
+                    !IsSha256(buildIdentity.NativeManifestSha256) ||
+                    string.IsNullOrWhiteSpace(buildIdentity.RuntimeAssetRoot) ||
+                    string.IsNullOrWhiteSpace(buildIdentity.BaseMetaVersionAssetRoot) ||
+                    !string.Equals(baseId, ComputeBaseId(buildIdentity),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE Player identity is incomplete for resource update selection.";
+                    return false;
+                }
+                DheSupportedBase[] matches = manifest.supportedBases.Where(item =>
+                    MatchesPlayerBase(item, buildIdentity)).ToArray();
+                DheSupportedBase[] validatedMatches = validation.bases.Where(item =>
+                    MatchesPlayerBase(item, buildIdentity)).ToArray();
+                if (matches.Length != 1 || !matches[0].compatible ||
+                    !matches[0].guardCoverageValidated ||
+                    matches[0].unsupportedChangeCount != 0 ||
+                    !HasRequiredRuntimeCapabilities(matches[0], buildIdentity) ||
+                    !string.Equals(matches[0].compatibilityPolicy,
+                        manifest.compatibilityPolicy, StringComparison.Ordinal) ||
+                    !string.Equals(matches[0].baseMetaVersionSetSha256,
+                        buildIdentity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(matches[0].nativeManifestSha256,
+                        buildIdentity.NativeManifestSha256, StringComparison.OrdinalIgnoreCase) ||
+                    validatedMatches.Length != 1 || !validatedMatches[0].compatible ||
+                    !validatedMatches[0].guardCoverageValidated ||
+                    validatedMatches[0].unsupportedChangeCount != 0 ||
+                    !HasRequiredRuntimeCapabilities(validatedMatches[0], buildIdentity) ||
+                    !string.Equals(validatedMatches[0].baseMetaVersionSetSha256,
+                        matches[0].baseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(validatedMatches[0].aotSnapshotSha256,
+                        matches[0].aotSnapshotSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(validatedMatches[0].nativeGuardSourceSha256,
+                        matches[0].nativeGuardSourceSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(validatedMatches[0].nativeManifestSha256,
+                        matches[0].nativeManifestSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(validatedMatches[0].nativeRuntimeContract,
+                        matches[0].nativeRuntimeContract, StringComparison.Ordinal) ||
+                    !string.Equals(validatedMatches[0].runtimeProtocol,
+                        matches[0].runtimeProtocol, StringComparison.Ordinal) ||
+                    !IsSha256(matches[0].buildIdentitySha256) ||
+                    !string.Equals(validatedMatches[0].buildIdentitySha256,
+                        matches[0].buildIdentitySha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(validatedMatches[0].compatibilityPolicy,
+                        matches[0].compatibilityPolicy, StringComparison.Ordinal) ||
+                    !new HashSet<string>(validatedMatches[0].runtimeCapabilities ??
+                            Array.Empty<string>(), StringComparer.Ordinal)
+                        .SetEquals(matches[0].runtimeCapabilities ?? Array.Empty<string>()) ||
+                    !new HashSet<string>(validatedMatches[0].requiredRuntimeCapabilities ??
+                            Array.Empty<string>(), StringComparer.Ordinal)
+                        .SetEquals(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()))
+                {
+                    error = "DHE current payload was not validated for Player base " + baseId + ".";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        private static bool MatchesPlayerBase(DheSupportedBase candidate,
+            DheRuntimeIdentity buildIdentity)
+        {
+            return candidate != null && buildIdentity != null &&
+                string.Equals(candidate.baseId, buildIdentity.BaseId,
+                    StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.target, buildIdentity.Target, StringComparison.Ordinal) &&
+                string.Equals(candidate.managedAssemblySetSha256,
+                    buildIdentity.ManagedAssemblySetSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.aotSnapshotSha256, buildIdentity.AotSnapshotSha256,
+                    StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.baseMetaVersionSetSha256,
+                    buildIdentity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.nativeGuardSourceSha256,
+                    buildIdentity.NativeGuardSourceSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.nativeManifestSha256,
+                    buildIdentity.NativeManifestSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.runtimeProtocol, buildIdentity.RuntimeProtocol,
+                    StringComparison.Ordinal) &&
+                string.Equals(candidate.nativeRuntimeContract, buildIdentity.RuntimeContract,
+                    StringComparison.Ordinal) &&
+                string.Equals(NormalizeAssetRoot(candidate.runtimeAssetRoot),
+                    NormalizeAssetRoot(buildIdentity.RuntimeAssetRoot),
+                    StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizeAssetRoot(candidate.baseMetaVersionAssetRoot),
+                    NormalizeAssetRoot(buildIdentity.BaseMetaVersionAssetRoot),
+                    StringComparison.OrdinalIgnoreCase) &&
+                new HashSet<string>(candidate.runtimeCapabilities ?? Array.Empty<string>(),
+                    StringComparer.Ordinal).SetEquals(buildIdentity.RuntimeCapabilities ??
+                    Array.Empty<string>());
+        }
+
+        private static bool HasRequiredRuntimeCapabilities(DheSupportedBase candidate,
+            DheRuntimeIdentity buildIdentity)
+        {
+            if (candidate == null || buildIdentity == null ||
+                !string.Equals(candidate.runtimeProtocol, buildIdentity.RuntimeProtocol,
+                    StringComparison.Ordinal) ||
+                !string.Equals(candidate.nativeRuntimeContract, buildIdentity.RuntimeContract,
+                    StringComparison.Ordinal)) return false;
+            string[] required = candidate.requiredRuntimeCapabilities ?? Array.Empty<string>();
+            if (required.Length == 0 || required.Any(string.IsNullOrWhiteSpace) ||
+                required.Distinct(StringComparer.Ordinal).Count() != required.Length) return false;
+            return new HashSet<string>(buildIdentity.RuntimeCapabilities ?? Array.Empty<string>(),
+                StringComparer.Ordinal).IsSupersetOf(required);
+        }
+
+        /// <summary>Initializes one current payload against this Player's embedded Base MV.</summary>
+        public static bool InitializeFromResourceUpdate(IDheRuntimeAssetProvider provider,
+            DheRuntimeIdentity buildIdentity, string manifestAssetPath, out string error,
+            string runtimeAssetRoot = DefaultAssetRoot, bool enableValidationProbes = false)
+        {
+            error = string.Empty;
+            if (!TryValidateResourceUpdate(provider, buildIdentity, manifestAssetPath,
+                    out error)) return false;
+            try
+            {
+                ResourceUpdateManifest manifest = JsonUtility.FromJson<ResourceUpdateManifest>(
+                    provider.LoadText(manifestAssetPath));
+                if (manifest == null || manifest.schemaVersion != 1 ||
+                    !string.Equals(manifest.format, "hybridclr.dhe-resource-update.json", StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(manifest.runtimePlan))
+                {
+                    error = "DHE resource update manifest is invalid.";
+                    return false;
+                }
+                string directory = Path.GetDirectoryName(manifestAssetPath.Replace('/', Path.DirectorySeparatorChar))?.Replace(Path.DirectorySeparatorChar, '/') ?? string.Empty;
+                string planPath = manifest.runtimePlan.Replace('\\', '/');
+                if (!planPath.StartsWith("Assets/", StringComparison.Ordinal) && !string.IsNullOrEmpty(directory))
+                    planPath = directory.TrimEnd('/') + "/" + planPath;
+                if (planPath.Split('/').Any(segment => segment == "." || segment == ".."))
+                {
+                    error = "DHE resource update runtime plan path is unsafe.";
+                    return false;
+                }
+                if (!provider.Exists(planPath))
+                {
+                    error = "DHE resource update runtime plan was not found: " + planPath;
+                    return false;
+                }
+                byte[] runtimePlanBytes = provider.LoadBytes(planPath);
+                if (!string.Equals(Sha256Hex(runtimePlanBytes), manifest.runtimePlanSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE resource manifest runtime plan hash mismatch.";
+                    return false;
+                }
+                RuntimePlan updatePlan = JsonUtility.FromJson<RuntimePlan>(
+                    System.Text.Encoding.UTF8.GetString(runtimePlanBytes));
+                if (updatePlan == null || updatePlan.schemaVersion != 1 ||
+                    !string.Equals(updatePlan.currentAssemblySetSha256,
+                        manifest.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE resource manifest and runtime plan current sets do not match.";
+                    return false;
+                }
+                string manifestRoot = NormalizeAssetRoot(manifest.runtimeAssetRoot);
+                if (!string.Equals(NormalizeAssetRoot(runtimeAssetRoot), manifestRoot,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE requested runtime asset root does not match the resource manifest.";
+                    return false;
+                }
+                return Initialize(provider, buildIdentity, out error, planPath, manifestRoot,
+                    enableValidationProbes);
+            }
+            catch (Exception exception) { error = exception.Message; return false; }
         }
 
         public static bool IsDheAssembly(string assemblyName)
@@ -302,10 +700,70 @@ namespace HybridCLR
             return true;
         }
 
+        /// <summary>
+        /// Validates every planned supplemental metadata payload before loading any of them.
+        /// Paths come from the authenticated runtime plan, so resource-only updates can place
+        /// metadata below their own payload directory.
+        /// </summary>
+        public static bool LoadAotMetadataImages(IDheRuntimeAssetProvider provider,
+            HomologousImageMode mode, out LoadImageErrorCode code, out string error)
+        {
+            code = LoadImageErrorCode.OK;
+            error = string.Empty;
+            if (!enabled)
+            {
+                error = "DHE runtime must be initialized before loading AOT metadata.";
+                return false;
+            }
+            if (provider == null)
+            {
+                error = "DHE runtime asset provider is null.";
+                return false;
+            }
+
+            try
+            {
+                var payloads = new List<KeyValuePair<string, byte[]>>();
+                foreach (string assemblyName in AotMetadataPaths.Keys.OrderBy(name => name,
+                             StringComparer.Ordinal))
+                {
+                    byte[] bytes = provider.LoadBytes(AotMetadataPaths[assemblyName]);
+                    if (!ValidateAotMetadata(assemblyName, bytes, out error)) return false;
+                    payloads.Add(new KeyValuePair<string, byte[]>(assemblyName, bytes));
+                }
+
+                foreach (KeyValuePair<string, byte[]> payload in payloads)
+                {
+                    code = RuntimeApi.LoadMetadataForAOTAssembly(payload.Value, mode);
+                    if (code != LoadImageErrorCode.OK &&
+                        code != LoadImageErrorCode.HOMOLOGOUS_ASSEMBLY_HAS_LOADED)
+                    {
+                        error = "DHE failed to load AOT metadata '" + payload.Key + "': " + code;
+                        return false;
+                    }
+                }
+                code = LoadImageErrorCode.OK;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                code = LoadImageErrorCode.BAD_IMAGE;
+                error = exception.Message;
+                return false;
+            }
+        }
+
         public static bool LoadAssemblyImage(string assemblyName, byte[] currentDll,
             out LoadImageErrorCode code, out string error)
         {
             error = string.Empty;
+            if (Artifacts.Count != 1)
+            {
+                code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+                error = "DHE plans with multiple assemblies must use LoadAssemblyImages " +
+                    "to preserve atomic registration.";
+                return false;
+            }
             string normalizedName = NormalizeAssemblyName(assemblyName);
             if (!Artifacts.TryGetValue(normalizedName, out DheAssemblyArtifact artifact))
             {
@@ -316,13 +774,21 @@ namespace HybridCLR
 
             try
             {
+                if (artifact.ExpectedCurrentSha256 != null &&
+                    !string.Equals(Sha256Hex(currentDll ?? Array.Empty<byte>()),
+                        artifact.ExpectedCurrentSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH;
+                    error = "DHE current assembly does not match the runtime plan: " + normalizedName;
+                    return false;
+                }
                 // The transaction probe must target an assembly image before
                 // the normal valid MV registration has happened. Once the
                 // image is registered, the native API correctly rejects a
                 // second registration as already loaded, which would make a
                 // post-load smoke probe test the wrong state transition.
-                if (!transactionProbeAttempted &&
-                    GetMetaVersionMethodCount(artifact.MetaVersion) > 0)
+                if (validationProbesEnabled && !transactionProbeAttempted &&
+                    HasTransactionProbeCandidate(artifact))
                 {
                     if (!TryRunTransactionProbe(normalizedName, artifact, currentDll,
                             out code, out error))
@@ -333,7 +799,7 @@ namespace HybridCLR
                 }
 
                 code = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
-                    currentDll, artifact.MetaVersion, artifact.Snapshot);
+                    currentDll, artifact.BaseMetaVersion, artifact.MetaVersion);
                 if (code == LoadImageErrorCode.OK)
                 {
                     artifact.Current = currentDll == null ? null : (byte[])currentDll.Clone();
@@ -342,6 +808,98 @@ namespace HybridCLR
                 }
                 error = "DHE runtime returned " + code;
                 return false;
+            }
+            catch (Exception exception)
+            {
+                code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        public static bool LoadAssemblyImages(string[] assemblyNames, byte[][] currentDlls,
+            out LoadImageErrorCode code, out string error)
+        {
+            error = string.Empty;
+            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            if (!enabled || assemblyNames == null || currentDlls == null ||
+                assemblyNames.Length == 0 || assemblyNames.Length != currentDlls.Length ||
+                assemblyNames.Length != Artifacts.Count || LoadedAssemblies.Count != 0)
+            {
+                error = "DHE batch load must contain the complete unloaded runtime plan.";
+                return false;
+            }
+
+            try
+            {
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var artifacts = new DheAssemblyArtifact[assemblyNames.Length];
+                var normalizedNames = new string[assemblyNames.Length];
+                var baseMetaVersions = new byte[assemblyNames.Length][];
+                var currentMetaVersions = new byte[assemblyNames.Length][];
+                for (int index = 0; index < assemblyNames.Length; index++)
+                {
+                    string name = NormalizeAssemblyName(assemblyNames[index]);
+                    byte[] dll = currentDlls[index];
+                    if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) ||
+                        !Artifacts.TryGetValue(name, out DheAssemblyArtifact artifact) ||
+                        dll == null ||
+                        !string.Equals(Sha256Hex(dll), artifact.ExpectedCurrentSha256,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH;
+                        error = "DHE batch assembly is missing, duplicated, or has the wrong hash: " +
+                            name;
+                        return false;
+                    }
+                    normalizedNames[index] = name;
+                    artifacts[index] = artifact;
+                    baseMetaVersions[index] = artifact.BaseMetaVersion;
+                    currentMetaVersions[index] = artifact.MetaVersion;
+                }
+
+                if (validationProbesEnabled && !transactionProbeAttempted)
+                {
+                    int probeIndex = Array.FindIndex(artifacts, HasTransactionProbeCandidate);
+                    if (probeIndex >= 0)
+                    {
+                        transactionProbeAttempted = true;
+                        transactionAssemblyName = normalizedNames[probeIndex];
+                        byte[][] invalidBaseMetaVersions =
+                            (byte[][])baseMetaVersions.Clone();
+                        invalidBaseMetaVersions[probeIndex] = CreateInvalidBaseMetaVersion(
+                            artifacts[probeIndex].BaseMetaVersion,
+                            artifacts[probeIndex].MetaVersion);
+                        transactionFailureCode =
+                            RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersion(
+                                currentDlls, invalidBaseMetaVersions, currentMetaVersions);
+                        if (transactionFailureCode !=
+                            LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED)
+                        {
+                            code = transactionFailureCode;
+                            error = "DHE atomic batch transaction probe returned " + code + ".";
+                            return false;
+                        }
+                    }
+                }
+
+                code = RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersion(
+                    currentDlls, baseMetaVersions, currentMetaVersions);
+                if (code != LoadImageErrorCode.OK)
+                {
+                    error = "DHE atomic batch runtime returned " + code + ".";
+                    return false;
+                }
+                for (int index = 0; index < normalizedNames.Length; index++)
+                {
+                    artifacts[index].Current = (byte[])currentDlls[index].Clone();
+                    LoadedAssemblies.Add(normalizedNames[index]);
+                }
+                if (transactionProbeAttempted)
+                {
+                    transactionRetryValidated = true;
+                }
+                return true;
             }
             catch (Exception exception)
             {
@@ -361,7 +919,8 @@ namespace HybridCLR
             try
             {
                 transactionFailureCode = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
-                    currentDll, CreateInvalidMetaVersion(artifact.MetaVersion), artifact.Snapshot);
+                    currentDll, CreateInvalidBaseMetaVersion(artifact.BaseMetaVersion,
+                        artifact.MetaVersion), artifact.MetaVersion);
                 if (transactionFailureCode != LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED)
                 {
                     code = transactionFailureCode;
@@ -371,7 +930,7 @@ namespace HybridCLR
                 }
 
                 code = RuntimeApi.LoadDifferentialHybridAssemblyWithMetaVersion(
-                    currentDll, artifact.MetaVersion, artifact.Snapshot);
+                    currentDll, artifact.BaseMetaVersion, artifact.MetaVersion);
                 if (code != LoadImageErrorCode.OK)
                 {
                     error = "DHE transaction probe retry returned " + code +
@@ -409,7 +968,7 @@ namespace HybridCLR
             foreach (string assemblyName in PlannedAssemblyNames)
             {
                 DheAssemblyArtifact artifact = Artifacts[assemblyName];
-                if (artifact.MetaVersion == null || GetMetaVersionMethodCount(artifact.MetaVersion) <= 0)
+                if (!HasTransactionProbeCandidate(artifact))
                 {
                     continue;
                 }
@@ -454,27 +1013,42 @@ namespace HybridCLR
 
         private static void ValidateEmbeddedIdentity()
         {
-            if (identity.IdentityVersion != 2 || !string.Equals(identity.AotSnapshotKind,
-                "managed-assembly-plus-generated-cpp-v1", StringComparison.Ordinal))
+            if (identity.IdentityVersion != 1 || !string.Equals(identity.AotSnapshotKind,
+                    "managed-assembly-plus-generated-cpp-v1", StringComparison.Ordinal) ||
+                !string.Equals(identity.RuntimeProtocol, NativeRuntimeProtocol,
+                    StringComparison.Ordinal) ||
+                !string.Equals(identity.RuntimeContract, NativeRuntimeContract,
+                    StringComparison.Ordinal) ||
+                !new HashSet<string>(identity.RuntimeCapabilities ?? Array.Empty<string>(),
+                    StringComparer.Ordinal).SetEquals(NativeRuntimeCapabilities))
             {
                 throw new InvalidDataException(
                     "DHE Player build identity version or snapshot kind is invalid.");
             }
-            if (!IsSha256(identity.BaselineAssemblySha256) ||
+            if (!IsSha256(identity.BaseId) ||
+                !IsSha256(identity.ManagedAssemblySetSha256) ||
                 !IsSha256(identity.AotSnapshotSha256) ||
+                !IsSha256(identity.BaseMetaVersionSetSha256) ||
                 !IsSha256(identity.NativeGuardSourceSha256) ||
-                !IsSha256(identity.NativeManifestSha256) || string.IsNullOrWhiteSpace(identity.Target))
+                !IsSha256(identity.NativeManifestSha256) ||
+                string.IsNullOrWhiteSpace(identity.Target) ||
+                string.IsNullOrWhiteSpace(identity.RuntimeAssetRoot) ||
+                string.IsNullOrWhiteSpace(identity.BaseMetaVersionAssetRoot) ||
+                !string.Equals(identity.BaseId, ComputeBaseId(identity),
+                    StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("DHE Player build identity is incomplete.");
             }
-            if (identity.AssemblyNames == null || identity.SnapshotHashes == null ||
-                identity.AssemblyNames.Length != identity.SnapshotHashes.Length ||
+            if (identity.AssemblyNames == null || identity.BaseMetaVersionHashes == null ||
+                identity.AssemblyNames.Length != identity.BaseMetaVersionHashes.Length ||
                 identity.AssemblyNames.Length != Artifacts.Count || identity.AssemblyNames.Length == 0)
             {
                 throw new InvalidDataException("DHE Player build identity is missing or empty.");
             }
 
             HashSet<string> identityNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<KeyValuePair<string, byte[]>> baseMetaVersions =
+                new List<KeyValuePair<string, byte[]>>();
             for (int index = 0; index < identity.AssemblyNames.Length; index++)
             {
                 string assemblyName = NormalizeAssemblyName(identity.AssemblyNames[index]);
@@ -484,43 +1058,104 @@ namespace HybridCLR
                         "DHE Player build identity contains an empty or duplicate assembly.");
                 }
                 if (!Artifacts.TryGetValue(assemblyName, out DheAssemblyArtifact artifact) ||
-                    artifact.Snapshot == null || !string.Equals(ToHex(artifact.Snapshot),
-                        identity.SnapshotHashes[index], StringComparison.OrdinalIgnoreCase))
+                    artifact.BaseMetaVersion == null ||
+                    !string.Equals(Sha256Hex(artifact.BaseMetaVersion),
+                        identity.BaseMetaVersionHashes[index], StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException(
-                        "DHE Player build identity does not match assembly snapshot: " + assemblyName);
+                        "DHE Player build identity does not match Base MetaVersion: " + assemblyName);
                 }
+                baseMetaVersions.Add(new KeyValuePair<string, byte[]>(assemblyName,
+                    artifact.BaseMetaVersion));
             }
+            if (!string.Equals(Sha256NamedByteSet(baseMetaVersions),
+                    identity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException(
+                    "DHE Player identity Base MetaVersion set hash does not match embedded assets.");
         }
 
-        private static int GetMetaVersionMethodCount(byte[] metaVersion)
+        private static bool HasTransactionProbeCandidate(DheAssemblyArtifact artifact)
         {
-            if (metaVersion == null || metaVersion.Length < 20 ||
-                !string.Equals(System.Text.Encoding.ASCII.GetString(metaVersion, 0, 8),
-                    "DHEMVLT1", StringComparison.Ordinal))
-            {
-                return 0;
-            }
-            uint methodCount = BitConverter.ToUInt32(metaVersion, 16);
-            uint nameSize = BitConverter.ToUInt32(metaVersion, 12);
-            return methodCount == 0 || nameSize > int.MaxValue ||
-                88L + nameSize + 4L * methodCount > metaVersion.Length
-                    ? 0 : checked((int)methodCount);
+            return artifact != null && artifact.MetaVersion != null &&
+                FindChangedMetaVersionMethodTokenOffset(artifact.BaseMetaVersion,
+                    artifact.MetaVersion) >= 0;
         }
 
-        private static byte[] CreateInvalidMetaVersion(byte[] metaVersion)
+        private static byte[] CreateInvalidBaseMetaVersion(byte[] baseMetaVersion,
+            byte[] currentMetaVersion)
         {
-            int methodCount = GetMetaVersionMethodCount(metaVersion);
-            int nameSize = checked((int)BitConverter.ToUInt32(metaVersion, 12));
-            int tokenOffset = checked(88 + nameSize);
-            if (methodCount <= 0 || tokenOffset > metaVersion.Length - 4)
+            int tokenOffset = FindChangedMetaVersionMethodTokenOffset(baseMetaVersion,
+                currentMetaVersion);
+            if (tokenOffset < 0)
             {
                 throw new InvalidDataException(
-                    "DHE MV payload has no method token for the transaction probe.");
+                    "DHE MetaVersion has no changed existing method for the transaction probe.");
             }
-            byte[] invalid = (byte[])metaVersion.Clone();
+            byte[] invalid = (byte[])baseMetaVersion.Clone();
             Buffer.BlockCopy(BitConverter.GetBytes(0x0600ffffu), 0, invalid, tokenOffset, 4);
             return invalid;
+        }
+
+        private static int FindChangedMetaVersionMethodTokenOffset(byte[] baseMetaVersion,
+            byte[] currentMetaVersion)
+        {
+            if (!TryGetMetaVersionMethodTable(baseMetaVersion, out int baseStart,
+                    out int baseCount) ||
+                !TryGetMetaVersionMethodTable(currentMetaVersion, out int currentStart,
+                    out int currentCount))
+            {
+                return -1;
+            }
+            Dictionary<string, string> currentMethods = new Dictionary<string, string>(
+                currentCount, StringComparer.Ordinal);
+            for (int index = 0; index < currentCount; index++)
+            {
+                int offset = checked(currentStart + index * 104);
+                currentMethods[Convert.ToBase64String(currentMetaVersion, offset, 32)] =
+                    Convert.ToBase64String(currentMetaVersion, offset + 32, 32);
+            }
+            for (int index = 0; index < baseCount; index++)
+            {
+                int offset = checked(baseStart + index * 104);
+                string stableId = Convert.ToBase64String(baseMetaVersion, offset, 32);
+                string version = Convert.ToBase64String(baseMetaVersion, offset + 32, 32);
+                uint flags = BitConverter.ToUInt32(baseMetaVersion, offset + 100);
+                bool canHaveAotEntry = (flags & 8u) != 0 && (flags & (2u | 4u)) == 0;
+                if (canHaveAotEntry && (!currentMethods.TryGetValue(stableId,
+                        out string currentVersion) ||
+                    !string.Equals(version, currentVersion, StringComparison.Ordinal)))
+                {
+                    return offset + 96;
+                }
+            }
+            return -1;
+        }
+
+        private static bool TryGetMetaVersionMethodTable(byte[] metaVersion,
+            out int methodStart, out int methodCount)
+        {
+            methodStart = 0;
+            methodCount = 0;
+            if (metaVersion == null || metaVersion.Length < 60 ||
+                !string.Equals(System.Text.Encoding.ASCII.GetString(metaVersion, 0, 8),
+                    "DHEMETA1", StringComparison.Ordinal) ||
+                BitConverter.ToUInt32(metaVersion, 8) != 1)
+            {
+                return false;
+            }
+            uint nameSize = BitConverter.ToUInt32(metaVersion, 16);
+            uint typeCount = BitConverter.ToUInt32(metaVersion, 20);
+            uint rawMethodCount = BitConverter.ToUInt32(metaVersion, 24);
+            long start = 60L + nameSize + 72L * typeCount;
+            long expectedSize = start + 104L * rawMethodCount;
+            if (start > int.MaxValue || rawMethodCount > int.MaxValue ||
+                expectedSize != metaVersion.Length)
+            {
+                return false;
+            }
+            methodStart = checked((int)start);
+            methodCount = checked((int)rawMethodCount);
+            return true;
         }
 
         private static string ValidateAssetPath(string path, string description)
@@ -538,6 +1173,81 @@ namespace HybridCLR
                     " path escapes the hotfix asset root: " + path);
             }
             return normalized;
+        }
+
+        private static string ValidateBaseMetaVersionAssetPath(string path, string expectedRoot,
+            string description)
+        {
+            if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(expectedRoot))
+                throw new InvalidDataException("DHE " + description + " path is empty.");
+            string normalized = path.Replace('\\', '/');
+            string root = NormalizeAssetRoot(expectedRoot);
+            if (!normalized.StartsWith(root, StringComparison.Ordinal) ||
+                normalized.Split('/').Any(segment => segment == "." || segment == ".."))
+                throw new InvalidDataException("DHE " + description +
+                    " path escapes the immutable Base MetaVersion root: " + path);
+            return normalized;
+        }
+
+        private static string Sha256Hex(byte[] bytes)
+        {
+            using (SHA256 sha = SHA256.Create()) return ToHex(sha.ComputeHash(bytes ?? Array.Empty<byte>()));
+        }
+
+        private static string ComputeBaseId(DheRuntimeIdentity value)
+        {
+            string[] capabilities = (value.RuntimeCapabilities ?? Array.Empty<string>())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .Distinct(StringComparer.Ordinal).OrderBy(item => item,
+                    StringComparer.Ordinal).ToArray();
+            string canonical = "hybridclr.dhe-base-identity-v1\n" +
+                "target=" + (value.Target ?? string.Empty) + "\n" +
+                "managedAssemblySetSha256=" +
+                (value.ManagedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "aotSnapshotSha256=" +
+                (value.AotSnapshotSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "baseMetaVersionSetSha256=" +
+                (value.BaseMetaVersionSetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "nativeGuardSourceSha256=" +
+                (value.NativeGuardSourceSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "nativeManifestSha256=" +
+                (value.NativeManifestSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "runtimeProtocol=" + (value.RuntimeProtocol ?? string.Empty) + "\n" +
+                "runtimeContract=" + (value.RuntimeContract ?? string.Empty) + "\n" +
+                "runtimeCapabilities=" + string.Join(",", capabilities) + "\n" +
+                "runtimeAssetRoot=" + NormalizeAssetRoot(value.RuntimeAssetRoot) + "\n" +
+                "baseMetaVersionAssetRoot=" +
+                NormalizeAssetRoot(value.BaseMetaVersionAssetRoot) + "\n";
+            return Sha256Hex(System.Text.Encoding.UTF8.GetBytes(canonical));
+        }
+
+        private static bool IsCompatibilityPolicy(string value)
+        {
+            const string Prefix = "dhe-proven-safe-subset-";
+            return !string.IsNullOrWhiteSpace(value) &&
+                value.StartsWith(Prefix, StringComparison.Ordinal) &&
+                value.Length <= 128 && value.All(character => char.IsLetterOrDigit(character) ||
+                    character == '-' || character == '.' || character == '_');
+        }
+
+        private static string Sha256NamedByteSet(
+            IEnumerable<KeyValuePair<string, byte[]>> records)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                foreach (KeyValuePair<string, byte[]> record in records.OrderBy(item => item.Key,
+                             StringComparer.Ordinal))
+                {
+                    byte[] name = System.Text.Encoding.UTF8.GetBytes(record.Key + "\n");
+                    sha.TransformBlock(name, 0, name.Length, name, 0);
+                    byte[] bytes = record.Value ?? Array.Empty<byte>();
+                    sha.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
+                    byte[] separator = { (byte)'\n' };
+                    sha.TransformBlock(separator, 0, separator.Length, separator, 0);
+                }
+                sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                return ToHex(sha.Hash);
+            }
         }
 
         private static string NormalizeAssetRoot(string value)

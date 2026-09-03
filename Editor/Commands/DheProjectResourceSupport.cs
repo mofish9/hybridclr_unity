@@ -168,8 +168,7 @@ namespace HybridCLR.Editor.Commands
                     throw new BuildFailedException(
                         "DHE runtime asset plan contains an unnamed assembly.");
                 add(assembly.current, "current", name);
-                add(assembly.mv, "mv", name);
-                add(assembly.snapshot, "snapshot", name);
+                add(assembly.currentMetaVersion, "current-metaversion", name);
             }
 
             string text = File.ReadAllText(aotListPath).Trim();
@@ -279,8 +278,7 @@ namespace HybridCLR.Editor.Commands
         {
             public string assemblyName;
             public string current;
-            public string mv;
-            public string snapshot;
+            public string currentMetaVersion;
         }
         private sealed class RequiredAssetSpec
         {

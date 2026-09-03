@@ -20,6 +20,12 @@ namespace HybridCLR.Editor.Commands
             scriptCompilationSettings.group = group;
             scriptCompilationSettings.target = target;
             scriptCompilationSettings.options = developmentBuild ? ScriptCompilationOptions.DevelopmentBuild : ScriptCompilationOptions.None;
+#if UNITY_2021_2_OR_NEWER
+            scriptCompilationSettings.extraScriptingDefines =
+                DheBuildPipeline.IsCurrentGenerationBuild
+                    ? new[] { DheBuildPipeline.CurrentGenerationScriptingDefine }
+                    : Array.Empty<string>();
+#endif
             Directory.CreateDirectory(buildDir);
             ScriptCompilationResult scriptCompilationResult = PlayerBuildInterface.CompilePlayerScripts(scriptCompilationSettings, buildDir);
 #if UNITY_2022

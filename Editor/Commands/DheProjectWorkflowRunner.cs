@@ -127,6 +127,8 @@ namespace HybridCLR.Editor.Commands
             RequireAdapter(adapter);
             DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(true);
             context.EnsureTarget();
+            DheProjectBuildSupport.ValidateStagedBuildIdentity(
+                CreateIdentityOptions(adapter, context));
             try
             {
                 DheNativeFinalizeResult result = BuildPlayer(adapter, context, BuildOptions.None);
@@ -200,6 +202,7 @@ namespace HybridCLR.Editor.Commands
                 ProjectPlanPath = context.ProjectPlanPath,
                 OutputRoot = context.OutputRoot,
                 Target = context.TargetName,
+                GuardAllMethods = context.GetBooleanArgument("-dheBootstrap"),
             };
         }
 
@@ -211,9 +214,14 @@ namespace HybridCLR.Editor.Commands
                 ProjectRoot = adapter.ProjectRoot,
                 OutputRoot = context.OutputRoot,
                 BaselineRoot = context.BaselineRoot,
+                ProjectPlanPath = context.ProjectPlanPath,
                 Target = context.TargetName,
                 Workflow = adapter.Workflow,
                 BuildIdentityAssetPath = adapter.BuildIdentityAssetPath,
+                RuntimePlanPath = Path.Combine(adapter.RuntimeAssetRoot,
+                    "DheRuntimePlan.json"),
+                BaseMetaVersionAssetRoot = Path.Combine(adapter.RuntimeAssetRoot,
+                    "BaseMetaVersion"),
                 IdentityNamespace = adapter.IdentityNamespace,
                 IdentityClassName = adapter.IdentityClassName,
             };
@@ -224,6 +232,7 @@ namespace HybridCLR.Editor.Commands
             if (adapter == null) throw new ArgumentNullException(nameof(adapter));
             if (string.IsNullOrWhiteSpace(adapter.ProjectRoot) || adapter.GetScenes == null ||
                 adapter.BuildPlayer == null || adapter.ResolvePlayerOutput == null ||
+                string.IsNullOrWhiteSpace(adapter.RuntimeAssetRoot) ||
                 string.IsNullOrWhiteSpace(adapter.BuildIdentityAssetPath) ||
                 string.IsNullOrWhiteSpace(adapter.IdentityNamespace) ||
                 string.IsNullOrWhiteSpace(adapter.IdentityClassName))

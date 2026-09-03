@@ -34,6 +34,7 @@ namespace HybridCLR.Editor.Commands
                 BeeLogPath = Path.Combine(outputRoot, "native", "bee-rebuild.log"),
                 RequireCompleteCoverage = true,
                 RebuildPlayer = rebuildPlayer,
+                GuardAllMethods = options.GuardAllMethods,
                 BeeMaxAttempts = options.BeeMaxAttempts,
                 BeeTimeoutSeconds = options.BeeTimeoutSeconds,
             };
@@ -49,7 +50,7 @@ namespace HybridCLR.Editor.Commands
             string adapterRoot = Path.Combine(Path.GetFullPath(options.OutputRoot), "adapter");
             Directory.CreateDirectory(adapterRoot);
             DheNativeGuardResult guard = nativeResult.GuardResult;
-            bool guardPassed = guard.UnsupportedMethodCount == 0 &&
+            bool guardPassed = guard.UnsupportedChangedMethodCount == 0 &&
                 (guard.RequestedMethodCount == 0 || guard.NativeEntryCount > 0);
             WriteJson(Path.Combine(adapterRoot, "native-guards.json"), new NativeGuardsEvidence
             {
@@ -67,6 +68,12 @@ namespace HybridCLR.Editor.Commands
                 transformedMethodCount = guard.TransformedMethodCount,
                 nativeEntryCount = guard.NativeEntryCount,
                 unsupportedMethodCount = guard.UnsupportedMethodCount,
+                guardMode = guard.GuardMode,
+                guardedMethodCount = guard.GuardedMethodCount,
+                supportedGuardedMethodCount = guard.SupportedGuardedMethodCount,
+                unsupportedGuardedMethodCount = guard.UnsupportedGuardedMethodCount,
+                interpreterOnlyMethodCount = guard.InterpreterOnlyMethodCount,
+                unsupportedChangedMethodCount = guard.UnsupportedChangedMethodCount,
             });
             if (!guardPassed)
                 throw new BuildFailedException("DHE native guard coverage is incomplete.");
@@ -115,8 +122,16 @@ namespace HybridCLR.Editor.Commands
             string baselineRoot = Path.GetFullPath(options.BaselineRoot);
             var baselineRecords = new List<KeyValuePair<string, byte[]>>();
             var snapshotRecords = new List<KeyValuePair<string, byte[]>>();
-            var snapshotHashes = new List<string>();
+            var baseMetaVersionRecords = new List<KeyValuePair<string, byte[]>>();
+            var baseMetaVersionHashes = new List<string>();
             var assemblyEvidence = new List<BuildIdentityAssembly>();
+            string projectPlanPath = RequireFile(options.ProjectPlanPath,
+                "project plan for build identity");
+            BuildIdentityProjectPlan projectPlan = JsonUtility.FromJson<BuildIdentityProjectPlan>(
+                File.ReadAllText(projectPlanPath));
+            if (projectPlan?.assemblies == null)
+                throw new BuildFailedException("DHE build identity project plan has no assemblies.");
+            string projectPlanRoot = Path.GetDirectoryName(projectPlanPath);
             foreach (string assemblyName in assemblyNames)
             {
                 string baselinePath = RequireFile(Path.Combine(baselineRoot, assemblyName + ".dll"),
@@ -124,26 +139,95 @@ namespace HybridCLR.Editor.Commands
                 byte[] baselineBytes = File.ReadAllBytes(baselinePath);
                 byte[] snapshotBytes = Sha256(baselineBytes);
                 string snapshotHash = ToHex(snapshotBytes);
+                BuildIdentityProjectAssembly planAssembly = projectPlan.assemblies.SingleOrDefault(item =>
+                    string.Equals(NormalizeAssemblyName(item?.assemblyName), assemblyName,
+                        StringComparison.OrdinalIgnoreCase));
+                if (planAssembly == null || string.IsNullOrWhiteSpace(
+                        planAssembly.baseMetaVersionBytes))
+                    throw new BuildFailedException("DHE project plan has no Base MetaVersion for " +
+                        assemblyName + ".");
+                string baseMetaVersionPath = Path.IsPathRooted(planAssembly.baseMetaVersionBytes)
+                    ? Path.GetFullPath(planAssembly.baseMetaVersionBytes)
+                    : Path.GetFullPath(Path.Combine(projectPlanRoot,
+                        planAssembly.baseMetaVersionBytes));
+                byte[] baseMetaVersionBytes = File.ReadAllBytes(RequireFile(baseMetaVersionPath,
+                    assemblyName + " Base MetaVersion for build identity"));
+                string baseMetaVersionHash = ToHex(Sha256(baseMetaVersionBytes));
+                string embeddedBaseMetaVersionPath = ResolveOptionalProjectPath(options.ProjectRoot,
+                    options.BaseMetaVersionAssetRoot, assemblyName + ".mv.bytes");
+                string embeddedBaseMetaVersionHash = string.Empty;
+                if (!string.IsNullOrWhiteSpace(embeddedBaseMetaVersionPath))
+                {
+                    embeddedBaseMetaVersionPath = RequireFile(embeddedBaseMetaVersionPath,
+                        assemblyName + " embedded Base MetaVersion");
+                    embeddedBaseMetaVersionHash = ToHex(Sha256(
+                        File.ReadAllBytes(embeddedBaseMetaVersionPath)));
+                    if (!string.Equals(baseMetaVersionHash, embeddedBaseMetaVersionHash,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new BuildFailedException("DHE embedded Base MetaVersion does not match " +
+                            "the current Base plan for " + assemblyName + ". Run StageRuntimePlan again.");
+                }
                 baselineRecords.Add(new KeyValuePair<string, byte[]>(assemblyName, baselineBytes));
                 snapshotRecords.Add(new KeyValuePair<string, byte[]>(assemblyName, snapshotBytes));
-                snapshotHashes.Add(snapshotHash);
+                baseMetaVersionRecords.Add(new KeyValuePair<string, byte[]>(assemblyName,
+                    baseMetaVersionBytes));
+                baseMetaVersionHashes.Add(baseMetaVersionHash);
                 assemblyEvidence.Add(new BuildIdentityAssembly
                 {
                     assemblyName = assemblyName,
                     baselinePath = baselinePath,
                     baselineSha256 = snapshotHash,
                     snapshotSha256 = snapshotHash,
+                    baseMetaVersionPath = baseMetaVersionPath,
+                    baseMetaVersionSha256 = baseMetaVersionHash,
+                    embeddedBaseMetaVersionPath = ToProjectRelativePath(options.ProjectRoot,
+                        embeddedBaseMetaVersionPath),
+                    embeddedBaseMetaVersionSha256 = embeddedBaseMetaVersionHash,
                 });
             }
 
             string baselineSetHash = Sha256NamedByteSet(baselineRecords);
             string snapshotSetHash = Sha256NamedByteSet(snapshotRecords);
+            string baseMetaVersionSetHash = Sha256NamedByteSet(baseMetaVersionRecords);
             DheNativeGuardResult guard = nativeResult.GuardResult;
+            string runtimePlanPath = RequireFile(ResolveProjectPath(options.ProjectRoot,
+                options.RuntimePlanPath), "runtime plan for build identity");
+            BuildIdentityRuntimePlan runtimePlan = JsonUtility.FromJson<BuildIdentityRuntimePlan>(
+                File.ReadAllText(runtimePlanPath));
+            if (runtimePlan == null || runtimePlan.schemaVersion != 1 ||
+                !string.Equals(runtimePlan.format,
+                    "hybridclr.dhe-runtime-asset-plan.json", StringComparison.Ordinal))
+                throw new BuildFailedException(
+                    "DHE build identity requires the current runtime plan schema.");
+            string runtimeAssetRoot = NormalizeAssetRoot(runtimePlan.runtimeAssetRoot,
+                "runtime asset root");
+            string baseMetaVersionAssetRoot = NormalizeAssetRoot(
+                runtimePlan.baseMetaVersionAssetRoot, "Base MetaVersion asset root");
+            if (!baseMetaVersionAssetRoot.StartsWith(runtimeAssetRoot,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException(
+                    "DHE Base MetaVersion asset root must be below the runtime asset root.");
+            if (string.IsNullOrWhiteSpace(guard.RuntimeProtocol) ||
+                string.IsNullOrWhiteSpace(guard.RuntimeContract) ||
+                guard.RuntimeCapabilities == null || guard.RuntimeCapabilities.Length == 0)
+                throw new BuildFailedException(
+                    "DHE native result has no runtime protocol or capability identity.");
+            string[] runtimeCapabilities = guard.RuntimeCapabilities
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.Ordinal).OrderBy(value => value,
+                    StringComparer.Ordinal).ToArray();
+            string baseId = ComputeBaseId(options.Target, baselineSetHash, snapshotSetHash,
+                baseMetaVersionSetHash, guard.NativeGuardSourceSha256,
+                guard.NativeManifestSha256, guard.RuntimeProtocol, guard.RuntimeContract,
+                runtimeCapabilities, runtimeAssetRoot, baseMetaVersionAssetRoot);
             string sourcePath = ResolveProjectAsset(options.ProjectRoot,
                 options.BuildIdentityAssetPath);
-            File.WriteAllText(sourcePath, BuildIdentitySource(options, baselineSetHash,
-                snapshotSetHash, guard, assemblyNames, snapshotHashes.ToArray()),
-                new UTF8Encoding(false));
+            string source = BuildIdentitySource(options, baseId, baselineSetHash,
+                snapshotSetHash, baseMetaVersionSetHash, guard, runtimeCapabilities,
+                runtimeAssetRoot, baseMetaVersionAssetRoot, assemblyNames,
+                baseMetaVersionHashes.ToArray());
+            File.WriteAllText(sourcePath, source, new UTF8Encoding(false));
+            string stagedSourceSha256 = ToHex(Sha256(new UTF8Encoding(false).GetBytes(source)));
 
             string identityPath = Path.Combine(Path.GetFullPath(options.OutputRoot),
                 "build-identity.json");
@@ -153,13 +237,23 @@ namespace HybridCLR.Editor.Commands
                 format = "hybridclr.dhe-build-identity.json",
                 workflow = options.Workflow,
                 target = options.Target,
-                identityVersion = 2,
+                identityVersion = 1,
+                state = "staged-for-final-player",
                 pathSemantics = "workspace-absolute-v1",
-                baselineAssemblySha256 = baselineSetHash,
+                stagedSourcePath = options.BuildIdentityAssetPath.Replace('\\', '/'),
+                stagedSourceSha256 = stagedSourceSha256,
+                baseId = baseId,
+                managedAssemblySetSha256 = baselineSetHash,
                 aotSnapshotSha256 = snapshotSetHash,
                 aotSnapshotKind = AotSnapshotKind,
                 nativeGuardSourceSha256 = guard.NativeGuardSourceSha256,
                 nativeManifestSha256 = guard.NativeManifestSha256,
+                baseMetaVersionSetSha256 = baseMetaVersionSetHash,
+                runtimeProtocol = guard.RuntimeProtocol,
+                runtimeContract = guard.RuntimeContract,
+                runtimeCapabilities = runtimeCapabilities,
+                runtimeAssetRoot = runtimeAssetRoot,
+                baseMetaVersionAssetRoot = baseMetaVersionAssetRoot,
                 generatedCppRoot = nativeResult.GeneratedCppRoot,
                 generatedCppPaths = guard.GeneratedCppPaths ?? Array.Empty<string>(),
                 nativeManifestPath = guard.ManifestPath,
@@ -167,6 +261,50 @@ namespace HybridCLR.Editor.Commands
             });
             AssetDatabase.ImportAsset(options.BuildIdentityAssetPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        public static void ValidateStagedBuildIdentity(DheProjectIdentityOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            string identityPath = RequireFile(Path.Combine(Path.GetFullPath(options.OutputRoot),
+                "build-identity.json"), "DHE staged build identity");
+            BuildIdentityEvidence identity = JsonUtility.FromJson<BuildIdentityEvidence>(
+                File.ReadAllText(identityPath));
+            string expectedSourcePath = ResolveProjectAsset(options.ProjectRoot,
+                options.BuildIdentityAssetPath);
+            if (identity == null || identity.identityVersion != 1 ||
+                !string.Equals(identity.state, "staged-for-final-player", StringComparison.Ordinal) ||
+                !string.Equals((identity.stagedSourcePath ?? string.Empty).Replace('\\', '/'),
+                    options.BuildIdentityAssetPath.Replace('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase) ||
+                !IsSha256(identity.stagedSourceSha256) || !File.Exists(expectedSourcePath) ||
+                !string.Equals(ToHex(Sha256(File.ReadAllBytes(expectedSourcePath))),
+                    identity.stagedSourceSha256, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(identity.baseId, ComputeBaseId(identity.target,
+                    identity.managedAssemblySetSha256, identity.aotSnapshotSha256,
+                    identity.baseMetaVersionSetSha256, identity.nativeGuardSourceSha256,
+                    identity.nativeManifestSha256, identity.runtimeProtocol,
+                    identity.runtimeContract, identity.runtimeCapabilities,
+                    identity.runtimeAssetRoot, identity.baseMetaVersionAssetRoot),
+                    StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("DHE final Player has no valid staged BuildIdentity. " +
+                    "Run the scripts-only DHE build stage again before BuildFinalPlayer.");
+
+            foreach (BuildIdentityAssembly assembly in identity.assemblies ??
+                Array.Empty<BuildIdentityAssembly>())
+            {
+                if (string.IsNullOrWhiteSpace(assembly.embeddedBaseMetaVersionPath)) continue;
+                string path = RequireFile(ResolveProjectRelativeEvidence(options.ProjectRoot,
+                        assembly.embeddedBaseMetaVersionPath),
+                    assembly.assemblyName + " embedded Base MetaVersion");
+                if (!IsSha256(assembly.embeddedBaseMetaVersionSha256) ||
+                    !string.Equals(ToHex(Sha256(File.ReadAllBytes(path))),
+                        assembly.embeddedBaseMetaVersionSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(assembly.baseMetaVersionSha256,
+                        assembly.embeddedBaseMetaVersionSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new BuildFailedException("DHE embedded Base MetaVersion changed after identity " +
+                        "staging for " + assembly.assemblyName + ". Run StageRuntimePlan and scripts-only again.");
+            }
         }
 
         public static bool FinalNativeIdentityMatches(string outputRoot,
@@ -223,28 +361,44 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static string BuildIdentitySource(DheProjectIdentityOptions options,
-            string baselineHash, string snapshotHash, DheNativeGuardResult guard,
-            string[] assemblyNames, string[] snapshotHashes)
+            string baseId, string managedAssemblySetHash, string snapshotHash,
+            string baseMetaVersionSetHash, DheNativeGuardResult guard,
+            string[] runtimeCapabilities, string runtimeAssetRoot,
+            string baseMetaVersionAssetRoot, string[] assemblyNames,
+            string[] baseMetaVersionHashes)
         {
             string assemblyValues = string.Join(",\n",
                 assemblyNames.Select(name => "            " + Quote(name)));
-            string snapshotValues = string.Join(",\n",
-                snapshotHashes.Select(hash => "            " + Quote(hash)));
+            string baseMetaVersionValues = string.Join(",\n",
+                baseMetaVersionHashes.Select(hash => "            " + Quote(hash)));
+            string capabilityValues = string.Join(",\n",
+                runtimeCapabilities.Select(value => "            " + Quote(value)));
             return "namespace " + options.IdentityNamespace + "\n{\n" +
                 "    internal static class " + options.IdentityClassName + "\n    {\n" +
-                "        public const int IdentityVersion = 2;\n" +
+                "        public const int IdentityVersion = 1;\n" +
                 "        public const string Target = " + Quote(options.Target) + ";\n" +
                 "        public const string AotSnapshotKind = \"" + AotSnapshotKind + "\";\n" +
-                "        public const string BaselineAssemblySha256 = \"" + baselineHash + "\";\n" +
+                "        public const string BaseId = \"" + baseId + "\";\n" +
+                "        public const string ManagedAssemblySetSha256 = \"" +
+                managedAssemblySetHash + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + snapshotHash + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" +
                 guard.NativeGuardSourceSha256 + "\";\n" +
                 "        public const string NativeManifestSha256 = \"" +
                 guard.NativeManifestSha256 + "\";\n" +
+                "        public const string BaseMetaVersionSetSha256 = \"" +
+                baseMetaVersionSetHash + "\";\n" +
+                "        public const string RuntimeProtocol = " + Quote(guard.RuntimeProtocol) + ";\n" +
+                "        public const string RuntimeContract = " + Quote(guard.RuntimeContract) + ";\n" +
+                "        public const string RuntimeAssetRoot = " + Quote(runtimeAssetRoot) + ";\n" +
+                "        public const string BaseMetaVersionAssetRoot = " +
+                Quote(baseMetaVersionAssetRoot) + ";\n" +
+                "        public static readonly string[] RuntimeCapabilities =\n        {\n" +
+                capabilityValues + "\n        };\n" +
                 "        public static readonly string[] AssemblyNames =\n        {\n" +
                 assemblyValues + "\n        };\n" +
-                "        public static readonly string[] SnapshotHashes =\n        {\n" +
-                snapshotValues + "\n        };\n" +
+                "        public static readonly string[] BaseMetaVersionHashes =\n        {\n" +
+                baseMetaVersionValues + "\n        };\n" +
                 BuildIdentityFactorySource() +
                 "    }\n}\n";
         }
@@ -254,15 +408,22 @@ namespace HybridCLR.Editor.Commands
             return "namespace " + options.IdentityNamespace + "\n{\n" +
                 "    // Generated by HybridCLR DHE for the Player and restored after the build.\n" +
                 "    internal static class " + options.IdentityClassName + "\n    {\n" +
-                "        public const int IdentityVersion = 2;\n" +
+                "        public const int IdentityVersion = 1;\n" +
                 "        public const string Target = \"\";\n" +
                 "        public const string AotSnapshotKind = \"uninitialized-template\";\n" +
-                "        public const string BaselineAssemblySha256 = \"" + ZeroSha256 + "\";\n" +
+                "        public const string BaseId = \"" + ZeroSha256 + "\";\n" +
+                "        public const string ManagedAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeManifestSha256 = \"" + ZeroSha256 + "\";\n" +
+                "        public const string BaseMetaVersionSetSha256 = \"" + ZeroSha256 + "\";\n" +
+                "        public const string RuntimeProtocol = \"\";\n" +
+                "        public const string RuntimeContract = \"\";\n" +
+                "        public const string RuntimeAssetRoot = \"\";\n" +
+                "        public const string BaseMetaVersionAssetRoot = \"\";\n" +
+                "        public static readonly string[] RuntimeCapabilities = new string[0];\n" +
                 "        public static readonly string[] AssemblyNames = new string[0];\n" +
-                "        public static readonly string[] SnapshotHashes = new string[0];\n" +
+                "        public static readonly string[] BaseMetaVersionHashes = new string[0];\n" +
                 BuildIdentityFactorySource() +
                 "    }\n}\n";
         }
@@ -276,12 +437,19 @@ namespace HybridCLR.Editor.Commands
                 "                IdentityVersion = IdentityVersion,\n" +
                 "                Target = Target,\n" +
                 "                AotSnapshotKind = AotSnapshotKind,\n" +
-                "                BaselineAssemblySha256 = BaselineAssemblySha256,\n" +
+                "                BaseId = BaseId,\n" +
+                "                ManagedAssemblySetSha256 = ManagedAssemblySetSha256,\n" +
                 "                AotSnapshotSha256 = AotSnapshotSha256,\n" +
                 "                NativeGuardSourceSha256 = NativeGuardSourceSha256,\n" +
                 "                NativeManifestSha256 = NativeManifestSha256,\n" +
+                "                BaseMetaVersionSetSha256 = BaseMetaVersionSetSha256,\n" +
+                "                RuntimeProtocol = RuntimeProtocol,\n" +
+                "                RuntimeContract = RuntimeContract,\n" +
+                "                RuntimeCapabilities = RuntimeCapabilities,\n" +
+                "                RuntimeAssetRoot = RuntimeAssetRoot,\n" +
+                "                BaseMetaVersionAssetRoot = BaseMetaVersionAssetRoot,\n" +
                 "                AssemblyNames = AssemblyNames,\n" +
-                "                SnapshotHashes = SnapshotHashes,\n" +
+                "                BaseMetaVersionHashes = BaseMetaVersionHashes,\n" +
                 "            };\n" +
                 "        }\n";
         }
@@ -300,6 +468,64 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("DHE build identity path escapes the project.");
             Directory.CreateDirectory(Path.GetDirectoryName(resolved));
             return resolved;
+        }
+
+        private static string ResolveProjectPath(string projectRoot, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new BuildFailedException("DHE project path is empty.");
+            string root = Path.GetFullPath(projectRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string resolved = Path.GetFullPath(Path.IsPathRooted(path) ? path :
+                Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar)));
+            if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("DHE project path escapes the project: " + path);
+            return resolved;
+        }
+
+        private static string ResolveOptionalProjectPath(string projectRoot, string root,
+            string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(root)) return string.Empty;
+            string resolvedRoot = Path.GetFullPath(Path.IsPathRooted(root) ? root :
+                Path.Combine(projectRoot, root.Replace('/', Path.DirectorySeparatorChar)));
+            string project = Path.GetFullPath(projectRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!resolvedRoot.StartsWith(project, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("DHE Base MetaVersion asset root is outside the project.");
+            return Path.Combine(resolvedRoot, fileName);
+        }
+
+        private static string ToProjectRelativePath(string projectRoot, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            string root = Path.GetFullPath(projectRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string full = Path.GetFullPath(path);
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("DHE identity asset is outside the project.");
+            return full.Substring(root.Length).Replace('\\', '/');
+        }
+
+        private static string ResolveProjectRelativeEvidence(string projectRoot, string relative)
+        {
+            if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative))
+                throw new BuildFailedException("DHE identity project path is invalid: " + relative);
+            string root = Path.GetFullPath(projectRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string full = Path.GetFullPath(Path.Combine(root,
+                relative.Replace('/', Path.DirectorySeparatorChar)));
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("DHE identity project path escapes the project: " + relative);
+            return full;
+        }
+
+        private static bool IsSha256(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length != 64) return false;
+            foreach (char c in value)
+                if (!Uri.IsHexDigit(c)) return false;
+            return true;
         }
 
         private static string Sha256NamedByteSet(
@@ -330,6 +556,47 @@ namespace HybridCLR.Editor.Commands
         {
             return BitConverter.ToString(bytes ?? Array.Empty<byte>()).Replace("-", string.Empty)
                 .ToLowerInvariant();
+        }
+
+        private static string ComputeBaseId(string target, string managedAssemblySetSha256,
+            string aotSnapshotSha256, string baseMetaVersionSetSha256,
+            string nativeGuardSourceSha256, string nativeManifestSha256,
+            string runtimeProtocol, string runtimeContract, IEnumerable<string> runtimeCapabilities,
+            string runtimeAssetRoot, string baseMetaVersionAssetRoot)
+        {
+            string[] capabilities = (runtimeCapabilities ?? Array.Empty<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.Ordinal).OrderBy(value => value,
+                    StringComparer.Ordinal).ToArray();
+            string canonical = "hybridclr.dhe-base-identity-v1\n" +
+                "target=" + (target ?? string.Empty) + "\n" +
+                "managedAssemblySetSha256=" +
+                (managedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "aotSnapshotSha256=" +
+                (aotSnapshotSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "baseMetaVersionSetSha256=" +
+                (baseMetaVersionSetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "nativeGuardSourceSha256=" +
+                (nativeGuardSourceSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "nativeManifestSha256=" +
+                (nativeManifestSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "runtimeProtocol=" + (runtimeProtocol ?? string.Empty) + "\n" +
+                "runtimeContract=" + (runtimeContract ?? string.Empty) + "\n" +
+                "runtimeCapabilities=" + string.Join(",", capabilities) + "\n" +
+                "runtimeAssetRoot=" + (runtimeAssetRoot ?? string.Empty) + "\n" +
+                "baseMetaVersionAssetRoot=" + (baseMetaVersionAssetRoot ?? string.Empty) + "\n";
+            return ToHex(Sha256(Encoding.UTF8.GetBytes(canonical)));
+        }
+
+        private static string NormalizeAssetRoot(string value, string description)
+        {
+            string normalized = (value ?? string.Empty).Replace('\\', '/').TrimEnd('/') + "/";
+            if (normalized == "/" || normalized.StartsWith("/", StringComparison.Ordinal) ||
+                Path.IsPathRooted(normalized) ||
+                normalized.Split('/').Any(segment => segment == "." || segment == ".."))
+                throw new BuildFailedException("DHE " + description +
+                    " must be a portable runtime-relative directory: " + value);
+            return normalized;
         }
 
         private static string Quote(string value)
@@ -376,6 +643,12 @@ namespace HybridCLR.Editor.Commands
             public int transformedMethodCount;
             public int nativeEntryCount;
             public int unsupportedMethodCount;
+            public string guardMode;
+            public int guardedMethodCount;
+            public int supportedGuardedMethodCount;
+            public int unsupportedGuardedMethodCount;
+            public int interpreterOnlyMethodCount;
+            public int unsupportedChangedMethodCount;
         }
 
         [Serializable]
@@ -405,12 +678,22 @@ namespace HybridCLR.Editor.Commands
             public string workflow;
             public string target;
             public int identityVersion;
+            public string state;
             public string pathSemantics;
-            public string baselineAssemblySha256;
+            public string stagedSourcePath;
+            public string stagedSourceSha256;
+            public string baseId;
+            public string managedAssemblySetSha256;
             public string aotSnapshotSha256;
             public string aotSnapshotKind;
             public string nativeGuardSourceSha256;
             public string nativeManifestSha256;
+            public string baseMetaVersionSetSha256;
+            public string runtimeProtocol;
+            public string runtimeContract;
+            public string[] runtimeCapabilities;
+            public string runtimeAssetRoot;
+            public string baseMetaVersionAssetRoot;
             public string generatedCppRoot;
             public string[] generatedCppPaths;
             public string nativeManifestPath;
@@ -424,6 +707,32 @@ namespace HybridCLR.Editor.Commands
             public string baselinePath;
             public string baselineSha256;
             public string snapshotSha256;
+            public string baseMetaVersionPath;
+            public string baseMetaVersionSha256;
+            public string embeddedBaseMetaVersionPath;
+            public string embeddedBaseMetaVersionSha256;
+        }
+
+        [Serializable]
+        private sealed class BuildIdentityProjectPlan
+        {
+            public BuildIdentityProjectAssembly[] assemblies;
+        }
+
+        [Serializable]
+        private sealed class BuildIdentityProjectAssembly
+        {
+            public string assemblyName;
+            public string baseMetaVersionBytes;
+        }
+
+        [Serializable]
+        private sealed class BuildIdentityRuntimePlan
+        {
+            public int schemaVersion;
+            public string format;
+            public string runtimeAssetRoot;
+            public string baseMetaVersionAssetRoot;
         }
     }
 
@@ -435,6 +744,7 @@ namespace HybridCLR.Editor.Commands
         public string Target;
         public int BeeMaxAttempts = 3;
         public int BeeTimeoutSeconds = 600;
+        public bool GuardAllMethods;
     }
 
     public sealed class DheProjectIdentityOptions
@@ -442,9 +752,12 @@ namespace HybridCLR.Editor.Commands
         public string ProjectRoot;
         public string OutputRoot;
         public string BaselineRoot;
+        public string ProjectPlanPath;
         public string Target;
         public string Workflow = "dhe-opt4";
         public string BuildIdentityAssetPath;
+        public string RuntimePlanPath;
+        public string BaseMetaVersionAssetRoot;
         public string IdentityNamespace;
         public string IdentityClassName = "DheBuildIdentity";
     }
