@@ -30,6 +30,8 @@ namespace HybridCLR.Editor.Commands
         {
             "aot-guard-v1",
             "single-current-multibase-v1",
+            "resource-update-plan-integrity-v1",
+            "resource-update-aot-metadata-path-v1",
             "atomic-multi-assembly-registration-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
