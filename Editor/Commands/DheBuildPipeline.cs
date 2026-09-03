@@ -168,8 +168,13 @@ namespace HybridCLR.Editor.Commands
                 : RequireDirectory(options.BaselineSourceRoot, "DHE baseline source root");
             bool baselineGeneratedFromCurrent = string.Equals(baselineSourceRoot,
                 currentSourceRoot, StringComparison.OrdinalIgnoreCase);
+            if (options.Bootstrap && !baselineGeneratedFromCurrent)
+            {
+                throw new BuildFailedException(
+                    "DHE bootstrap must freeze the generated current stripped-AOT set as its Base.");
+            }
             if (string.Equals(options.Mode, "Release", StringComparison.OrdinalIgnoreCase) &&
-                baselineGeneratedFromCurrent)
+                baselineGeneratedFromCurrent && !options.Bootstrap)
             {
                 throw new BuildFailedException(
                     "DHE Release preparation requires a previous stripped-AOT baseline root.");
@@ -2651,6 +2656,7 @@ namespace HybridCLR.Editor.Commands
         public string BaselineOutputRoot;
         public string CurrentAotRoot;
         public string CurrentOutputRoot;
+        public bool Bootstrap;
         public bool RequireDheEqualsHotUpdate = true;
         public Action<string[]> BeforeCurrentGeneration;
         public Action<string[]> AfterCurrentGeneration;

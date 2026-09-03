@@ -30,6 +30,7 @@ namespace HybridCLR.Editor.Commands
                         Path.GetFullPath(baselineSource),
                     BaselineOutputRoot = context.BaselineRoot,
                     CurrentOutputRoot = context.CurrentRoot,
+                    Bootstrap = context.GetBooleanArgument("-dheBootstrap"),
                     RequireDheEqualsHotUpdate = true,
                 });
             EnsureAssemblyRoot(SettingsUtil.GetHotUpdateDllsOutputDirByTarget(context.Target),
