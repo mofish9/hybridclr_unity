@@ -80,7 +80,22 @@ namespace HybridCLR.Editor.Commands
         /// </summary>
         public static void ClearDheRuntimePlanAssets(string runtimeAssetRoot)
         {
-            string root = Path.GetFullPath(runtimeAssetRoot ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(runtimeAssetRoot))
+                throw new BuildFailedException("DHE runtime asset root is empty.");
+            string root = Path.GetFullPath(runtimeAssetRoot).TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string assetsRoot = Path.GetFullPath(Application.dataPath).TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+#if UNITY_EDITOR_WIN
+            const StringComparison pathComparison = StringComparison.OrdinalIgnoreCase;
+#else
+            const StringComparison pathComparison = StringComparison.Ordinal;
+#endif
+            if (string.Equals(root, assetsRoot, pathComparison) ||
+                !root.StartsWith(assetsRoot + Path.DirectorySeparatorChar, pathComparison))
+                throw new BuildFailedException(
+                    "DHE runtime asset root must be a child of the project Assets directory: " +
+                    root);
             if (!Directory.Exists(root))
             {
                 return;
