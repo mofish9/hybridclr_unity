@@ -663,8 +663,9 @@ namespace HybridCLR.Editor.Commands
             Dictionary<string, List<DheCppDefinition>> definitions = requested.Count == 0
                 ? new Dictionary<string, List<DheCppDefinition>>(StringComparer.OrdinalIgnoreCase)
                 : IndexCppDefinitions(generatedRoot);
-            Dictionary<string, List<DheCppDefinition>> definitionsByManagedPrefix =
-                IndexCppDefinitionsByManagedPrefix(definitions);
+            Dictionary<string, List<string>> generatedFunctions = requested.Count == 0
+                ? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+                : IndexGeneratedMethodFunctions(generatedRoot, requested);
             List<DheNativeManifestMethod> manifestMethods = new List<DheNativeManifestMethod>();
             Dictionary<string, DheNativeManifestIssue> unsupported =
                 new Dictionary<string, DheNativeManifestIssue>(StringComparer.OrdinalIgnoreCase);
@@ -675,27 +676,32 @@ namespace HybridCLR.Editor.Commands
                 new Dictionary<string, List<DheNativeManifestMethod>>(StringComparer.OrdinalIgnoreCase);
             foreach (DheGuardMethod method in requested)
             {
-                string prefix = GetGeneratedFunctionPrefix(method);
-                List<DheCppDefinition> matches = definitionsByManagedPrefix.TryGetValue(prefix,
-                        out List<DheCppDefinition> prefixMatches)
-                    ? prefixMatches.Where(item =>
-                        !item.FunctionName.EndsWith("AdjustorThunk", StringComparison.Ordinal) &&
-                        ManagedSignatureMatches(method, item.ManagedSignature))
-                        .ToList()
-                    : new List<DheCppDefinition>();
-                bool generic = method.GenericParameterCount > 0 || method.DeclaringTypeGenericParameterCount > 0;
-                if (!generic)
+                string methodKey = GetManagedMethodKey(method.AssemblyName, method.MethodToken);
+                List<DheCppDefinition> matches = new List<DheCppDefinition>();
+                if (generatedFunctions.TryGetValue(methodKey, out List<string> functionNames))
                 {
-                    string assemblyStem = method.AssemblyName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                        ? method.AssemblyName.Substring(0, method.AssemblyName.Length - 4)
-                        : method.AssemblyName;
-                    Regex ownerPattern = new Regex("^" + Regex.Escape(assemblyStem) + "(?:__\\d+)?\\.cpp$",
-                        RegexOptions.IgnoreCase);
-                    List<DheCppDefinition> ownerMatches = matches.Where(item =>
-                        ownerPattern.IsMatch(Path.GetFileName(item.File))).ToList();
-                    if (ownerMatches.Count > 0) matches = ownerMatches;
+                    foreach (string functionName in functionNames)
+                    {
+                        if (!definitions.TryGetValue(functionName, out List<DheCppDefinition> exactDefinitions) ||
+                            exactDefinitions.Count != 1)
+                        {
+                            throw new BuildFailedException("DHE IL2CPP method index resolved '" + functionName +
+                                "' for " + method.AssemblyName + "/" + method.MethodToken +
+                                ", but found " + (exactDefinitions == null ? 0 : exactDefinitions.Count) +
+                                " generated definitions.");
+                        }
+                        DheCppDefinition definition = exactDefinitions[0];
+                        if (!string.IsNullOrWhiteSpace(definition.ManagedSignature) &&
+                            !ManagedSignatureMatches(method, definition.ManagedSignature))
+                        {
+                            throw new BuildFailedException("DHE IL2CPP method index conflicts with the managed " +
+                                "signature comment for '" + functionName + "'.");
+                        }
+                        matches.Add(definition);
+                    }
                 }
-                if ((!generic && matches.Count != 1) || matches.Count == 0)
+                bool generic = method.GenericParameterCount > 0 || method.DeclaringTypeGenericParameterCount > 0;
+                if (matches.Count == 0)
                 {
                     if (options.GuardAllMethods)
                     {
@@ -706,6 +712,9 @@ namespace HybridCLR.Editor.Commands
                         " generated definition for '" + method.DeclaringType + "::" + method.MethodName +
                         "', found " + matches.Count + ".");
                 }
+                if (!generic && matches.Count != 1)
+                    throw new BuildFailedException("Expected one generated definition for '" +
+                        method.DeclaringType + "::" + method.MethodName + "', found " + matches.Count + ".");
                 if (matches.Count > 4096)
                     throw new BuildFailedException("DHE generated definition fan-out is unexpectedly large for '" +
                         method.DeclaringType + "::" + method.MethodName + "': " + matches.Count + ".");
@@ -1493,6 +1502,368 @@ namespace HybridCLR.Editor.Commands
             return result;
         }
 
+        private static Dictionary<string, List<string>> IndexGeneratedMethodFunctions(string root,
+            IReadOnlyCollection<DheGuardMethod> requestedMethods)
+        {
+            List<DheCodeGenModule> modules = ReadCodeGenModules(root);
+            Dictionary<string, DheCodeGenModule> requestedModules =
+                new Dictionary<string, DheCodeGenModule>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> requestedAssemblies = new HashSet<string>(
+                requestedMethods.Select(method => NormalizeAssemblyName(method.AssemblyName)),
+                StringComparer.OrdinalIgnoreCase);
+            foreach (DheCodeGenModule module in modules)
+            {
+                string assemblyName = NormalizeAssemblyName(module.AssemblyName);
+                if (!requestedAssemblies.Contains(assemblyName)) continue;
+                if (requestedModules.ContainsKey(assemblyName))
+                    throw new BuildFailedException("DHE generated C++ contains duplicate codegen modules for '" +
+                        assemblyName + "'.");
+                requestedModules.Add(assemblyName, module);
+            }
+            foreach (string assemblyName in requestedAssemblies)
+            {
+                if (!requestedModules.ContainsKey(assemblyName))
+                    throw new BuildFailedException("DHE generated C++ has no codegen module for '" +
+                        assemblyName + "'.");
+            }
+
+            Dictionary<string, List<string>> result = new Dictionary<string, List<string>>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (DheGuardMethod method in requestedMethods)
+            {
+                string key = GetManagedMethodKey(method.AssemblyName, method.MethodToken);
+                if (!result.ContainsKey(key)) result.Add(key, new List<string>());
+                if ((method.MethodToken & 0xff000000u) != 0x06000000u)
+                    throw new BuildFailedException("DHE method token is not a MethodDef token: " +
+                        method.AssemblyName + "/" + method.MethodToken + ".");
+                uint rid = method.MethodToken & 0x00ffffffu;
+                DheCodeGenModule module = requestedModules[NormalizeAssemblyName(method.AssemblyName)];
+                if (rid == 0 || rid > module.MethodPointers.Length)
+                    throw new BuildFailedException("DHE method token is outside the IL2CPP codegen module: " +
+                        method.AssemblyName + "/" + method.MethodToken + ".");
+                AddGeneratedFunction(result[key], module.MethodPointers[rid - 1]);
+            }
+
+            DheGuardMethod[] genericMethods = requestedMethods.Where(method =>
+                method.GenericParameterCount > 0 || method.DeclaringTypeGenericParameterCount > 0).ToArray();
+            if (genericMethods.Length > 0)
+                AddGeneratedGenericMethodFunctions(root, modules, genericMethods, result);
+            foreach (List<string> functions in result.Values)
+                functions.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        private static List<DheCodeGenModule> ReadCodeGenModules(string root)
+        {
+            Regex arrayPattern = new Regex(
+                @"static\s+Il2CppMethodPointer\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\[\s*(?<count>\d+)\s*\]\s*=\s*\{(?<body>.*?)\};",
+                RegexOptions.Singleline | RegexOptions.Compiled);
+            Regex modulePattern = new Regex(
+                @"const\s+Il2CppCodeGenModule\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\{\s*\""(?<assembly>[^\""\r\n]+)\""\s*,\s*(?<count>\d+)\s*,\s*(?<array>[A-Za-z_][A-Za-z0-9_]*|NULL)\s*,",
+                RegexOptions.Singleline | RegexOptions.Compiled);
+            List<DheCodeGenModule> modules = new List<DheCodeGenModule>();
+            HashSet<string> moduleAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string[] files = Directory.GetFiles(root, "*_CodeGen.c", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(root, "*_CodeGen.cpp", SearchOption.AllDirectories))
+                .OrderBy(path => path, StringComparer.Ordinal).ToArray();
+            foreach (string file in files)
+            {
+                string source = File.ReadAllText(file, Encoding.UTF8);
+                Dictionary<string, string[]> arrays = new Dictionary<string, string[]>(StringComparer.Ordinal);
+                foreach (Match match in arrayPattern.Matches(source))
+                {
+                    string name = match.Groups["name"].Value;
+                    int count = ParseGeneratedCount(match.Groups["count"].Value, file);
+                    if (arrays.ContainsKey(name))
+                        throw new BuildFailedException("DHE codegen pointer array is duplicated in " + file +
+                            ": " + name + ".");
+                    arrays.Add(name, ParseFunctionPointerInitializer(match.Groups["body"].Value, count, file));
+                }
+                foreach (Match match in modulePattern.Matches(source))
+                {
+                    string assemblyName = match.Groups["assembly"].Value;
+                    string normalizedAssemblyName = NormalizeAssemblyName(assemblyName);
+                    if (!moduleAssemblies.Add(normalizedAssemblyName))
+                        throw new BuildFailedException("DHE generated C++ contains duplicate codegen modules for '" +
+                            normalizedAssemblyName + "'.");
+                    int count = ParseGeneratedCount(match.Groups["count"].Value, file);
+                    string arrayName = match.Groups["array"].Value;
+                    string[] pointers;
+                    if (count == 0 && string.Equals(arrayName, "NULL", StringComparison.Ordinal))
+                    {
+                        pointers = Array.Empty<string>();
+                    }
+                    else if (!arrays.TryGetValue(arrayName, out pointers) || pointers.Length != count)
+                    {
+                        throw new BuildFailedException("DHE codegen module pointer table is missing or has the " +
+                            "wrong size in " + file + ": " + assemblyName + ".");
+                    }
+                    modules.Add(new DheCodeGenModule
+                    {
+                        AssemblyName = assemblyName,
+                        MethodPointers = pointers,
+                    });
+                }
+            }
+            if (modules.Count == 0)
+                throw new BuildFailedException("DHE generated C++ contains no Il2CppCodeGenModule definitions.");
+            return modules;
+        }
+
+        private static void AddGeneratedGenericMethodFunctions(string root,
+            IReadOnlyCollection<DheCodeGenModule> modules, IReadOnlyCollection<DheGuardMethod> genericMethods,
+            Dictionary<string, List<string>> functions)
+        {
+            Dictionary<int, string> globalMethods = IndexRequestedGlobalMethods(root, modules, genericMethods);
+            string definitionsPath = RequireGeneratedCppFile(root, "Il2CppGenericMethodDefinitions.c");
+            string tablePath = RequireGeneratedCppFile(root, "Il2CppGenericMethodTable.c");
+            string pointersPath = RequireGeneratedCppFile(root, "Il2CppGenericMethodPointerTable.c");
+
+            string definitionsSource = File.ReadAllText(definitionsPath, Encoding.UTF8);
+            Match definitions = Regex.Match(definitionsSource,
+                @"g_Il2CppMethodSpecTable\s*\[\s*(?<count>\d+)\s*\]\s*=\s*\{(?<body>.*?)\};",
+                RegexOptions.Singleline);
+            if (!definitions.Success)
+                throw new BuildFailedException("DHE cannot parse the IL2CPP generic method spec table.");
+            int definitionCount = ParseGeneratedCount(definitions.Groups["count"].Value, definitionsPath);
+            MatchCollection definitionRows = Regex.Matches(definitions.Groups["body"].Value,
+                @"\{\s*(?<method>-?\d+)\s*,\s*-?\d+\s*,\s*-?\d+\s*\}");
+            if (definitionRows.Count != definitionCount)
+                throw new BuildFailedException("DHE IL2CPP generic method spec count does not match its table.");
+            int[] methodDefinitionIndices = definitionRows.Cast<Match>()
+                .Select(match => int.Parse(match.Groups["method"].Value, CultureInfo.InvariantCulture)).ToArray();
+
+            string pointerSource = File.ReadAllText(pointersPath, Encoding.UTF8);
+            Match pointerTable = Regex.Match(pointerSource,
+                @"g_Il2CppGenericMethodPointers\s*\[\s*(?<count>\d+)\s*\]\s*=\s*\{(?<body>.*?)\};",
+                RegexOptions.Singleline);
+            if (!pointerTable.Success)
+                throw new BuildFailedException("DHE cannot parse the IL2CPP generic method pointer table.");
+            int pointerCount = ParseGeneratedCount(pointerTable.Groups["count"].Value, pointersPath);
+            string[] pointers = ParseFunctionPointerInitializer(pointerTable.Groups["body"].Value,
+                pointerCount, pointersPath);
+
+            string tableSource = File.ReadAllText(tablePath, Encoding.UTF8);
+            Match functionTable = Regex.Match(tableSource,
+                @"g_Il2CppGenericMethodFunctions\s*\[\s*(?<count>\d+)\s*\]\s*=\s*\{(?<body>.*?)\};",
+                RegexOptions.Singleline);
+            if (!functionTable.Success)
+                throw new BuildFailedException("DHE cannot parse the IL2CPP generic method function table.");
+            int functionCount = ParseGeneratedCount(functionTable.Groups["count"].Value, tablePath);
+            MatchCollection functionRows = Regex.Matches(functionTable.Groups["body"].Value,
+                @"\{\s*(?<spec>-?\d+)\s*,\s*(?<pointer>-?\d+)\s*,\s*-?\d+\s*,\s*-?\d+\s*\}");
+            if (functionRows.Count != functionCount)
+                throw new BuildFailedException("DHE IL2CPP generic method function count does not match its table.");
+            foreach (Match row in functionRows)
+            {
+                int specIndex = int.Parse(row.Groups["spec"].Value, CultureInfo.InvariantCulture);
+                int pointerIndex = int.Parse(row.Groups["pointer"].Value, CultureInfo.InvariantCulture);
+                if (specIndex < 0 || specIndex >= methodDefinitionIndices.Length)
+                    throw new BuildFailedException("DHE IL2CPP generic method spec index is out of range: " +
+                        specIndex + ".");
+                int methodDefinitionIndex = methodDefinitionIndices[specIndex];
+                if (!globalMethods.TryGetValue(methodDefinitionIndex, out string methodKey)) continue;
+                if (pointerIndex < 0 || pointerIndex >= pointers.Length)
+                    throw new BuildFailedException("DHE IL2CPP generic method pointer index is out of range: " +
+                        pointerIndex + ".");
+                AddGeneratedFunction(functions[methodKey], pointers[pointerIndex]);
+            }
+        }
+
+        private static Dictionary<int, string> IndexRequestedGlobalMethods(string root,
+            IReadOnlyCollection<DheCodeGenModule> modules, IReadOnlyCollection<DheGuardMethod> requestedMethods)
+        {
+            DirectoryInfo cppRoot = new DirectoryInfo(root);
+            if (cppRoot.Parent == null)
+                throw new BuildFailedException("DHE generated C++ root has no IL2CPP output parent.");
+            string[] metadataPaths = Directory.GetFiles(cppRoot.Parent.FullName, "global-metadata.dat",
+                    SearchOption.AllDirectories)
+                .OrderBy(path => path, StringComparer.Ordinal).ToArray();
+            if (metadataPaths.Length == 0)
+                throw new BuildFailedException("DHE IL2CPP output has no global-metadata.dat.");
+            byte[] metadata = File.ReadAllBytes(metadataPaths[0]);
+            string metadataHash = Sha256Hex(metadata);
+            foreach (string path in metadataPaths.Skip(1))
+            {
+                if (!string.Equals(metadataHash, Sha256Hex(File.ReadAllBytes(path)),
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new BuildFailedException("DHE IL2CPP output contains different global-metadata.dat files.");
+            }
+            if (metadata.Length < 176 || unchecked((uint)ReadMetadataInt32(metadata, 0)) != 0xfab11bafu)
+                throw new BuildFailedException("DHE global-metadata.dat header is invalid.");
+            int metadataVersion = ReadMetadataInt32(metadata, 4);
+            if (metadataVersion != 31)
+                throw new BuildFailedException("DHE global metadata version is unsupported: " +
+                    metadataVersion + ".");
+
+            int stringsOffset = ReadMetadataInt32(metadata, 24);
+            int stringsSize = ReadMetadataInt32(metadata, 28);
+            int methodsOffset = ReadMetadataInt32(metadata, 48);
+            int methodsSize = ReadMetadataInt32(metadata, 52);
+            int imagesOffset = ReadMetadataInt32(metadata, 168);
+            int imagesSize = ReadMetadataInt32(metadata, 172);
+            ValidateMetadataRange(metadata, stringsOffset, stringsSize, "strings");
+            ValidateMetadataRange(metadata, methodsOffset, methodsSize, "methods");
+            ValidateMetadataRange(metadata, imagesOffset, imagesSize, "images");
+
+            int methodCount = modules.Sum(module => module.MethodPointers.Length);
+            if (methodCount <= 0 || methodsSize % methodCount != 0)
+                throw new BuildFailedException("DHE global metadata method table does not match codegen modules.");
+            int methodRecordSize = methodsSize / methodCount;
+            if (methodRecordSize != 32 && methodRecordSize != 36)
+                throw new BuildFailedException("DHE global metadata method record size is unsupported: " +
+                    methodRecordSize + ".");
+            if (modules.Count <= 0 || imagesSize % modules.Count != 0)
+                throw new BuildFailedException("DHE global metadata image table does not match codegen modules.");
+            int imageRecordSize = imagesSize / modules.Count;
+            if (imageRecordSize != 40)
+                throw new BuildFailedException("DHE global metadata image record size is unsupported: " +
+                    imageRecordSize + ".");
+
+            Dictionary<string, DheMetadataImage> requestedImages =
+                new Dictionary<string, DheMetadataImage>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> requestedAssemblies = new HashSet<string>(
+                requestedMethods.Select(method => NormalizeAssemblyName(method.AssemblyName)),
+                StringComparer.OrdinalIgnoreCase);
+            for (int imageIndex = 0; imageIndex < modules.Count; imageIndex++)
+            {
+                int record = checked(imagesOffset + imageIndex * imageRecordSize);
+                int nameIndex = ReadMetadataInt32(metadata, record);
+                string assemblyName = NormalizeAssemblyName(ReadMetadataString(metadata, stringsOffset,
+                    stringsSize, nameIndex));
+                if (!requestedAssemblies.Contains(assemblyName)) continue;
+                if (requestedImages.ContainsKey(assemblyName))
+                    throw new BuildFailedException("DHE global metadata contains duplicate images for '" +
+                        assemblyName + "'.");
+                requestedImages.Add(assemblyName, new DheMetadataImage
+                {
+                    AssemblyName = assemblyName,
+                    TypeStart = ReadMetadataInt32(metadata, record + 8),
+                    TypeCount = ReadMetadataInt32(metadata, record + 12),
+                });
+            }
+            foreach (string assemblyName in requestedAssemblies)
+            {
+                if (!requestedImages.ContainsKey(assemblyName))
+                    throw new BuildFailedException("DHE global metadata has no image for '" + assemblyName + "'.");
+            }
+
+            Dictionary<string, DheGuardMethod> requestedByKey = requestedMethods.ToDictionary(
+                method => GetManagedMethodKey(method.AssemblyName, method.MethodToken),
+                method => method, StringComparer.OrdinalIgnoreCase);
+            Dictionary<int, string> result = new Dictionary<int, string>();
+            int tokenOffset = methodRecordSize == 36 ? 24 : 20;
+            for (int methodIndex = 0; methodIndex < methodCount; methodIndex++)
+            {
+                int record = checked(methodsOffset + methodIndex * methodRecordSize);
+                int declaringType = ReadMetadataInt32(metadata, record + 4);
+                uint token = unchecked((uint)ReadMetadataInt32(metadata, record + tokenOffset));
+                foreach (DheMetadataImage image in requestedImages.Values)
+                {
+                    if (declaringType < image.TypeStart || declaringType >= image.TypeStart + image.TypeCount)
+                        continue;
+                    string key = GetManagedMethodKey(image.AssemblyName, token);
+                    if (!requestedByKey.ContainsKey(key)) break;
+                    if (result.ContainsKey(methodIndex))
+                        throw new BuildFailedException("DHE global method definition maps to multiple requested methods: " +
+                            methodIndex + ".");
+                    result.Add(methodIndex, key);
+                    break;
+                }
+            }
+            HashSet<string> resolved = new HashSet<string>(result.Values, StringComparer.OrdinalIgnoreCase);
+            foreach (string key in requestedByKey.Keys)
+            {
+                if (!resolved.Contains(key))
+                    throw new BuildFailedException("DHE cannot find the requested generic MethodDef in global metadata: " +
+                        key + ".");
+            }
+            return result;
+        }
+
+        private static string[] ParseFunctionPointerInitializer(string body, int expectedCount, string sourcePath)
+        {
+            string withoutComments = Regex.Replace(body, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+            withoutComments = Regex.Replace(withoutComments, @"//[^\r\n]*", string.Empty);
+            string[] entries = withoutComments.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(entry => entry.Trim()).Where(entry => entry.Length > 0).ToArray();
+            if (entries.Length != expectedCount)
+                throw new BuildFailedException("DHE function pointer initializer count is wrong in " + sourcePath +
+                    ": expected " + expectedCount + ", found " + entries.Length + ".");
+            Regex pointerPattern = new Regex(
+                @"^(?:(?:\(\s*Il2CppMethodPointer\s*\)\s*)?&\s*)?(?<name>[A-Za-z_][A-Za-z0-9_]*)$",
+                RegexOptions.Compiled);
+            string[] result = new string[entries.Length];
+            for (int index = 0; index < entries.Length; index++)
+            {
+                if (string.Equals(entries[index], "NULL", StringComparison.Ordinal)) continue;
+                Match pointer = pointerPattern.Match(entries[index]);
+                if (!pointer.Success)
+                    throw new BuildFailedException("DHE cannot parse function pointer '" + entries[index] +
+                        "' in " + sourcePath + ".");
+                result[index] = pointer.Groups["name"].Value;
+            }
+            return result;
+        }
+
+        private static string RequireGeneratedCppFile(string root, string fileName)
+        {
+            string[] matches = Directory.GetFiles(root, fileName, SearchOption.AllDirectories);
+            if (matches.Length != 1)
+                throw new BuildFailedException("DHE expected one generated " + fileName + ", found " +
+                    matches.Length + ".");
+            return matches[0];
+        }
+
+        private static int ParseGeneratedCount(string value, string sourcePath)
+        {
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int result) || result < 0)
+                throw new BuildFailedException("DHE generated table count is invalid in " + sourcePath + ".");
+            return result;
+        }
+
+        private static void AddGeneratedFunction(List<string> functions, string functionName)
+        {
+            if (string.IsNullOrWhiteSpace(functionName) ||
+                functionName.EndsWith("AdjustorThunk", StringComparison.Ordinal)) return;
+            if (!functions.Contains(functionName, StringComparer.Ordinal)) functions.Add(functionName);
+        }
+
+        private static string GetManagedMethodKey(string assemblyName, uint methodToken)
+        {
+            return NormalizeAssemblyName(assemblyName) + "/" +
+                methodToken.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static int ReadMetadataInt32(byte[] metadata, int offset)
+        {
+            if (offset < 0 || offset > metadata.Length - 4)
+                throw new BuildFailedException("DHE global metadata integer offset is outside the file: " + offset + ".");
+            return metadata[offset] | metadata[offset + 1] << 8 | metadata[offset + 2] << 16 |
+                metadata[offset + 3] << 24;
+        }
+
+        private static void ValidateMetadataRange(byte[] metadata, int offset, int size, string name)
+        {
+            if (offset < 0 || size < 0 || offset > metadata.Length - size)
+                throw new BuildFailedException("DHE global metadata " + name + " range is outside the file.");
+        }
+
+        private static string ReadMetadataString(byte[] metadata, int stringsOffset, int stringsSize,
+            int stringIndex)
+        {
+            if (stringIndex < 0 || stringIndex >= stringsSize)
+                throw new BuildFailedException("DHE global metadata string index is outside the string table: " +
+                    stringIndex + ".");
+            int start = checked(stringsOffset + stringIndex);
+            int limit = checked(stringsOffset + stringsSize);
+            int end = start;
+            while (end < limit && metadata[end] != 0) end++;
+            if (end == limit)
+                throw new BuildFailedException("DHE global metadata string is not null terminated.");
+            return Encoding.UTF8.GetString(metadata, start, end - start);
+        }
+
         private static string ReadPreviousManagedSignature(string source, int lineStart)
         {
             int end = lineStart - 1;
@@ -1596,43 +1967,6 @@ namespace HybridCLR.Editor.Commands
             return false;
         }
 
-        private static Dictionary<string, List<DheCppDefinition>> IndexCppDefinitionsByManagedPrefix(
-            Dictionary<string, List<DheCppDefinition>> definitions)
-        {
-            Dictionary<string, List<DheCppDefinition>> result =
-                new Dictionary<string, List<DheCppDefinition>>(StringComparer.Ordinal);
-            foreach (KeyValuePair<string, List<DheCppDefinition>> pair in definitions)
-            {
-                int hashMarker = pair.Key.LastIndexOf("_m", StringComparison.Ordinal);
-                if (hashMarker <= 0) continue;
-                string prefix = pair.Key.Substring(0, hashMarker + 1);
-                if (!result.TryGetValue(prefix, out List<DheCppDefinition> values))
-                {
-                    values = new List<DheCppDefinition>();
-                    result.Add(prefix, values);
-                }
-                values.AddRange(pair.Value);
-
-                // IL2CPP inserts "Tis..." between a generic method name and
-                // its native hash (for example GenericSelect_TisInt32_m...).
-                // Index the uninflated method prefix as well so one MV method
-                // definition can guard every generated instantiation.
-                int genericMethodMarker = prefix.IndexOf("_Tis", StringComparison.Ordinal);
-                if (genericMethodMarker > 0)
-                {
-                    string genericMethodPrefix = prefix.Substring(0, genericMethodMarker + 1);
-                    if (!result.TryGetValue(genericMethodPrefix,
-                            out List<DheCppDefinition> genericValues))
-                    {
-                        genericValues = new List<DheCppDefinition>();
-                        result.Add(genericMethodPrefix, genericValues);
-                    }
-                    genericValues.AddRange(pair.Value);
-                }
-            }
-            return result;
-        }
-
         private static DheNativeManifestMethod ResolveNativeMethod(DheGuardMethod method,
             DheCppDefinition definition)
         {
@@ -1714,23 +2048,6 @@ namespace HybridCLR.Editor.Commands
             }
             string tail = text.Substring(start).Trim();
             if (tail.Length > 0) yield return tail;
-        }
-
-        private static string GetGeneratedFunctionPrefix(DheGuardMethod method)
-        {
-            string type = (method.DeclaringType ?? string.Empty).Split('/').Last();
-            type = type.Split('.').Last();
-            type = EncodeGeneratedIdentifier(type);
-            string methodName = EncodeGeneratedIdentifier(method.MethodName ?? string.Empty);
-            return type + "_" + methodName + "_";
-        }
-
-        private static string EncodeGeneratedIdentifier(string value)
-        {
-            return Regex.Replace(value, @"`([0-9]+)", "_$1")
-                .Replace("<", "U3C", StringComparison.Ordinal)
-                .Replace(">", "U3E", StringComparison.Ordinal)
-                .Replace(".", "_", StringComparison.Ordinal);
         }
 
         private static string CreateGuard(DheNativeManifestMethod method)
@@ -2378,6 +2695,19 @@ namespace HybridCLR.Editor.Commands
             public string ParametersText;
             public int BodyStart;
             public string ManagedSignature;
+        }
+
+        private sealed class DheCodeGenModule
+        {
+            public string AssemblyName;
+            public string[] MethodPointers;
+        }
+
+        private sealed class DheMetadataImage
+        {
+            public string AssemblyName;
+            public int TypeStart;
+            public int TypeCount;
         }
 
         [Serializable]
