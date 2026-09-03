@@ -695,7 +695,9 @@ namespace HybridCLR.Editor.Commands
                             !ManagedSignatureMatches(method, definition.ManagedSignature))
                         {
                             throw new BuildFailedException("DHE IL2CPP method index conflicts with the managed " +
-                                "signature comment for '" + functionName + "'.");
+                                "signature comment for '" + functionName + "'. Assembly='" +
+                                method.AssemblyName + "', token=" + method.MethodToken + ", managedId='" +
+                                method.ManagedId + "', comment='" + definition.ManagedSignature + "'.");
                         }
                         matches.Add(definition);
                     }
@@ -1401,12 +1403,52 @@ namespace HybridCLR.Editor.Commands
         private static string[] ReadJsonStringArray(string json, string property)
         {
             Match match = Regex.Match(json,
-                "\\\"" + Regex.Escape(property) + "\\\"\\s*:\\s*\\[(?<value>.*?)\\]",
+                "\\\"" + Regex.Escape(property) + "\\\"\\s*:\\s*\\[",
                 RegexOptions.Singleline);
             if (!match.Success) return Array.Empty<string>();
-            return Regex.Matches(match.Groups["value"].Value,
-                    "\\\"(?<value>(?:\\\\.|[^\\\"\\\\])*)\\\"")
-                .Cast<Match>().Select(item => UnescapeJsonString(item.Groups["value"].Value)).ToArray();
+            List<string> values = new List<string>();
+            int cursor = match.Index + match.Length;
+            while (cursor < json.Length)
+            {
+                while (cursor < json.Length && char.IsWhiteSpace(json[cursor])) cursor++;
+                if (cursor < json.Length && json[cursor] == ']') return values.ToArray();
+                if (cursor >= json.Length || json[cursor] != '"')
+                    throw new BuildFailedException("DHE JSON property '" + property +
+                        "' is not an array of strings.");
+
+                int valueStart = ++cursor;
+                bool escaped = false;
+                while (cursor < json.Length)
+                {
+                    char character = json[cursor];
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (character == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (character == '"')
+                    {
+                        break;
+                    }
+                    cursor++;
+                }
+                if (cursor >= json.Length)
+                    throw new BuildFailedException("DHE JSON property '" + property +
+                        "' contains an unterminated string.");
+                values.Add(UnescapeJsonString(json.Substring(valueStart, cursor - valueStart)));
+                cursor++;
+                while (cursor < json.Length && char.IsWhiteSpace(json[cursor])) cursor++;
+                if (cursor < json.Length && json[cursor] == ']') return values.ToArray();
+                if (cursor >= json.Length || json[cursor] != ',')
+                    throw new BuildFailedException("DHE JSON property '" + property +
+                        "' has an invalid string array separator.");
+                cursor++;
+            }
+            throw new BuildFailedException("DHE JSON property '" + property +
+                "' contains an unterminated string array.");
         }
 
         private static string UnescapeJsonString(string value)
@@ -1939,30 +1981,41 @@ namespace HybridCLR.Editor.Commands
             nextIndex = openIndex;
             if (openIndex < 0 || openIndex >= text.Length || text[openIndex] != open)
                 return false;
-            int depth = 0;
+            Stack<char> delimiters = new Stack<char>();
+            delimiters.Push(close);
             bool hasContent = false;
-            for (int index = openIndex; index < text.Length; index++)
+            for (int index = openIndex + 1; index < text.Length; index++)
             {
                 char character = text[index];
-                if (character == open)
+                if (character == '(')
                 {
-                    depth++;
+                    delimiters.Push(')');
                     continue;
                 }
-                if (character == close)
+                if (character == '<')
                 {
-                    depth--;
-                    if (depth == 0)
+                    delimiters.Push('>');
+                    continue;
+                }
+                if (character == '[')
+                {
+                    delimiters.Push(']');
+                    continue;
+                }
+                if (character == ')' || character == '>' || character == ']')
+                {
+                    if (delimiters.Count == 0 || delimiters.Peek() != character) return false;
+                    delimiters.Pop();
+                    if (delimiters.Count == 0)
                     {
                         itemCount = hasContent ? itemCount + 1 : 0;
                         nextIndex = index + 1;
                         return true;
                     }
-                    if (depth < 0) return false;
                     continue;
                 }
-                if (depth == 1 && character == ',') itemCount++;
-                else if (depth == 1 && !char.IsWhiteSpace(character)) hasContent = true;
+                if (delimiters.Count == 1 && character == ',') itemCount++;
+                else if (delimiters.Count == 1 && !char.IsWhiteSpace(character)) hasContent = true;
             }
             return false;
         }
