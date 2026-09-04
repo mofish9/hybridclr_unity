@@ -200,7 +200,7 @@ namespace HybridCLR.Editor.Commands
                 !IsSha256(runtimePlan.aotMetadataSetId))
                 throw new BuildFailedException(
                     "DHE build identity requires the current runtime plan schema.");
-            ValidateBaseRuntimePlanMetadata(options.ProjectRoot, runtimePlan);
+            ValidateBaseRuntimePlanMetadata(options.ProjectRoot, runtimePlanPath, runtimePlan);
             string runtimeAssetRoot = NormalizeAssetRoot(runtimePlan.runtimeAssetRoot,
                 "runtime asset root");
             string baseMetaVersionAssetRoot = NormalizeAssetRoot(
@@ -539,7 +539,7 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static void ValidateBaseRuntimePlanMetadata(string projectRoot,
-            BuildIdentityRuntimePlan runtimePlan)
+            string runtimePlanPath, BuildIdentityRuntimePlan runtimePlan)
         {
             if (!string.Equals(runtimePlan.selection, "embedded-base-metaversion",
                     StringComparison.Ordinal) ||
@@ -549,17 +549,28 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException(
                     "DHE Base runtime plan must use embedded-base metadata selection.");
 
+            string runtimeAssetRoot = NormalizeAssetRoot(runtimePlan.runtimeAssetRoot,
+                "runtime asset root");
+            string planDirectory = Path.GetDirectoryName(Path.GetFullPath(runtimePlanPath));
+            planDirectory = RequireProjectChild(projectRoot, planDirectory,
+                "DHE runtime plan directory");
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var records = new List<KeyValuePair<string, byte[]>>();
             foreach (BuildIdentityAotMetadata metadata in runtimePlan.aotMetadata)
             {
                 string name = NormalizeAssemblyName(metadata?.assemblyName);
+                string logicalPath = (metadata?.path ?? string.Empty).Replace('\\', '/');
                 if (metadata == null || string.IsNullOrWhiteSpace(name) || !names.Add(name) ||
-                    !IsSha256(metadata.sha256) || string.IsNullOrWhiteSpace(metadata.path))
+                    !IsSha256(metadata.sha256) || string.IsNullOrWhiteSpace(logicalPath) ||
+                    !logicalPath.StartsWith(runtimeAssetRoot, StringComparison.OrdinalIgnoreCase) ||
+                    logicalPath.Split('/').Any(segment => segment == "." || segment == ".."))
                     throw new BuildFailedException(
                         "DHE Base runtime plan contains an invalid AOT metadata record.");
-                string path = ResolveStreamingAssetPath(projectRoot,
-                    runtimePlan.runtimeAssetRoot, metadata.path);
+                // The plan path is a logical catalog locator and may be
+                // produced by YooAsset/Addressables. StageRuntimePlan writes
+                // the physical metadata beside the plan, so hash that file
+                // directly instead of assuming a StreamingAssets layout.
+                string path = Path.Combine(planDirectory, name + ".bytes");
                 byte[] bytes = File.ReadAllBytes(RequireFile(path,
                     name + " AOT metadata for build identity"));
                 if (!string.Equals(ToHex(Sha256(bytes)), metadata.sha256,
@@ -647,24 +658,6 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("DHE " + description +
                     " must be a portable runtime-relative directory: " + value);
             return normalized;
-        }
-
-        private static string ResolveStreamingAssetPath(string projectRoot,
-            string runtimeAssetRoot, string assetPath)
-        {
-            string normalizedRoot = NormalizeAssetRoot(runtimeAssetRoot,
-                "runtime asset root");
-            string normalizedPath = (assetPath ?? string.Empty).Replace('\\', '/');
-            if (string.IsNullOrWhiteSpace(normalizedPath) ||
-                normalizedPath.StartsWith("/", StringComparison.Ordinal) ||
-                Path.IsPathRooted(normalizedPath) ||
-                !normalizedPath.StartsWith(normalizedRoot,
-                    StringComparison.OrdinalIgnoreCase) ||
-                normalizedPath.Split('/').Any(segment => segment == "." || segment == ".."))
-                throw new BuildFailedException(
-                    "DHE runtime metadata path must stay below runtimeAssetRoot: " + assetPath);
-            return ResolveProjectPath(projectRoot,
-                "Assets/StreamingAssets/" + normalizedPath);
         }
 
         private static string Quote(string value)

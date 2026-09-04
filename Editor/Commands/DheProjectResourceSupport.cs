@@ -143,6 +143,7 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("DHE runtime asset prefix is invalid.");
             var result = new List<RequiredAssetSpec>();
             var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var metadataHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             Action<string, string, string> add = (path, kind, assembly) =>
             {
                 string normalized = NormalizeAssetPath(path);
@@ -193,7 +194,18 @@ namespace HybridCLR.Editor.Commands
                         throw new BuildFailedException(
                             "DHE runtime plan AOT metadata set does not match AotFileList.txt: " + name);
                     string metadataPath = NormalizeAssetPath(metadata.path);
-                    if (!paths.Contains(metadataPath)) add(metadataPath, "aot-metadata", name);
+                    if (paths.Contains(metadataPath))
+                    {
+                        if (!metadataHashes.TryGetValue(metadataPath, out string priorHash) ||
+                            !string.Equals(priorHash, metadata.sha256,
+                                StringComparison.OrdinalIgnoreCase))
+                            throw new BuildFailedException(
+                                "DHE runtime plan reuses an AOT metadata path with a different hash: " +
+                                metadataPath);
+                        continue;
+                    }
+                    add(metadataPath, "aot-metadata", name);
+                    metadataHashes.Add(metadataPath, metadata.sha256);
                 }
                 if (names.Count != 0)
                     throw new BuildFailedException(
