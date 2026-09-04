@@ -530,6 +530,18 @@ namespace HybridCLR.Editor.Commands
             return full;
         }
 
+        private static string RequireProjectChild(string projectRoot, string path,
+            string description)
+        {
+            string resolvedRoot = Path.GetFullPath(projectRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string resolvedPath = Path.GetFullPath(path ?? string.Empty);
+            if (!resolvedPath.StartsWith(resolvedRoot, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException(description + " must be inside the project root: " +
+                    resolvedPath);
+            return resolvedPath;
+        }
+
         private static bool IsSha256(string value)
         {
             if (string.IsNullOrWhiteSpace(value) || value.Length != 64) return false;
