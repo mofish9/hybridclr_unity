@@ -79,7 +79,7 @@ identities and emits one payload:
 ```text
 payload/<assembly>.dll.bytes
 payload/<assembly>.mv.bytes
-  payload/aot-metadata/<sha256>.bytes   # deduplicated supplemental metadata blobs
+  payload/aot-metadata/<sha256-prefix-128>.bytes # deduplicated blobs; full SHA-256 stays in the plan
 dhe-runtime-plan.json
 dhe-resource-update.json
 dhe-resource-update-validation.json
@@ -132,6 +132,12 @@ maps every `baseId` through `baseSelections`; a Player loads only the set select
 for its own identity. A Player built with an older managed runtime or without this
 identity/capability is rejected instead of being treated as an equivalent Base.
 
+For consecutive resource releases, keep the archived Base registry and each
+Player's embedded Base MetaVersion unchanged. Run `resource-update` again for
+the new current DLL set and stage its single payload over the previous resource
+root; do not promote the previous current DLL/MV into a new baseline unless a
+new Base Player is intentionally shipped and added to the registry.
+
 ## Runtime adapter
 
 Implement `IDheRuntimeAssetProvider` for the resource system. During the
@@ -148,6 +154,10 @@ existing hot-update load flow:
 4. Read every planned current DLL, preserve the project load order, and call
    `DheRuntime.LoadAssemblyImages` once before any ordinary `Assembly.Load`
    or game logic. The batch call publishes the complete DHE set atomically.
+
+The demo's `DheStreamingAssetReader` covers filesystem platforms and Android
+APK ZIP entries; a production provider must keep the same relative-path and
+integrity semantics when its catalog resolves remote bundles on Android/iOS.
 
 Every Player reads Base MetaVersion from its immutable built-in asset root and compares
 it with the one remote current MetaVersion. Project code must not select a per-Base
