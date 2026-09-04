@@ -29,6 +29,7 @@ namespace HybridCLR.Editor.Commands
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
+            "stable-method-identity-v1",
             "single-current-multibase-v1",
             "resource-update-plan-integrity-v1",
             "resource-update-aot-metadata-path-v1",

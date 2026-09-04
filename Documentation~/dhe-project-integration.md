@@ -115,6 +115,9 @@ input. Omitting an old Base is equivalent to ending support for it.
 Every resource update requires `resource-update-plan-integrity-v1` and
 `resource-update-aot-metadata-set-selection-v1`; updates carrying non-empty
 supplemental metadata also require `resource-update-aot-metadata-path-v1`. The
+Base runtime must advertise `stable-method-identity-v1`; this capability binds
+the current-to-Base method mapping fix into the Base identity and prevents an
+older runtime from being treated as equivalent. The
 metadata set identity is part of BuildIdentity/baseId. A resource plan contains
 one content-addressed `aotMetadataSets` entry per distinct Base metadata set and
 maps every `baseId` through `baseSelections`; a Player loads only the set selected
