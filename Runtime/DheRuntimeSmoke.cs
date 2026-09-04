@@ -72,6 +72,8 @@ namespace HybridCLR
         public string nativeGuardSourceSha256;
         public string nativeManifestSha256;
         public string target;
+        public string selectedPayloadVariantId;
+        public string selectedPayloadCurrentAssemblySetSha256;
         public bool dheEnabled;
         public int changedMethodCount;
         public int expectedChangedMethodCount;
