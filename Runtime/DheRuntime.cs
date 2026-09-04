@@ -90,6 +90,8 @@ namespace HybridCLR
         private static bool transactionRetryValidated;
         private static bool validationProbesEnabled;
         private static string transactionAssemblyName;
+        private static string selectedPayloadVariantId;
+        private static string selectedPayloadCurrentAssemblySetSha256;
         private static LoadImageErrorCode transactionFailureCode =
             LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
         private static DheRuntimeIdentity identity;
@@ -247,6 +249,13 @@ namespace HybridCLR
 
         public static LoadImageErrorCode TransactionRetryFailure => transactionFailureCode;
 
+        /// <summary>Variant selected by the authenticated Base-to-payload binding.</summary>
+        public static string SelectedPayloadVariantId => selectedPayloadVariantId ?? string.Empty;
+
+        /// <summary>Current assembly-set hash for <see cref="SelectedPayloadVariantId"/>.</summary>
+        public static string SelectedPayloadCurrentAssemblySetSha256 =>
+            selectedPayloadCurrentAssemblySetSha256 ?? string.Empty;
+
         public static string[] PlannedAssemblyNames
         {
             get
@@ -282,6 +291,8 @@ namespace HybridCLR
             transactionProbeAttempted = false;
             transactionRetryValidated = false;
             transactionAssemblyName = null;
+            selectedPayloadVariantId = null;
+            selectedPayloadCurrentAssemblySetSha256 = null;
             transactionFailureCode = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
             validationProbesEnabled = false;
         }
@@ -342,6 +353,7 @@ namespace HybridCLR
                 }
                 DheAotMetadataRecord[] selectedAotMetadata = SelectAotMetadata(plan, identity);
                 DheAssemblyRecord[] selectedAssemblies = SelectPayloadAssemblies(plan, identity);
+                SetSelectedPayloadIdentity(plan, identity);
 
                 foreach (DheAssemblyRecord record in selectedAssemblies)
                 {
@@ -422,6 +434,8 @@ namespace HybridCLR
                 AotMetadataPaths.Clear();
                 LoadedAssemblies.Clear();
                 identity = null;
+                selectedPayloadVariantId = null;
+                selectedPayloadCurrentAssemblySetSha256 = null;
                 enabled = false;
                 initialized = false;
                 error = exception.Message;
@@ -1268,6 +1282,33 @@ namespace HybridCLR
                     StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("DHE runtime plan default payload hash is invalid.");
             return selected.assemblies;
+        }
+
+        private static void SetSelectedPayloadIdentity(RuntimePlan plan,
+            DheRuntimeIdentity buildIdentity)
+        {
+            DhePayloadVariant[] variants = plan.payloadVariants ?? Array.Empty<DhePayloadVariant>();
+            if (variants.Length == 0)
+            {
+                selectedPayloadVariantId = "default";
+                selectedPayloadCurrentAssemblySetSha256 = plan.currentAssemblySetSha256 ?? string.Empty;
+                return;
+            }
+
+            DheBaseSelection[] matches = (plan.baseSelections ?? Array.Empty<DheBaseSelection>())
+                .Where(selection => selection != null && string.Equals(selection.baseId,
+                    buildIdentity.BaseId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidDataException("DHE runtime plan does not select a payload identity for this Base.");
+            string variantId = string.IsNullOrWhiteSpace(matches[0].payloadVariantId)
+                ? "default" : matches[0].payloadVariantId;
+            DhePayloadVariant[] selected = variants.Where(variant => variant != null &&
+                string.Equals(variant.variantId, variantId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (selected.Length != 1 || !string.Equals(selected[0].currentAssemblySetSha256,
+                    matches[0].currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE runtime plan payload identity is not bound to this Base.");
+            selectedPayloadVariantId = variantId;
+            selectedPayloadCurrentAssemblySetSha256 = selected[0].currentAssemblySetSha256;
         }
 
         private static string ComputePayloadVariantSetHash(DhePayloadVariant[] variants)

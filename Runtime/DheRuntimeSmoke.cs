@@ -198,6 +198,9 @@ namespace HybridCLR
                 nativeGuardSourceSha256 = options.ExpectedNativeGuardSourceSha256,
                 nativeManifestSha256 = options.ExpectedNativeManifestSha256,
                 target = options.ExpectedTarget,
+                selectedPayloadVariantId = DheRuntime.SelectedPayloadVariantId,
+                selectedPayloadCurrentAssemblySetSha256 =
+                    DheRuntime.SelectedPayloadCurrentAssemblySetSha256,
                 dheEnabled = DheRuntime.Enabled,
                 changedMethodCount = options.ExpectedChangedMethodCount,
                 expectedChangedMethodCount = options.ExpectedChangedMethodCount,
