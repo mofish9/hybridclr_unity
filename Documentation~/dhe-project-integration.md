@@ -112,6 +112,14 @@ may differ under `dhe-runtime-protocol-v1`; a Base is accepted only
 when its declared capability set contains every capability required by its own
 Base-to-current diff. Keep every still-supported production Base in the command
 input. Omitting an old Base is equivalent to ending support for it.
+For repeatable releases, store that set in a
+`hybridclr.dhe-base-registry.json` file and pass `-BaseRegistry` to the host.
+Use `registry-relative-v1` paths when the registry travels with the archived
+Base records. The host rejects duplicate Base IDs, unsupported engine workflows,
+mixed registry/parallel arguments, and identity/baseId mismatches, then records
+the registry SHA-256 and entry count in the resource manifest. Adding a new
+online Base is an audited registry change; it does not create a second current
+DLL/MV payload.
 Every resource update requires `resource-update-plan-integrity-v1` and
 `resource-update-aot-metadata-set-selection-v1`; updates carrying non-empty
 supplemental metadata also require `resource-update-aot-metadata-path-v1`. The
