@@ -193,6 +193,7 @@ namespace HybridCLR
             public string runtimeProtocol;
             public string currentAssemblySetSha256;
             public string payloadVariantSetSha256;
+            public DhePayloadVariant[] payloadVariants;
             public DheSupportedBase[] bases;
         }
 
@@ -451,6 +452,16 @@ namespace HybridCLR
                 }
                 ResourceUpdateManifest manifest = JsonUtility.FromJson<ResourceUpdateManifest>(
                     provider.LoadText(manifestAssetPath));
+                if (manifest != null && manifest.payloadVariants != null &&
+                    manifest.payloadVariants.Length != 0 &&
+                    (!IsSha256(manifest.payloadVariantSetSha256) ||
+                     !string.Equals(manifest.payloadVariantSetSha256,
+                         ComputePayloadVariantSetHash(manifest.payloadVariants),
+                         StringComparison.OrdinalIgnoreCase)))
+                {
+                    error = "DHE resource manifest payload variant set hash is invalid.";
+                    return false;
+                }
                 if (manifest == null || manifest.schemaVersion != 1 ||
                     !string.Equals(manifest.format, "hybridclr.dhe-resource-update.json",
                         StringComparison.Ordinal) ||
@@ -502,6 +513,18 @@ namespace HybridCLR
                 }
                 ResourceUpdateValidation validation = JsonUtility.FromJson<ResourceUpdateValidation>(
                     System.Text.Encoding.UTF8.GetString(validationBytes));
+                if (validation != null && validation.payloadVariants != null &&
+                    validation.payloadVariants.Length != 0 &&
+                    (!IsSha256(validation.payloadVariantSetSha256) ||
+                     !string.Equals(validation.payloadVariantSetSha256,
+                         ComputePayloadVariantSetHash(validation.payloadVariants),
+                         StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(validation.payloadVariantSetSha256,
+                         manifest.payloadVariantSetSha256, StringComparison.OrdinalIgnoreCase)))
+                {
+                    error = "DHE resource validation payload variant set hash is invalid.";
+                    return false;
+                }
                 if (validation == null || validation.schemaVersion != 1 || !validation.passed ||
                     !string.Equals(validation.format,
                         "hybridclr.dhe-resource-update-validation.json", StringComparison.Ordinal) ||
@@ -1235,12 +1258,32 @@ namespace HybridCLR
                 !string.Equals(matches[0].currentAssemblySetSha256,
                     selected.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("DHE runtime plan selected payload variant is not bound to this Base.");
+            if (!IsSha256(plan.payloadVariantSetSha256) ||
+                !string.Equals(plan.payloadVariantSetSha256,
+                    ComputePayloadVariantSetHash(variants), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE runtime plan payload variant set hash is invalid.");
             if (!string.Equals(plan.currentAssemblySetSha256,
                     variantsById.TryGetValue("default", out DhePayloadVariant defaultVariant)
                         ? defaultVariant.currentAssemblySetSha256 : plan.currentAssemblySetSha256,
                     StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("DHE runtime plan default payload hash is invalid.");
             return selected.assemblies;
+        }
+
+        private static string ComputePayloadVariantSetHash(DhePayloadVariant[] variants)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                foreach (DhePayloadVariant variant in variants.OrderBy(item => item.variantId,
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    byte[] bytes = System.Text.Encoding.UTF8.GetBytes((variant.variantId ?? string.Empty) +
+                        "\n" + (variant.currentAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n");
+                    sha.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
+                }
+                sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                return ToHex(sha.Hash);
+            }
         }
 
         private static bool IsPayloadVariantId(string value)
