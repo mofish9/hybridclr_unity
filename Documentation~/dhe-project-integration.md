@@ -118,8 +118,14 @@ Use `registry-relative-v1` paths when the registry travels with the archived
 Base records. The host rejects duplicate Base IDs, unsupported engine workflows,
 mixed registry/parallel arguments, and identity/baseId mismatches, then records
 the registry SHA-256 and entry count in the resource manifest. Adding a new
-online Base is an audited registry change; it does not create a second current
-DLL/MV payload.
+online Base is an audited registry change; it does not create a second Base-specific
+delta payload. For target-specific managed metadata shapes, one resource manifest
+may contain multiple current payload variants. Pass `-CurrentRoot` for the default
+variant and `-CurrentVariantRoots {"android":"C:/build/current-android","windows":"C:/build/current-windows"}`
+for additional roots, then set each registry entry's `payloadVariantId` to the
+variant consumed by that Base. The runtime plan keeps the variant hash and asset
+paths bound to the Base selection, and staging copies only the selected DLL/MV
+variant while preserving the same one-package release model.
 Every resource update requires `resource-update-plan-integrity-v1` and
 `resource-update-aot-metadata-set-selection-v1`; updates carrying non-empty
 supplemental metadata also require `resource-update-aot-metadata-path-v1`. The
@@ -134,9 +140,10 @@ identity/capability is rejected instead of being treated as an equivalent Base.
 
 For consecutive resource releases, keep the archived Base registry and each
 Player's embedded Base MetaVersion unchanged. Run `resource-update` again for
-the new current DLL set and stage its single payload over the previous resource
-root; do not promote the previous current DLL/MV into a new baseline unless a
-new Base Player is intentionally shipped and added to the registry.
+the new current DLL roots (one root per variant) and stage the resulting manifest
+over the previous resource root; do not promote the previous current DLL/MV into
+a new baseline unless a new Base Player is intentionally shipped and added to the
+registry. The same Base can consume N and N+1 without changing its embedded files.
 
 ## Runtime adapter
 
@@ -160,6 +167,6 @@ APK ZIP entries; a production provider must keep the same relative-path and
 integrity semantics when its catalog resolves remote bundles on Android/iOS.
 
 Every Player reads Base MetaVersion from its immutable built-in asset root and compares
-it with the one remote current MetaVersion. Project code must not select a per-Base
-remote delta or reimplement MV parsing, Base identity matching, transaction
-retry, changed-method dispatch, or native identity checks.
+it with the current MetaVersion from its selected payload variant. Project code must
+not select a per-Base remote delta or reimplement MV parsing, Base identity matching,
+transaction retry, changed-method dispatch, or native identity checks.
