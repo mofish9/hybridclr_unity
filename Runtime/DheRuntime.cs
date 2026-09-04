@@ -102,12 +102,22 @@ namespace HybridCLR
             public string format;
             public string selection;
             public string currentAssemblySetSha256;
+            public string payloadVariantSetSha256;
             public string runtimeAssetRoot;
             public string baseMetaVersionAssetRoot;
             public string aotMetadataSetId;
             public DheAotMetadataRecord[] aotMetadata;
             public DheAotMetadataSet[] aotMetadataSets;
             public DheBaseSelection[] baseSelections;
+            public DheAssemblyRecord[] assemblies;
+            public DhePayloadVariant[] payloadVariants;
+        }
+
+        [Serializable]
+        private sealed class DhePayloadVariant
+        {
+            public string variantId;
+            public string currentAssemblySetSha256;
             public DheAssemblyRecord[] assemblies;
         }
 
@@ -140,6 +150,8 @@ namespace HybridCLR
             public string baseMetaVersionAssetRoot;
             public string buildIdentitySha256;
             public string aotMetadataSetId;
+            public string payloadVariantId;
+            public string currentAssemblySetSha256;
             public string compatibilityPolicy;
             public bool compatible;
             public bool guardCoverageValidated;
@@ -160,6 +172,7 @@ namespace HybridCLR
             public bool playerUpdateRequired;
             public bool guardCoverageValidated;
             public string currentAssemblySetSha256;
+            public string payloadVariantSetSha256;
             public string runtimeAssetRoot;
             public string baseMetaVersionAssetRoot;
             public string runtimePlan;
@@ -167,6 +180,7 @@ namespace HybridCLR
             public string validation;
             public string validationSha256;
             public DheSupportedBase[] supportedBases;
+            public DhePayloadVariant[] payloadVariants;
         }
 
         [Serializable]
@@ -178,6 +192,7 @@ namespace HybridCLR
             public string compatibilityPolicy;
             public string runtimeProtocol;
             public string currentAssemblySetSha256;
+            public string payloadVariantSetSha256;
             public DheSupportedBase[] bases;
         }
 
@@ -201,6 +216,8 @@ namespace HybridCLR
         {
             public string baseId;
             public string aotMetadataSetId;
+            public string payloadVariantId;
+            public string currentAssemblySetSha256;
         }
 
         private sealed class DheAssemblyArtifact
@@ -305,7 +322,9 @@ namespace HybridCLR
                 RuntimePlan plan = JsonUtility.FromJson<RuntimePlan>(provider.LoadText(planAssetPath));
                 if (plan == null || plan.schemaVersion != 1 ||
                     !string.Equals(plan.format, "hybridclr.dhe-runtime-asset-plan.json",
-                        StringComparison.Ordinal) || plan.assemblies == null || plan.assemblies.Length == 0)
+                        StringComparison.Ordinal) ||
+                    ((plan.assemblies == null || plan.assemblies.Length == 0) &&
+                     (plan.payloadVariants == null || plan.payloadVariants.Length == 0)))
                 {
                     throw new InvalidDataException("DHE runtime plan has an invalid schema or no assemblies.");
                 }
@@ -321,8 +340,9 @@ namespace HybridCLR
                         "DHE runtime plan asset roots do not match the Player identity.");
                 }
                 DheAotMetadataRecord[] selectedAotMetadata = SelectAotMetadata(plan, identity);
+                DheAssemblyRecord[] selectedAssemblies = SelectPayloadAssemblies(plan, identity);
 
-                foreach (DheAssemblyRecord record in plan.assemblies)
+                foreach (DheAssemblyRecord record in selectedAssemblies)
                 {
                     string assemblyName = NormalizeAssemblyName(record?.assemblyName);
                     if (string.IsNullOrWhiteSpace(assemblyName) || Artifacts.ContainsKey(assemblyName))
@@ -434,8 +454,8 @@ namespace HybridCLR
                 if (manifest == null || manifest.schemaVersion != 1 ||
                     !string.Equals(manifest.format, "hybridclr.dhe-resource-update.json",
                         StringComparison.Ordinal) ||
-                    !string.Equals(manifest.payloadModel, "single-current-payload",
-                        StringComparison.Ordinal) ||
+                    (manifest.payloadModel != "single-current-payload" &&
+                     manifest.payloadModel != "variant-current-payload") ||
                     manifest.metaVersionSchema != 1 || manifest.playerUpdateRequired ||
                     !manifest.guardCoverageValidated ||
                     !string.Equals(manifest.runtimeComparison,
@@ -560,6 +580,22 @@ namespace HybridCLR
                     error = "DHE current payload was not validated for Player base " + baseId + ".";
                     return false;
                 }
+                string selectedVariantId = string.IsNullOrWhiteSpace(matches[0].payloadVariantId)
+                    ? "default" : matches[0].payloadVariantId;
+                DhePayloadVariant manifestVariant = SelectManifestPayloadVariant(manifest,
+                    selectedVariantId);
+                if (manifestVariant == null || !IsSha256(manifestVariant.currentAssemblySetSha256) ||
+                    (!string.IsNullOrWhiteSpace(matches[0].currentAssemblySetSha256) &&
+                     !string.Equals(matches[0].currentAssemblySetSha256,
+                         manifestVariant.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase)) ||
+                    !string.Equals(manifestVariant.currentAssemblySetSha256,
+                        FindPlanVariantHash(provider, manifestAssetPath, manifest.runtimePlan,
+                            selectedVariantId, manifest.runtimePlanSha256),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE resource update payload variant is not bound to this Player base.";
+                    return false;
+                }
                 return true;
             }
             catch (Exception exception)
@@ -601,6 +637,48 @@ namespace HybridCLR
                 new HashSet<string>(candidate.runtimeCapabilities ?? Array.Empty<string>(),
                     StringComparer.Ordinal).SetEquals(buildIdentity.RuntimeCapabilities ??
                     Array.Empty<string>());
+        }
+
+        private static DhePayloadVariant SelectManifestPayloadVariant(
+            ResourceUpdateManifest manifest, string variantId)
+        {
+            DhePayloadVariant[] variants = manifest.payloadVariants ?? Array.Empty<DhePayloadVariant>();
+            if (variants.Length == 0)
+            {
+                return string.Equals(variantId, "default", StringComparison.OrdinalIgnoreCase)
+                    ? new DhePayloadVariant
+                    {
+                        variantId = "default",
+                        currentAssemblySetSha256 = manifest.currentAssemblySetSha256,
+                    }
+                    : null;
+            }
+            DhePayloadVariant[] matches = variants.Where(variant => variant != null &&
+                string.Equals(variant.variantId, variantId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            return matches.Length == 1 ? matches[0] : null;
+        }
+
+        private static string FindPlanVariantHash(IDheRuntimeAssetProvider provider,
+            string manifestAssetPath, string planAssetPath, string variantId, string expectedHash)
+        {
+            string directory = Path.GetDirectoryName(manifestAssetPath.Replace('/',
+                Path.DirectorySeparatorChar))?.Replace(Path.DirectorySeparatorChar, '/') ?? string.Empty;
+            string path = planAssetPath.Replace('\\', '/');
+            if (!path.StartsWith("Assets/", StringComparison.Ordinal) && !string.IsNullOrEmpty(directory))
+                path = directory.TrimEnd('/') + "/" + path;
+            if (!provider.Exists(path)) return string.Empty;
+            byte[] bytes = provider.LoadBytes(path);
+            if (!string.Equals(Sha256Hex(bytes), expectedHash, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+            RuntimePlan plan = JsonUtility.FromJson<RuntimePlan>(System.Text.Encoding.UTF8.GetString(bytes));
+            if (plan == null) return string.Empty;
+            DhePayloadVariant[] variants = plan.payloadVariants ?? Array.Empty<DhePayloadVariant>();
+            if (variants.Length == 0)
+                return string.Equals(variantId, "default", StringComparison.OrdinalIgnoreCase)
+                    ? plan.currentAssemblySetSha256 : string.Empty;
+            DhePayloadVariant[] matches = variants.Where(variant => variant != null &&
+                string.Equals(variant.variantId, variantId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            return matches.Length == 1 ? matches[0].currentAssemblySetSha256 : string.Empty;
         }
 
         private static bool HasRequiredRuntimeCapabilities(DheSupportedBase candidate,
@@ -677,6 +755,10 @@ namespace HybridCLR
                 if (matchingSelections.Length != 1 ||
                     !string.Equals(matchingSelections[0].aotMetadataSetId,
                         selectedBase.aotMetadataSetId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(matchingSelections[0].payloadVariantId ?? "default",
+                        selectedBase.payloadVariantId ?? "default", StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(matchingSelections[0].currentAssemblySetSha256,
+                        selectedBase.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(selectedBase.aotMetadataSetId,
                         buildIdentity.AotMetadataSetId, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1118,6 +1200,58 @@ namespace HybridCLR
                 throw new InvalidDataException(
                     "DHE runtime plan does not select this Player's AOT metadata set.");
             return setsById[matches[0].aotMetadataSetId].assemblies;
+        }
+
+        private static DheAssemblyRecord[] SelectPayloadAssemblies(RuntimePlan plan,
+            DheRuntimeIdentity buildIdentity)
+        {
+            DhePayloadVariant[] variants = plan.payloadVariants ?? Array.Empty<DhePayloadVariant>();
+            if (variants.Length == 0)
+            {
+                if (plan.assemblies == null || plan.assemblies.Length == 0)
+                    throw new InvalidDataException("DHE runtime plan has no payload assemblies.");
+                return plan.assemblies;
+            }
+            var variantsById = new Dictionary<string, DhePayloadVariant>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (DhePayloadVariant variant in variants)
+            {
+                if (variant == null || string.IsNullOrWhiteSpace(variant.variantId) ||
+                    !IsPayloadVariantId(variant.variantId) ||
+                    !IsSha256(variant.currentAssemblySetSha256) ||
+                    variant.assemblies == null || variant.assemblies.Length == 0 ||
+                    !variantsById.TryAdd(variant.variantId, variant))
+                    throw new InvalidDataException("DHE runtime plan contains an invalid payload variant.");
+            }
+            DheBaseSelection[] selections = plan.baseSelections ?? Array.Empty<DheBaseSelection>();
+            DheBaseSelection[] matches = selections.Where(selection => selection != null &&
+                string.Equals(selection.baseId, buildIdentity.BaseId,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidDataException("DHE runtime plan does not select a payload variant for this Base.");
+            string variantId = string.IsNullOrWhiteSpace(matches[0].payloadVariantId)
+                ? "default" : matches[0].payloadVariantId;
+            if (!variantsById.TryGetValue(variantId, out DhePayloadVariant selected) ||
+                !string.Equals(matches[0].currentAssemblySetSha256,
+                    selected.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE runtime plan selected payload variant is not bound to this Base.");
+            if (!string.Equals(plan.currentAssemblySetSha256,
+                    variantsById.TryGetValue("default", out DhePayloadVariant defaultVariant)
+                        ? defaultVariant.currentAssemblySetSha256 : plan.currentAssemblySetSha256,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE runtime plan default payload hash is invalid.");
+            return selected.assemblies;
+        }
+
+        private static bool IsPayloadVariantId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length > 64) return false;
+            foreach (char character in value)
+            {
+                if (!(char.IsLetterOrDigit(character) || character == '-' ||
+                      character == '_' || character == '.')) return false;
+            }
+            return true;
         }
 
         private static void ValidateEmbeddedIdentity()

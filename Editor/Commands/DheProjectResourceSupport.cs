@@ -34,8 +34,9 @@ namespace HybridCLR.Editor.Commands
                 File.ReadAllText(runtimePlanPath));
             if (plan == null || plan.schemaVersion != 1 ||
                 !string.Equals(plan.format, "hybridclr.dhe-runtime-asset-plan.json",
-                    StringComparison.Ordinal) || plan.assemblies == null ||
-                plan.assemblies.Length == 0)
+                StringComparison.Ordinal) ||
+                ((plan.assemblies == null || plan.assemblies.Length == 0) &&
+                 (plan.payloadVariants == null || plan.payloadVariants.Length == 0)))
                 throw new BuildFailedException(
                     "DHE runtime asset plan is invalid: " + runtimePlanPath);
 
@@ -162,7 +163,12 @@ namespace HybridCLR.Editor.Commands
             };
             foreach (string control in options.ControlFileNames ?? Array.Empty<string>())
                 add(prefix + control, "control", null);
-            foreach (RuntimeAssembly assembly in plan.assemblies)
+            IEnumerable<RuntimeAssembly> plannedAssemblies = plan.payloadVariants != null &&
+                plan.payloadVariants.Length != 0
+                ? plan.payloadVariants.SelectMany(variant => variant?.assemblies ??
+                    Array.Empty<RuntimeAssembly>())
+                : plan.assemblies ?? Array.Empty<RuntimeAssembly>();
+            foreach (RuntimeAssembly assembly in plannedAssemblies)
             {
                 string name = NormalizeAssemblyName(assembly?.assemblyName);
                 if (string.IsNullOrWhiteSpace(name))
@@ -336,6 +342,13 @@ namespace HybridCLR.Editor.Commands
             public RuntimeAotMetadataSet[] aotMetadataSets;
             public RuntimeBaseSelection[] baseSelections;
             public RuntimeAssembly[] assemblies;
+            public RuntimePayloadVariant[] payloadVariants;
+        }
+        [Serializable] private sealed class RuntimePayloadVariant
+        {
+            public string variantId;
+            public string currentAssemblySetSha256;
+            public RuntimeAssembly[] assemblies;
         }
         [Serializable] private sealed class RuntimeAotMetadata
         {
@@ -352,6 +365,8 @@ namespace HybridCLR.Editor.Commands
         {
             public string baseId;
             public string aotMetadataSetId;
+            public string payloadVariantId;
+            public string currentAssemblySetSha256;
         }
         [Serializable] private sealed class RuntimeAssembly
         {
