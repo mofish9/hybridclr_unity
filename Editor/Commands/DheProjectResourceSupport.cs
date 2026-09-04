@@ -174,22 +174,64 @@ namespace HybridCLR.Editor.Commands
             string text = File.ReadAllText(aotListPath).Trim();
             StringArray aotList = JsonUtility.FromJson<StringArray>("{\"items\":" + text + "}");
             string[] aotAssemblies = aotList?.items ?? Array.Empty<string>();
-            if (plan.aotMetadata == null || plan.aotMetadata.Length != aotAssemblies.Length)
-                throw new BuildFailedException(
-                    "DHE runtime plan AOT metadata records do not match AotFileList.txt.");
-            var names = new HashSet<string>(aotAssemblies.Select(NormalizeAssemblyName),
-                StringComparer.OrdinalIgnoreCase);
-            foreach (RuntimeAotMetadata metadata in plan.aotMetadata)
+            string[] expectedNames = aotAssemblies.Select(NormalizeAssemblyName).ToArray();
+            if (expectedNames.Any(string.IsNullOrWhiteSpace) ||
+                expectedNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != expectedNames.Length)
+                throw new BuildFailedException("DHE AotFileList contains an invalid assembly set.");
+
+            Action<RuntimeAotMetadata[], string> addMetadataSet = (records, setId) =>
             {
-                string name = NormalizeAssemblyName(metadata?.assemblyName);
-                if (string.IsNullOrWhiteSpace(name) || !names.Remove(name))
+                if (!IsSha256(setId) || records == null || records.Length != expectedNames.Length)
                     throw new BuildFailedException(
-                        "DHE runtime plan AOT metadata set does not match AotFileList.txt: " + name);
-                add(prefix + name + ".bytes", "aot-metadata", name);
+                        "DHE runtime plan AOT metadata set identity is invalid.");
+                var names = new HashSet<string>(expectedNames, StringComparer.OrdinalIgnoreCase);
+                foreach (RuntimeAotMetadata metadata in records)
+                {
+                    string name = NormalizeAssemblyName(metadata?.assemblyName);
+                    if (string.IsNullOrWhiteSpace(name) || !names.Remove(name) ||
+                        !IsSha256(metadata.sha256))
+                        throw new BuildFailedException(
+                            "DHE runtime plan AOT metadata set does not match AotFileList.txt: " + name);
+                    string metadataPath = NormalizeAssetPath(metadata.path);
+                    if (!paths.Contains(metadataPath)) add(metadataPath, "aot-metadata", name);
+                }
+                if (names.Count != 0)
+                    throw new BuildFailedException(
+                        "DHE AotFileList contains assemblies absent from the runtime plan.");
+            };
+
+            if (string.Equals(plan.selection, "embedded-base-metaversion", StringComparison.Ordinal))
+            {
+                if ((plan.aotMetadataSets != null && plan.aotMetadataSets.Length != 0) ||
+                    (plan.baseSelections != null && plan.baseSelections.Length != 0))
+                    throw new BuildFailedException("DHE Base runtime plan contains resource selections.");
+                addMetadataSet(plan.aotMetadata ?? Array.Empty<RuntimeAotMetadata>(),
+                    plan.aotMetadataSetId);
             }
-            if (names.Count != 0)
-                throw new BuildFailedException(
-                    "DHE AotFileList contains assemblies absent from the runtime plan.");
+            else if (string.Equals(plan.selection,
+                         "embedded-base-metaversion-and-aot-metadata-set", StringComparison.Ordinal))
+            {
+                if ((plan.aotMetadata != null && plan.aotMetadata.Length != 0) ||
+                    plan.aotMetadataSets == null || plan.aotMetadataSets.Length == 0 ||
+                    plan.baseSelections == null || plan.baseSelections.Length == 0)
+                    throw new BuildFailedException("DHE resource runtime plan has no metadata selections.");
+                var setIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (RuntimeAotMetadataSet set in plan.aotMetadataSets)
+                {
+                    if (set == null || !setIds.Add(set.aotMetadataSetId))
+                        throw new BuildFailedException("DHE resource runtime plan contains a duplicate metadata set.");
+                    addMetadataSet(set.assemblies, set.aotMetadataSetId);
+                }
+                var baseIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (RuntimeBaseSelection selection in plan.baseSelections)
+                {
+                    if (selection == null || !IsSha256(selection.baseId) ||
+                        !baseIds.Add(selection.baseId) ||
+                        !setIds.Contains(selection.aotMetadataSetId))
+                        throw new BuildFailedException("DHE resource runtime plan contains an invalid Base selection.");
+                }
+            }
+            else throw new BuildFailedException("DHE runtime plan selection mode is invalid.");
             return result;
         }
 
@@ -231,6 +273,12 @@ namespace HybridCLR.Editor.Commands
                     .ToLowerInvariant();
         }
 
+        private static bool IsSha256(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.Length == 64 &&
+                value.All(Uri.IsHexDigit);
+        }
+
         private static string NormalizeAssetPath(string path)
         {
             return (path ?? string.Empty).Replace('\\', '/').TrimStart('/');
@@ -270,10 +318,29 @@ namespace HybridCLR.Editor.Commands
         {
             public int schemaVersion;
             public string format;
+            public string selection;
+            public string aotMetadataSetId;
             public RuntimeAotMetadata[] aotMetadata;
+            public RuntimeAotMetadataSet[] aotMetadataSets;
+            public RuntimeBaseSelection[] baseSelections;
             public RuntimeAssembly[] assemblies;
         }
-        [Serializable] private sealed class RuntimeAotMetadata { public string assemblyName; }
+        [Serializable] private sealed class RuntimeAotMetadata
+        {
+            public string assemblyName;
+            public string sha256;
+            public string path;
+        }
+        [Serializable] private sealed class RuntimeAotMetadataSet
+        {
+            public string aotMetadataSetId;
+            public RuntimeAotMetadata[] assemblies;
+        }
+        [Serializable] private sealed class RuntimeBaseSelection
+        {
+            public string baseId;
+            public string aotMetadataSetId;
+        }
         [Serializable] private sealed class RuntimeAssembly
         {
             public string assemblyName;

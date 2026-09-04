@@ -55,7 +55,7 @@ assembly; ordinary Editor and current-generation compilation do not receive
 that symbol.
 
 `build-identity.json` uses identity v1. Its `baseId` is a composite SHA-256 over
-the target, managed/AOT/Base-MetaVersion sets, native guard/manifest, runtime
+the target, managed/AOT/Base-MetaVersion/AOT-metadata sets, native guard/manifest, runtime
 protocol/contract/capabilities, and runtime asset roots. Do not use an app
 version or managed assembly hash as a Base selector.
 `runtimeContract` is an immutable runtime implementation release identifier;
@@ -79,7 +79,7 @@ identities and emits one payload:
 ```text
 payload/<assembly>.dll.bytes
 payload/<assembly>.mv.bytes
-payload/<patch-aot-assembly>.bytes   # when supplemental metadata is enabled
+  payload/aot-metadata/<sha256>.bytes   # deduplicated supplemental metadata blobs
 dhe-runtime-plan.json
 dhe-resource-update.json
 dhe-resource-update-validation.json
@@ -112,10 +112,14 @@ may differ under `dhe-runtime-protocol-v1`; a Base is accepted only
 when its declared capability set contains every capability required by its own
 Base-to-current diff. Keep every still-supported production Base in the command
 input. Omitting an old Base is equivalent to ending support for it.
-Every resource update requires `resource-update-plan-integrity-v1`; updates carrying
-supplemental metadata also require `resource-update-aot-metadata-path-v1`. Both are
-part of BuildIdentity/baseId, so a Player built with an older managed runtime is
-rejected instead of being treated as an equivalent Base.
+Every resource update requires `resource-update-plan-integrity-v1` and
+`resource-update-aot-metadata-set-selection-v1`; updates carrying non-empty
+supplemental metadata also require `resource-update-aot-metadata-path-v1`. The
+metadata set identity is part of BuildIdentity/baseId. A resource plan contains
+one content-addressed `aotMetadataSets` entry per distinct Base metadata set and
+maps every `baseId` through `baseSelections`; a Player loads only the set selected
+for its own identity. A Player built with an older managed runtime or without this
+identity/capability is rejected instead of being treated as an equivalent Base.
 
 ## Runtime adapter
 

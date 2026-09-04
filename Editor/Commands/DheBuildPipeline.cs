@@ -32,6 +32,7 @@ namespace HybridCLR.Editor.Commands
             "single-current-multibase-v1",
             "resource-update-plan-integrity-v1",
             "resource-update-aot-metadata-path-v1",
+            "resource-update-aot-metadata-set-selection-v1",
             "atomic-multi-assembly-registration-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -432,6 +433,8 @@ namespace HybridCLR.Editor.Commands
                         "DHE AOT metadata fallback manifest")));
             }
             List<DheRuntimePlanAotMetadata> aotMetadata = new List<DheRuntimePlanAotMetadata>();
+            List<KeyValuePair<string, byte[]>> aotMetadataSet =
+                new List<KeyValuePair<string, byte[]>>();
             foreach (string name in NormalizeAssemblyNames(aotAssemblies))
             {
                 string source = Path.Combine(strippedAotRoot, name + DllExtension);
@@ -442,12 +445,14 @@ namespace HybridCLR.Editor.Commands
                     sourceKind = "fallback-root";
                 }
                 source = RequireFile(source, name + " AOT metadata");
-                File.Copy(source, Path.Combine(currentAssetRoot, name + ".bytes"), true);
+                byte[] sourceBytes = File.ReadAllBytes(source);
+                File.WriteAllBytes(Path.Combine(currentAssetRoot, name + ".bytes"), sourceBytes);
+                aotMetadataSet.Add(new KeyValuePair<string, byte[]>(name, sourceBytes));
                 aotMetadata.Add(new DheRuntimePlanAotMetadata
                 {
                     assemblyName = name,
                     sourceKind = sourceKind,
-                    sha256 = Sha256Hex(File.ReadAllBytes(source)),
+                    sha256 = Sha256Hex(sourceBytes),
                     manifestSha256 = fallbackManifest == null ? string.Empty : fallbackManifestSha256,
                     path = ResolveRuntimeAssetPath(options, projectRoot,
                         Path.Combine(currentAssetRoot, name + ".bytes")),
@@ -482,7 +487,10 @@ namespace HybridCLR.Editor.Commands
                 baseMetaVersionAssetRoot = ResolveRuntimeAssetPath(options, projectRoot,
                     baseMetaVersionRoot).TrimEnd('/') + "/",
                 selection = "embedded-base-metaversion",
+                aotMetadataSetId = Sha256NamedByteSet(aotMetadataSet),
                 aotMetadata = aotMetadata.ToArray(),
+                aotMetadataSets = Array.Empty<DheRuntimePlanAotMetadataSet>(),
+                baseSelections = Array.Empty<DheRuntimePlanBaseSelection>(),
                 aotMetadataManifestSha256 = fallbackManifest == null ? string.Empty : fallbackManifestSha256,
                 assemblies = runtimeRecords.ToArray(),
             };
@@ -2472,7 +2480,7 @@ namespace HybridCLR.Editor.Commands
             using (SHA256 sha = SHA256.Create())
             {
                 foreach (KeyValuePair<string, byte[]> record in records.OrderBy(item => item.Key,
-                    StringComparer.OrdinalIgnoreCase))
+                    StringComparer.Ordinal))
                 {
                     byte[] name = Encoding.UTF8.GetBytes(record.Key + "\n");
                     sha.TransformBlock(name, 0, name.Length, name, 0);
@@ -2876,7 +2884,10 @@ namespace HybridCLR.Editor.Commands
 			public string runtimeAssetRoot;
             public string baseMetaVersionAssetRoot;
             public string selection;
+            public string aotMetadataSetId;
             public DheRuntimePlanAotMetadata[] aotMetadata;
+            public DheRuntimePlanAotMetadataSet[] aotMetadataSets;
+            public DheRuntimePlanBaseSelection[] baseSelections;
             public string aotMetadataManifestSha256;
             public DheRuntimePlanAssembly[] assemblies;
         }
@@ -2918,6 +2929,20 @@ namespace HybridCLR.Editor.Commands
             public string sha256;
             public string manifestSha256;
             public string path;
+        }
+
+        [Serializable]
+        private sealed class DheRuntimePlanAotMetadataSet
+        {
+            public string aotMetadataSetId;
+            public DheRuntimePlanAotMetadata[] assemblies;
+        }
+
+        [Serializable]
+        private sealed class DheRuntimePlanBaseSelection
+        {
+            public string baseId;
+            public string aotMetadataSetId;
         }
 
         [Serializable]

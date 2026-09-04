@@ -33,6 +33,7 @@ namespace HybridCLR
         public string NativeGuardSourceSha256;
         public string NativeManifestSha256;
         public string BaseMetaVersionSetSha256;
+        public string AotMetadataSetId;
         public string RuntimeProtocol;
         public string RuntimeContract;
         public string[] RuntimeCapabilities;
@@ -59,6 +60,7 @@ namespace HybridCLR
             "single-current-multibase-v1",
             "resource-update-plan-integrity-v1",
             "resource-update-aot-metadata-path-v1",
+            "resource-update-aot-metadata-set-selection-v1",
             "atomic-multi-assembly-registration-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -101,7 +103,10 @@ namespace HybridCLR
             public string currentAssemblySetSha256;
             public string runtimeAssetRoot;
             public string baseMetaVersionAssetRoot;
+            public string aotMetadataSetId;
             public DheAotMetadataRecord[] aotMetadata;
+            public DheAotMetadataSet[] aotMetadataSets;
+            public DheBaseSelection[] baseSelections;
             public DheAssemblyRecord[] assemblies;
         }
 
@@ -133,6 +138,7 @@ namespace HybridCLR
             public string runtimeAssetRoot;
             public string baseMetaVersionAssetRoot;
             public string buildIdentitySha256;
+            public string aotMetadataSetId;
             public string compatibilityPolicy;
             public bool compatible;
             public bool guardCoverageValidated;
@@ -180,6 +186,20 @@ namespace HybridCLR
             public string assemblyName;
             public string sha256;
             public string path;
+        }
+
+        [Serializable]
+        private sealed class DheAotMetadataSet
+        {
+            public string aotMetadataSetId;
+            public DheAotMetadataRecord[] assemblies;
+        }
+
+        [Serializable]
+        private sealed class DheBaseSelection
+        {
+            public string baseId;
+            public string aotMetadataSetId;
         }
 
         private sealed class DheAssemblyArtifact
@@ -299,9 +319,7 @@ namespace HybridCLR
                     throw new InvalidDataException(
                         "DHE runtime plan asset roots do not match the Player identity.");
                 }
-                if (!string.Equals(plan.selection, "embedded-base-metaversion",
-                        StringComparison.Ordinal))
-                    throw new InvalidDataException("DHE runtime plan has an invalid selection mode.");
+                DheAotMetadataRecord[] selectedAotMetadata = SelectAotMetadata(plan, identity);
 
                 foreach (DheAssemblyRecord record in plan.assemblies)
                 {
@@ -331,22 +349,42 @@ namespace HybridCLR
                     });
                 }
 
-                foreach (DheAotMetadataRecord record in plan.aotMetadata ??
-                    Array.Empty<DheAotMetadataRecord>())
+                var selectedMetadataNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var selectedMetadataBytes = new List<KeyValuePair<string, byte[]>>();
+                foreach (DheAotMetadataRecord record in selectedAotMetadata)
                 {
                     string assemblyName = NormalizeAssemblyName(record?.assemblyName);
                     string hash = record?.sha256;
                     string path = ValidateAssetPath(record?.path,
                         assemblyName + " AOT metadata");
                     if (string.IsNullOrWhiteSpace(assemblyName) ||
+                        !selectedMetadataNames.Add(assemblyName) ||
                         AotMetadataHashes.ContainsKey(assemblyName) || !IsSha256(hash))
                     {
                         throw new InvalidDataException(
                             "DHE runtime plan contains an invalid AOT metadata record.");
                     }
+                    byte[] metadataBytes = provider.LoadBytes(path);
+                    if (!string.Equals(Sha256Hex(metadataBytes), hash,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException(
+                            "DHE AOT metadata payload hash mismatch: " + assemblyName);
+                    selectedMetadataBytes.Add(new KeyValuePair<string, byte[]>(assemblyName,
+                        metadataBytes));
                     AotMetadataHashes.Add(assemblyName, hash.ToLowerInvariant());
                     AotMetadataPaths.Add(assemblyName, path);
                 }
+                string selectedSetId = string.IsNullOrWhiteSpace(plan.aotMetadataSetId)
+                    ? (plan.baseSelections ?? Array.Empty<DheBaseSelection>()).Where(item => item != null &&
+                        string.Equals(item.baseId, identity.BaseId,
+                            StringComparison.OrdinalIgnoreCase)).Select(item => item.aotMetadataSetId)
+                        .SingleOrDefault() ?? string.Empty
+                    : plan.aotMetadataSetId;
+                if (!IsSha256(selectedSetId) ||
+                    !string.Equals(Sha256NamedByteSet(selectedMetadataBytes), selectedSetId,
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException(
+                        "DHE AOT metadata set content does not match its authenticated identity.");
 
                 ValidateEmbeddedIdentity();
                 enabled = true;
@@ -463,6 +501,7 @@ namespace HybridCLR
                     !IsSha256(buildIdentity.ManagedAssemblySetSha256) ||
                     !IsSha256(buildIdentity.AotSnapshotSha256) ||
                     !IsSha256(buildIdentity.BaseMetaVersionSetSha256) ||
+                    !IsSha256(buildIdentity.AotMetadataSetId) ||
                     !IsSha256(buildIdentity.NativeGuardSourceSha256) ||
                     !IsSha256(buildIdentity.NativeManifestSha256) ||
                     string.IsNullOrWhiteSpace(buildIdentity.RuntimeAssetRoot) ||
@@ -501,6 +540,8 @@ namespace HybridCLR
                         matches[0].nativeManifestSha256, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(validatedMatches[0].nativeRuntimeContract,
                         matches[0].nativeRuntimeContract, StringComparison.Ordinal) ||
+                    !string.Equals(validatedMatches[0].aotMetadataSetId,
+                        matches[0].aotMetadataSetId, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(validatedMatches[0].runtimeProtocol,
                         matches[0].runtimeProtocol, StringComparison.Ordinal) ||
                     !IsSha256(matches[0].buildIdentitySha256) ||
@@ -540,6 +581,8 @@ namespace HybridCLR
                     StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.baseMetaVersionSetSha256,
                     buildIdentity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.aotMetadataSetId, buildIdentity.AotMetadataSetId,
+                    StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.nativeGuardSourceSha256,
                     buildIdentity.NativeGuardSourceSha256, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.nativeManifestSha256,
@@ -621,6 +664,22 @@ namespace HybridCLR
                         manifest.currentAssemblySetSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     error = "DHE resource manifest and runtime plan current sets do not match.";
+                    return false;
+                }
+                DheSupportedBase selectedBase = manifest.supportedBases.Single(item =>
+                    MatchesPlayerBase(item, buildIdentity));
+                DheBaseSelection[] planSelections = updatePlan.baseSelections ??
+                    Array.Empty<DheBaseSelection>();
+                DheBaseSelection[] matchingSelections = planSelections.Where(item => item != null &&
+                    string.Equals(item.baseId, buildIdentity.BaseId,
+                        StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (matchingSelections.Length != 1 ||
+                    !string.Equals(matchingSelections[0].aotMetadataSetId,
+                        selectedBase.aotMetadataSetId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(selectedBase.aotMetadataSetId,
+                        buildIdentity.AotMetadataSetId, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE resource runtime plan selected the wrong AOT metadata set.";
                     return false;
                 }
                 string manifestRoot = NormalizeAssetRoot(manifest.runtimeAssetRoot);
@@ -1013,6 +1072,53 @@ namespace HybridCLR
             return true;
         }
 
+        private static DheAotMetadataRecord[] SelectAotMetadata(RuntimePlan plan,
+            DheRuntimeIdentity buildIdentity)
+        {
+            DheAotMetadataSet[] sets = plan.aotMetadataSets ?? Array.Empty<DheAotMetadataSet>();
+            DheBaseSelection[] selections = plan.baseSelections ?? Array.Empty<DheBaseSelection>();
+            if (string.Equals(plan.selection, "embedded-base-metaversion",
+                    StringComparison.Ordinal))
+            {
+                if (!IsSha256(plan.aotMetadataSetId) ||
+                    !string.Equals(plan.aotMetadataSetId, buildIdentity.AotMetadataSetId,
+                        StringComparison.OrdinalIgnoreCase) || sets.Length != 0 || selections.Length != 0)
+                    throw new InvalidDataException(
+                        "DHE Base runtime plan AOT metadata identity is invalid.");
+                return plan.aotMetadata ?? Array.Empty<DheAotMetadataRecord>();
+            }
+            if (!string.Equals(plan.selection,
+                    "embedded-base-metaversion-and-aot-metadata-set", StringComparison.Ordinal) ||
+                (plan.aotMetadata != null && plan.aotMetadata.Length != 0) || sets.Length == 0 ||
+                selections.Length == 0)
+                throw new InvalidDataException("DHE runtime plan has an invalid selection mode.");
+
+            var setsById = new Dictionary<string, DheAotMetadataSet>(StringComparer.OrdinalIgnoreCase);
+            foreach (DheAotMetadataSet set in sets)
+            {
+                if (set == null || !IsSha256(set.aotMetadataSetId) ||
+                    !setsById.TryAdd(set.aotMetadataSetId, set) || set.assemblies == null)
+                    throw new InvalidDataException("DHE runtime plan contains an invalid AOT metadata set.");
+            }
+            var selectionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DheBaseSelection selection in selections)
+            {
+                if (selection == null || !IsSha256(selection.baseId) ||
+                    !IsSha256(selection.aotMetadataSetId) || !selectionIds.Add(selection.baseId) ||
+                    !setsById.ContainsKey(selection.aotMetadataSetId))
+                    throw new InvalidDataException("DHE runtime plan contains an invalid Base selection.");
+            }
+            DheBaseSelection[] matches = selections.Where(selection => selection != null &&
+                string.Equals(selection.baseId, buildIdentity.BaseId,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1 ||
+                !string.Equals(matches[0].aotMetadataSetId, buildIdentity.AotMetadataSetId,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException(
+                    "DHE runtime plan does not select this Player's AOT metadata set.");
+            return setsById[matches[0].aotMetadataSetId].assemblies;
+        }
+
         private static void ValidateEmbeddedIdentity()
         {
             if (identity.IdentityVersion != 1 || !string.Equals(identity.AotSnapshotKind,
@@ -1031,6 +1137,7 @@ namespace HybridCLR
                 !IsSha256(identity.ManagedAssemblySetSha256) ||
                 !IsSha256(identity.AotSnapshotSha256) ||
                 !IsSha256(identity.BaseMetaVersionSetSha256) ||
+                !IsSha256(identity.AotMetadataSetId) ||
                 !IsSha256(identity.NativeGuardSourceSha256) ||
                 !IsSha256(identity.NativeManifestSha256) ||
                 string.IsNullOrWhiteSpace(identity.Target) ||
@@ -1210,6 +1317,8 @@ namespace HybridCLR
                 (value.AotSnapshotSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "baseMetaVersionSetSha256=" +
                 (value.BaseMetaVersionSetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "aotMetadataSetId=" +
+                (value.AotMetadataSetId ?? string.Empty).ToLowerInvariant() + "\n" +
                 "nativeGuardSourceSha256=" +
                 (value.NativeGuardSourceSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "nativeManifestSha256=" +
