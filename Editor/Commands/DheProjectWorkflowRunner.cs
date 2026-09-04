@@ -203,7 +203,12 @@ namespace HybridCLR.Editor.Commands
                 ProjectPlanPath = context.ProjectPlanPath,
                 OutputRoot = context.OutputRoot,
                 Target = context.TargetName,
-                GuardAllMethods = context.GetBooleanArgument("-dheBootstrap"),
+                // Every DHE Base must remain consumable by later
+                // resource-only updates.  The native finalizer therefore
+                // requires universal guards for both bootstrap and
+                // subsequent Base rebuilds; bootstrap only controls the
+                // baseline creation policy.
+                GuardAllMethods = true,
             };
         }
 
