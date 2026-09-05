@@ -27,6 +27,8 @@ namespace HybridCLR
     {
         public int IdentityVersion;
         public string Target;
+        public string EngineWorkflow;
+        public string Il2CppCodeGeneration;
         public string AotSnapshotKind;
         public string BaseId;
         public string ManagedAssemblySetSha256;
@@ -143,6 +145,8 @@ namespace HybridCLR
         {
             public string baseId;
             public string target;
+            public string engineWorkflow;
+            public string il2cppCodeGeneration;
             public string aotSnapshotSha256;
             public string baseMetaVersionSetSha256;
             public string nativeGuardSourceSha256;
@@ -252,6 +256,11 @@ namespace HybridCLR
         public static int EmbeddedIdentityVersion => identity?.IdentityVersion ?? 0;
 
         public static string EmbeddedTarget => identity?.Target ?? string.Empty;
+
+        public static string EmbeddedEngineWorkflow => identity?.EngineWorkflow ?? string.Empty;
+
+        public static string EmbeddedIl2CppCodeGeneration =>
+            identity?.Il2CppCodeGeneration ?? string.Empty;
 
         public static string EmbeddedNativeGuardSourceSha256 =>
             identity?.NativeGuardSourceSha256 ?? string.Empty;
@@ -591,6 +600,8 @@ namespace HybridCLR
                 string baseId = buildIdentity.BaseId;
                 if (buildIdentity.IdentityVersion != 1 || !IsSha256(baseId) ||
                     string.IsNullOrWhiteSpace(buildIdentity.Target) ||
+                    !IsBuildConfiguration(buildIdentity.EngineWorkflow,
+                        buildIdentity.Il2CppCodeGeneration) ||
                     !IsSha256(buildIdentity.ManagedAssemblySetSha256) ||
                     !TryValidateAotAssemblyInventory(buildIdentity.AotAssemblyNames,
                         buildIdentity.AotAssemblySetSha256) ||
@@ -688,6 +699,10 @@ namespace HybridCLR
                 string.Equals(candidate.baseId, buildIdentity.BaseId,
                     StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.target, buildIdentity.Target, StringComparison.Ordinal) &&
+                string.Equals(candidate.engineWorkflow, buildIdentity.EngineWorkflow,
+                    StringComparison.Ordinal) &&
+                string.Equals(candidate.il2cppCodeGeneration,
+                    buildIdentity.Il2CppCodeGeneration, StringComparison.Ordinal) &&
                 string.Equals(candidate.managedAssemblySetSha256,
                     buildIdentity.ManagedAssemblySetSha256, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.aotAssemblySetSha256,
@@ -1530,6 +1545,8 @@ namespace HybridCLR
                 !IsSha256(identity.NativeGuardSourceSha256) ||
                 !IsSha256(identity.NativeManifestSha256) ||
                 string.IsNullOrWhiteSpace(identity.Target) ||
+                !IsBuildConfiguration(identity.EngineWorkflow,
+                    identity.Il2CppCodeGeneration) ||
                 string.IsNullOrWhiteSpace(identity.RuntimeAssetRoot) ||
                 string.IsNullOrWhiteSpace(identity.BaseMetaVersionAssetRoot) ||
                 !string.Equals(identity.BaseId, ComputeBaseId(identity),
@@ -1719,6 +1736,9 @@ namespace HybridCLR
                     StringComparer.Ordinal).ToArray();
             string canonical = "hybridclr.dhe-base-identity-v1\n" +
                 "target=" + (value.Target ?? string.Empty) + "\n" +
+                "engineWorkflow=" + (value.EngineWorkflow ?? string.Empty) + "\n" +
+                "il2cppCodeGeneration=" +
+                (value.Il2CppCodeGeneration ?? string.Empty) + "\n" +
                 "managedAssemblySetSha256=" +
                 (value.ManagedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "aotAssemblySetSha256=" +
@@ -1740,6 +1760,16 @@ namespace HybridCLR
                 "baseMetaVersionAssetRoot=" +
                 NormalizeAssetRoot(value.BaseMetaVersionAssetRoot) + "\n";
             return Sha256Hex(System.Text.Encoding.UTF8.GetBytes(canonical));
+        }
+
+        private static bool IsBuildConfiguration(string engineWorkflow,
+            string il2cppCodeGeneration)
+        {
+            return string.Equals(engineWorkflow, "Unity2021Standard", StringComparison.Ordinal)
+                    && string.Equals(il2cppCodeGeneration, "OptimizeSpeed", StringComparison.Ordinal) ||
+                (string.Equals(engineWorkflow, "Unity2022Fgs", StringComparison.Ordinal) ||
+                 string.Equals(engineWorkflow, "Tuanjie2022Fgs", StringComparison.Ordinal))
+                    && string.Equals(il2cppCodeGeneration, "OptimizeSize", StringComparison.Ordinal);
         }
 
         private static bool TryValidateAotAssemblyInventory(string[] assemblyNames,

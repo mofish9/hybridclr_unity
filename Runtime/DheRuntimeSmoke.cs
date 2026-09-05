@@ -71,6 +71,8 @@ namespace HybridCLR
         public bool multiAssemblyValidated;
         public bool buildIdentityValidated;
         public int identityVersion;
+        public string engineWorkflow;
+        public string il2cppCodeGeneration;
         public string aotSnapshotKind;
         public string nativeGuardSourceSha256;
         public string nativeManifestSha256;
@@ -203,6 +205,8 @@ namespace HybridCLR
                 multiAssemblyValidated = assemblySetValid,
                 buildIdentityValidated = identityValid,
                 identityVersion = DheRuntime.EmbeddedIdentityVersion,
+                engineWorkflow = DheRuntime.EmbeddedEngineWorkflow,
+                il2cppCodeGeneration = DheRuntime.EmbeddedIl2CppCodeGeneration,
                 aotSnapshotKind = "managed-assembly-plus-generated-cpp-v1",
                 nativeGuardSourceSha256 = options.ExpectedNativeGuardSourceSha256,
                 nativeManifestSha256 = options.ExpectedNativeManifestSha256,

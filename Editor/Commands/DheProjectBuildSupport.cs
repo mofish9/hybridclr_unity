@@ -21,6 +21,54 @@ namespace HybridCLR.Editor.Commands
         private const string ZeroSha256 =
             "0000000000000000000000000000000000000000000000000000000000000000";
 
+        public static void ValidateBuildConfiguration(string engineWorkflow,
+            string il2cppCodeGeneration)
+        {
+            string expected = engineWorkflow switch
+            {
+                "Unity2021Standard" => "OptimizeSpeed",
+                "Unity2022Fgs" => "OptimizeSize",
+                "Tuanjie2022Fgs" => "OptimizeSize",
+                _ => throw new BuildFailedException(
+                    "DHE engine workflow is unsupported: " + engineWorkflow),
+            };
+            if (!string.Equals(il2cppCodeGeneration, expected, StringComparison.Ordinal))
+                throw new BuildFailedException("DHE engine workflow " + engineWorkflow +
+                    " requires IL2CPP code generation " + expected + ", got " +
+                    il2cppCodeGeneration + ".");
+        }
+
+        public static void ApplyIl2CppCodeGeneration(BuildTarget target, string expected)
+        {
+            if (!Enum.TryParse(expected, false, out Il2CppCodeGeneration value) ||
+                value != Il2CppCodeGeneration.OptimizeSpeed &&
+                value != Il2CppCodeGeneration.OptimizeSize)
+                throw new BuildFailedException(
+                    "DHE IL2CPP code generation must be OptimizeSpeed or OptimizeSize.");
+            BuildTargetGroup group = BuildPipeline.GetBuildTargetGroup(target);
+#if UNITY_2022_1_OR_NEWER
+            PlayerSettings.SetIl2CppCodeGeneration(
+                NamedBuildTarget.FromBuildTargetGroup(group), value);
+#else
+            EditorUserBuildSettings.il2CppCodeGeneration = value;
+#endif
+            if (!string.Equals(GetIl2CppCodeGeneration(target), expected,
+                    StringComparison.Ordinal))
+                throw new BuildFailedException(
+                    "DHE failed to apply the required IL2CPP code generation mode.");
+        }
+
+        public static string GetIl2CppCodeGeneration(BuildTarget target)
+        {
+            BuildTargetGroup group = BuildPipeline.GetBuildTargetGroup(target);
+#if UNITY_2022_1_OR_NEWER
+            return PlayerSettings.GetIl2CppCodeGeneration(
+                NamedBuildTarget.FromBuildTargetGroup(group)).ToString();
+#else
+            return EditorUserBuildSettings.il2CppCodeGeneration.ToString();
+#endif
+        }
+
         public static DheNativeFinalizeOptions CreateNativeFinalizeOptions(
             DheProjectNativeOptions options, bool rebuildPlayer)
         {
@@ -261,7 +309,19 @@ namespace HybridCLR.Editor.Commands
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.Ordinal).OrderBy(value => value,
                     StringComparer.Ordinal).ToArray();
-            string baseId = ComputeBaseId(options.Target, baselineSetHash, aotAssemblySetHash,
+            string engineWorkflow = RequireBuildIdentityValue(options.EngineWorkflow,
+                "engine workflow");
+            string il2cppCodeGeneration = RequireBuildIdentityValue(
+                options.Il2CppCodeGeneration, "IL2CPP code generation");
+            ValidateBuildConfiguration(engineWorkflow, il2cppCodeGeneration);
+            string actualCodeGeneration = GetIl2CppCodeGeneration(
+                ParseBuildTarget(options.Target));
+            if (!string.Equals(actualCodeGeneration, il2cppCodeGeneration,
+                    StringComparison.Ordinal))
+                throw new BuildFailedException("DHE Player IL2CPP code generation is " +
+                    actualCodeGeneration + ", expected " + il2cppCodeGeneration + ".");
+            string baseId = ComputeBaseId(options.Target, engineWorkflow,
+                il2cppCodeGeneration, baselineSetHash, aotAssemblySetHash,
                 snapshotSetHash,
                 baseMetaVersionSetHash, runtimePlan.aotMetadataSetId,
                 guard.NativeGuardSourceSha256,
@@ -286,6 +346,8 @@ namespace HybridCLR.Editor.Commands
                 format = "hybridclr.dhe-build-identity.json",
                 workflow = options.Workflow,
                 target = options.Target,
+                engineWorkflow = engineWorkflow,
+                il2cppCodeGeneration = il2cppCodeGeneration,
                 identityVersion = 1,
                 state = "staged-for-final-player",
                 pathSemantics = "workspace-absolute-v1",
@@ -325,6 +387,8 @@ namespace HybridCLR.Editor.Commands
             string expectedSourcePath = ResolveProjectAsset(options.ProjectRoot,
                 options.BuildIdentityAssetPath);
             if (identity == null || identity.identityVersion != 1 ||
+                !IsBuildConfiguration(identity.engineWorkflow,
+                    identity.il2cppCodeGeneration) ||
                 !string.Equals(identity.state, "staged-for-final-player", StringComparison.Ordinal) ||
                 !string.Equals((identity.stagedSourcePath ?? string.Empty).Replace('\\', '/'),
                     options.BuildIdentityAssetPath.Replace('\\', '/'),
@@ -338,7 +402,15 @@ namespace HybridCLR.Editor.Commands
                     new HashSet<string>(identity.aotAssemblyNames,
                         StringComparer.OrdinalIgnoreCase).Contains(
                         NormalizeAssemblyName(assembly?.assemblyName))) ||
+                !string.Equals(identity.engineWorkflow, options.EngineWorkflow,
+                    StringComparison.Ordinal) ||
+                !string.Equals(identity.il2cppCodeGeneration,
+                    options.Il2CppCodeGeneration, StringComparison.Ordinal) ||
+                !string.Equals(identity.il2cppCodeGeneration,
+                    GetIl2CppCodeGeneration(ParseBuildTarget(options.Target)),
+                    StringComparison.Ordinal) ||
                 !string.Equals(identity.baseId, ComputeBaseId(identity.target,
+                    identity.engineWorkflow, identity.il2cppCodeGeneration,
                     identity.managedAssemblySetSha256, identity.aotAssemblySetSha256,
                     identity.aotSnapshotSha256,
                     identity.baseMetaVersionSetSha256, identity.aotMetadataSetId,
@@ -449,6 +521,10 @@ namespace HybridCLR.Editor.Commands
                 "    internal static class " + options.IdentityClassName + "\n    {\n" +
                 "        public const int IdentityVersion = 1;\n" +
                 "        public const string Target = " + Quote(options.Target) + ";\n" +
+                "        public const string EngineWorkflow = " +
+                Quote(options.EngineWorkflow) + ";\n" +
+                "        public const string Il2CppCodeGeneration = " +
+                Quote(options.Il2CppCodeGeneration) + ";\n" +
                 "        public const string AotSnapshotKind = \"" + AotSnapshotKind + "\";\n" +
                 "        public const string BaseId = \"" + baseId + "\";\n" +
                 "        public const string ManagedAssemblySetSha256 = \"" +
@@ -488,6 +564,8 @@ namespace HybridCLR.Editor.Commands
                 "    internal static class " + options.IdentityClassName + "\n    {\n" +
                 "        public const int IdentityVersion = 1;\n" +
                 "        public const string Target = \"\";\n" +
+                "        public const string EngineWorkflow = \"\";\n" +
+                "        public const string Il2CppCodeGeneration = \"\";\n" +
                 "        public const string AotSnapshotKind = \"uninitialized-template\";\n" +
                 "        public const string BaseId = \"" + ZeroSha256 + "\";\n" +
                 "        public const string ManagedAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
@@ -517,6 +595,8 @@ namespace HybridCLR.Editor.Commands
                 "            {\n" +
                 "                IdentityVersion = IdentityVersion,\n" +
                 "                Target = Target,\n" +
+                "                EngineWorkflow = EngineWorkflow,\n" +
+                "                Il2CppCodeGeneration = Il2CppCodeGeneration,\n" +
                 "                AotSnapshotKind = AotSnapshotKind,\n" +
                 "                BaseId = BaseId,\n" +
                 "                ManagedAssemblySetSha256 = ManagedAssemblySetSha256,\n" +
@@ -758,7 +838,35 @@ namespace HybridCLR.Editor.Commands
                 .ToLowerInvariant();
         }
 
-        private static string ComputeBaseId(string target, string managedAssemblySetSha256,
+        private static BuildTarget ParseBuildTarget(string value)
+        {
+            if (Enum.TryParse(value, true, out BuildTarget target) &&
+                target != BuildTarget.NoTarget)
+                return target;
+            throw new BuildFailedException("DHE build identity target is invalid: " + value);
+        }
+
+        private static string RequireBuildIdentityValue(string value, string description)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Any(character =>
+                    !char.IsLetterOrDigit(character) && character != '.' && character != '_' &&
+                    character != '-'))
+                throw new BuildFailedException("DHE build identity " + description + " is invalid.");
+            return value;
+        }
+
+        private static bool IsBuildConfiguration(string engineWorkflow,
+            string il2cppCodeGeneration)
+        {
+            return string.Equals(engineWorkflow, "Unity2021Standard", StringComparison.Ordinal)
+                    && string.Equals(il2cppCodeGeneration, "OptimizeSpeed", StringComparison.Ordinal) ||
+                (string.Equals(engineWorkflow, "Unity2022Fgs", StringComparison.Ordinal) ||
+                 string.Equals(engineWorkflow, "Tuanjie2022Fgs", StringComparison.Ordinal))
+                    && string.Equals(il2cppCodeGeneration, "OptimizeSize", StringComparison.Ordinal);
+        }
+
+        private static string ComputeBaseId(string target, string engineWorkflow,
+            string il2cppCodeGeneration, string managedAssemblySetSha256,
             string aotAssemblySetSha256, string aotSnapshotSha256,
             string baseMetaVersionSetSha256,
             string aotMetadataSetId,
@@ -772,6 +880,8 @@ namespace HybridCLR.Editor.Commands
                     StringComparer.Ordinal).ToArray();
             string canonical = "hybridclr.dhe-base-identity-v1\n" +
                 "target=" + (target ?? string.Empty) + "\n" +
+                "engineWorkflow=" + (engineWorkflow ?? string.Empty) + "\n" +
+                "il2cppCodeGeneration=" + (il2cppCodeGeneration ?? string.Empty) + "\n" +
                 "managedAssemblySetSha256=" +
                 (managedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "aotAssemblySetSha256=" +
@@ -898,6 +1008,8 @@ namespace HybridCLR.Editor.Commands
             public string format;
             public string workflow;
             public string target;
+            public string engineWorkflow;
+            public string il2cppCodeGeneration;
             public int identityVersion;
             public string state;
             public string pathSemantics;
@@ -1006,6 +1118,8 @@ namespace HybridCLR.Editor.Commands
         public string AotAssemblyRoot;
         public string ProjectPlanPath;
         public string Target;
+        public string EngineWorkflow;
+        public string Il2CppCodeGeneration;
         public string Workflow = "dhe-opt4";
         public string BuildIdentityAssetPath;
         public string RuntimePlanPath;

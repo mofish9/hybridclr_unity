@@ -228,6 +228,8 @@ namespace HybridCLR.Editor.Commands
                     SettingsUtil.GetAssembliesPostIl2CppStripDir(context.Target)),
                 ProjectPlanPath = context.ProjectPlanPath,
                 Target = context.TargetName,
+                EngineWorkflow = context.EngineWorkflow,
+                Il2CppCodeGeneration = context.Il2CppCodeGeneration,
                 Workflow = adapter.Workflow,
                 BuildIdentityAssetPath = adapter.BuildIdentityAssetPath,
                 RuntimePlanPath = Path.Combine(adapter.RuntimeAssetRoot,
@@ -352,6 +354,8 @@ namespace HybridCLR.Editor.Commands
         public string CurrentRoot { get; private set; }
         public string ProjectPlanPath { get; private set; }
         public string Mode { get; private set; }
+        public string EngineWorkflow { get; private set; }
+        public string Il2CppCodeGeneration { get; private set; }
 
         public static DheProjectWorkflowContext FromCommandLine(bool requireProjectPlan)
         {
@@ -363,8 +367,12 @@ namespace HybridCLR.Editor.Commands
                 CurrentRoot = Path.GetFullPath(GetArgumentValue("-dheCurrentRoot") ??
                     Path.Combine(RequireArgument("-dheOutputRoot"), "current")),
                 Mode = GetArgumentValue("-dheMode") ?? "Exploratory",
+                EngineWorkflow = RequireArgument("-dheEngineWorkflow"),
+                Il2CppCodeGeneration = RequireArgument("-dheIl2CppCodeGeneration"),
             };
             context.Target = ParseTarget(context.TargetName);
+            DheProjectBuildSupport.ValidateBuildConfiguration(context.EngineWorkflow,
+                context.Il2CppCodeGeneration);
             string projectPlan = GetArgumentValue("-dheProjectPlan");
             if (requireProjectPlan && string.IsNullOrWhiteSpace(projectPlan))
                 throw new BuildFailedException("Missing required Unity argument: -dheProjectPlan");
@@ -403,6 +411,8 @@ namespace HybridCLR.Editor.Commands
                     "Unity does not expose the selected standalone subtarget API required by SBP.");
                 method.Invoke(null, new object[] { Target, (int)StandaloneBuildSubtarget.Player });
             }
+            DheProjectBuildSupport.ApplyIl2CppCodeGeneration(Target,
+                Il2CppCodeGeneration);
             EditorUserBuildSettings.buildScriptsOnly = false;
         }
 
