@@ -80,7 +80,13 @@ namespace HybridCLR.Editor.Commands
             if (!final) return;
 
             DheBeeRebuildResult rebuild = nativeResult.BeeRebuildResult;
-            bool rebuildPassed = rebuild != null && rebuild.ExitCode == 0;
+            DhePlayerArtifactFinalizeResult artifact = nativeResult.PlayerArtifactResult;
+            bool artifactRequired = string.Equals(options.Target, BuildTarget.Android.ToString(),
+                StringComparison.OrdinalIgnoreCase);
+            bool artifactPassed = !artifactRequired || artifact != null && artifact.Passed &&
+                artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
+                artifact.NativeLibrarySha256 != null && artifact.NativeLibrarySha256.Length > 0;
+            bool rebuildPassed = rebuild != null && rebuild.ExitCode == 0 && artifactPassed;
             WriteJson(Path.Combine(adapterRoot, "native-finalize.json"), new NativeFinalizeEvidence
             {
                 schemaVersion = 1,
@@ -97,6 +103,19 @@ namespace HybridCLR.Editor.Commands
                 logPath = rebuild?.LogPath,
                 attempts = rebuild?.Attempts ?? 0,
                 exitCode = rebuild?.ExitCode ?? -1,
+                graphRegenerations = rebuild?.GraphRegenerations ?? 0,
+                guardReapplications = rebuild?.GuardReapplications ?? 0,
+                buildProgramPath = rebuild?.BuildProgramPath,
+                playerArtifactKind = artifact?.Kind,
+                playerArtifactPath = artifact?.OutputPath,
+                playerArtifactSha256 = artifact?.OutputSha256,
+                playerArtifactBuildToolPath = artifact?.BuildToolPath,
+                playerArtifactBuildProgramPath = artifact?.BuildProgramPath,
+                playerArtifactBuildTask = artifact?.BuildTask,
+                playerArtifactBuildLogPath = artifact?.BuildLogPath,
+                playerArtifactExitCode = artifact?.ExitCode ?? -1,
+                playerArtifactNativeLibraryEntries = artifact?.NativeLibraryEntries ?? Array.Empty<string>(),
+                playerArtifactNativeLibrarySha256 = artifact?.NativeLibrarySha256 ?? Array.Empty<string>(),
             });
             if (!rebuildPassed)
                 throw new BuildFailedException("DHE native Player rebuild did not complete.");
@@ -847,6 +866,19 @@ namespace HybridCLR.Editor.Commands
             public string logPath;
             public int attempts;
             public int exitCode;
+            public int graphRegenerations;
+            public int guardReapplications;
+            public string buildProgramPath;
+            public string playerArtifactKind;
+            public string playerArtifactPath;
+            public string playerArtifactSha256;
+            public string playerArtifactBuildToolPath;
+            public string playerArtifactBuildProgramPath;
+            public string playerArtifactBuildTask;
+            public string playerArtifactBuildLogPath;
+            public int playerArtifactExitCode;
+            public string[] playerArtifactNativeLibraryEntries;
+            public string[] playerArtifactNativeLibrarySha256;
         }
 
         [Serializable]
@@ -951,7 +983,7 @@ namespace HybridCLR.Editor.Commands
         public string ProjectPlanPath;
         public string OutputRoot;
         public string Target;
-        public int BeeMaxAttempts = 3;
+        public int BeeMaxAttempts = 8;
         public int BeeTimeoutSeconds = 600;
         public bool GuardAllMethods;
     }
