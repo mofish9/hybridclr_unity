@@ -183,6 +183,8 @@ namespace HybridCLR.Editor.Commands
                 NativeFinalizeOptions = scriptsOnly ? null :
                     DheProjectBuildSupport.CreateNativeFinalizeOptions(
                         CreateNativeOptions(adapter, context), true),
+                AndroidArtifactLogPath = scriptsOnly ? null :
+                    Path.Combine(context.OutputRoot, "native", "android-artifact.log"),
                 NativeFinalizeResultCallback = result => nativeResult = result,
             });
             return nativeResult;

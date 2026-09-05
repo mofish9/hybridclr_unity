@@ -48,6 +48,11 @@ identity and always restores the source template. Archive `baseline/`,
 `build-identity.json`, and `native/dhe-native-manifest.json` for every
 online Base.
 
+All project-owned precompiled hot-update DLLs used by `Prepare` must be built
+for the active target as current-generation inputs. Do not freeze a Windows
+conditional-compilation result into an Android/iOS Base; missing target-only
+P/Invoke or metadata members cannot be repaired by a later resource update.
+
 Identity staging enumerates the complete stripped AOT DLL inventory, not only
 the configured DHE assemblies. It stores normalized `aotAssemblyNames` plus
 `aotAssemblySetSha256`, requires the DHE set to be a subset, and repeats the
@@ -76,6 +81,17 @@ building a Player directly is not a bootstrap because it would omit the
 runtime plan, universal guards, and BuildIdentity stages. Normal non-DHE builds
 must call `DheBuildPipeline.ClearDheRuntimePlanAssets` before collecting legacy
 hotfix assets.
+
+Native finalization binds the Player DAG to the exact generated-C++ root. If
+Bee returns 4, the package runs the current Editor's PlayerBuildProgram,
+stabilizes the graph, reapplies the guards, and performs the final native
+build, with an eight-attempt hard limit. Android then resolves the Gradle root
+from that DAG's input data, invokes the Editor-owned Java/Gradle distribution,
+and rebuilds the requested APK/AAB. `adapter/native-finalize.json` records the
+DAG, Gradle root, artifact SHA-256, and aligned Bee source/archive-entry hashes
+for every `libil2cpp.so`; the external C# host must revalidate this evidence.
+The iOS path uses the same C# Bee state machine but still requires macOS/Xcode,
+signing, and device gates.
 
 ## Resource-only update
 

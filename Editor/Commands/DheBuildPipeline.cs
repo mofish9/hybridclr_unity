@@ -591,6 +591,8 @@ namespace HybridCLR.Editor.Commands
                     {
                         nativeResult.PlayerArtifactResult = FinalizeAndroidPlayerArtifact(
                             options.NativeFinalizeOptions.ProjectRoot, outputPath,
+                            nativeResult.BeeRebuildResult == null ? null :
+                                nativeResult.BeeRebuildResult.DagPath,
                             options.NativeFinalizeOptions.BeeTimeoutSeconds,
                             options.AndroidArtifactLogPath,
                             (buildOptions.options & BuildOptions.Development) != 0);
@@ -989,16 +991,11 @@ namespace HybridCLR.Editor.Commands
                     generatedRoot);
             }
 
-            string[] dagPaths = Directory.GetFiles(beeRoot, "Player*.dag",
-                SearchOption.TopDirectoryOnly);
-            if (dagPaths.Length == 0)
-            {
-                throw new BuildFailedException(
-                    "Unity did not produce a Player Bee DAG under: " + beeRoot);
-            }
-            string dagPath = dagPaths.OrderByDescending(File.GetLastWriteTimeUtc).First();
+            string dagPath = ResolveBeePlayerDag(beeRoot, generatedRoot);
             string beeBackendPath = ResolveBeeBackendPath();
-            int maxAttempts = options.MaxAttempts <= 0 ? 3 : options.MaxAttempts;
+            int maxAttempts = options.MaxAttempts <= 0 ? 8 : options.MaxAttempts;
+            if (maxAttempts > 8)
+                throw new BuildFailedException("DHE Bee rebuild supports at most 8 attempts.");
             int timeoutSeconds = options.TimeoutSeconds <= 0 ? 600 : options.TimeoutSeconds;
             string logPath = Path.GetFullPath(string.IsNullOrWhiteSpace(options.LogPath)
                 ? Path.Combine(projectRoot, "Library", "DheBeeRebuild.log")
@@ -1006,6 +1003,42 @@ namespace HybridCLR.Editor.Commands
             Directory.CreateDirectory(Path.GetDirectoryName(logPath));
 
             StringBuilder log = new StringBuilder();
+            DheBeeRebuildResult state;
+            try
+            {
+                state = RunBeeRebuildStateMachine(maxAttempts,
+                    (attempt, useDagJson, phase) => RunBeeBackend(beeBackendPath,
+                        projectRoot, dagPath, useDagJson, timeoutSeconds, log,
+                        attempt, phase),
+                    regeneration => RegenerateBeeGraph(projectRoot, beeRoot, dagPath,
+                        timeoutSeconds, log, regeneration),
+                    options.ReapplyGeneratedCppChanges,
+                    message => log.AppendLine(message));
+            }
+            finally
+            {
+                File.WriteAllText(logPath, log.ToString(), new UTF8Encoding(false));
+            }
+            if (state.ExitCode != 0)
+            {
+                throw new BuildFailedException("Unity Bee failed to rebuild the DHE Player " +
+                    "(exit code " + state.ExitCode + "). See: " + logPath);
+            }
+            state.BeeBackendPath = beeBackendPath;
+            state.DagPath = dagPath;
+            state.LogPath = logPath;
+            return state;
+        }
+
+        private static DheBeeRebuildResult RunBeeRebuildStateMachine(int maxAttempts,
+            Func<int, bool, string, int> runBackend, Func<int, string> regenerateGraph,
+            Action reapplyGeneratedCppChanges, Action<string> appendLog)
+        {
+            if (maxAttempts <= 0) throw new ArgumentOutOfRangeException(nameof(maxAttempts));
+            if (runBackend == null) throw new ArgumentNullException(nameof(runBackend));
+            if (regenerateGraph == null) throw new ArgumentNullException(nameof(regenerateGraph));
+            if (appendLog == null) throw new ArgumentNullException(nameof(appendLog));
+
             int exitCode = -1;
             int attempts = 0;
             int graphRegenerations = 0;
@@ -1014,79 +1047,94 @@ namespace HybridCLR.Editor.Commands
             bool generatedCppMayHaveChanged = false;
             bool guardBuildPending = true;
             string buildProgramPath = null;
-            try
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                attempts = attempt;
+                exitCode = runBackend(attempt, useDagJson,
+                    generatedCppMayHaveChanged ? "graph-stabilize" : "guard-rebuild");
+                useDagJson = false;
+                if (exitCode == 0)
                 {
-                    attempts = attempt;
-                    exitCode = RunBeeBackend(beeBackendPath, projectRoot, dagPath,
-                        useDagJson, timeoutSeconds, log, attempt,
-                        generatedCppMayHaveChanged ? "graph-stabilize" : "guard-rebuild");
-                    useDagJson = false;
-                    if (exitCode == 0)
+                    if (!generatedCppMayHaveChanged)
                     {
-                        if (!generatedCppMayHaveChanged)
-                        {
-                            guardBuildPending = false;
-                            break;
-                        }
-                        if (options.ReapplyGeneratedCppChanges == null)
-                        {
-                            exitCode = -1;
-                            log.AppendLine("error=Bee graph regeneration may have replaced generated C++ " +
-                                "but no reapply callback was supplied.");
-                            break;
-                        }
-                        options.ReapplyGeneratedCppChanges();
-                        guardReapplications++;
-                        generatedCppMayHaveChanged = false;
-                        guardBuildPending = true;
-                        log.AppendLine("guard-reapplied=" + guardReapplications);
-                        continue;
-                    }
-                    if (exitCode != 4) break;
-
-                    if (options.ReapplyGeneratedCppChanges == null)
-                    {
-                        log.AppendLine("error=Bee requested graph regeneration but no generated-C++ " +
-                            "reapply callback was supplied.");
+                        guardBuildPending = false;
                         break;
                     }
-                    buildProgramPath = RegenerateBeeGraph(projectRoot, beeRoot, dagPath,
-                        timeoutSeconds, log, graphRegenerations + 1);
-                    graphRegenerations++;
-                    // The next backend run uses the regenerated JSON graph and may
-                    // execute IL2CPP code generation, replacing every injected
-                    // source file. Reapply only after that stabilization succeeds.
-                    useDagJson = true;
-                    generatedCppMayHaveChanged = true;
+                    if (reapplyGeneratedCppChanges == null)
+                    {
+                        exitCode = -1;
+                        appendLog("error=Bee graph regeneration may have replaced generated C++ " +
+                            "but no reapply callback was supplied.");
+                        break;
+                    }
+                    reapplyGeneratedCppChanges();
+                    guardReapplications++;
+                    generatedCppMayHaveChanged = false;
+                    guardBuildPending = true;
+                    appendLog("guard-reapplied=" + guardReapplications);
+                    continue;
                 }
-                if (guardBuildPending && exitCode == 0)
+                if (exitCode != 4) break;
+                if (reapplyGeneratedCppChanges == null)
+                {
+                    appendLog("error=Bee requested graph regeneration but no generated-C++ " +
+                        "reapply callback was supplied.");
+                    break;
+                }
+                if (attempt == maxAttempts)
                 {
                     exitCode = -1;
-                    log.AppendLine("error=attempt limit reached before reapplied guards were rebuilt.");
+                    appendLog("error=attempt limit reached before the Bee graph could be regenerated.");
+                    break;
                 }
+                buildProgramPath = regenerateGraph(graphRegenerations + 1);
+                graphRegenerations++;
+                // The next backend run uses the regenerated JSON graph and may
+                // execute IL2CPP code generation, replacing every injected
+                // source file. Reapply only after that stabilization succeeds.
+                useDagJson = true;
+                generatedCppMayHaveChanged = true;
             }
-            finally
+            if (guardBuildPending && exitCode == 0)
             {
-                File.WriteAllText(logPath, log.ToString(), new UTF8Encoding(false));
-            }
-            if (exitCode != 0)
-            {
-                throw new BuildFailedException("Unity Bee failed to rebuild the DHE Player " +
-                    "(exit code " + exitCode + "). See: " + logPath);
+                exitCode = -1;
+                appendLog("error=attempt limit reached before reapplied guards were rebuilt.");
             }
             return new DheBeeRebuildResult
             {
-                BeeBackendPath = beeBackendPath,
-                DagPath = dagPath,
-                LogPath = logPath,
                 Attempts = attempts,
                 ExitCode = exitCode,
                 GraphRegenerations = graphRegenerations,
                 GuardReapplications = guardReapplications,
                 BuildProgramPath = buildProgramPath,
             };
+        }
+
+        private static string ResolveBeePlayerDag(string beeRoot, string generatedCppRoot)
+        {
+            string generated = Path.GetFullPath(generatedCppRoot).Replace('\\', '/');
+            string bee = Path.GetFullPath(beeRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            string relative = generated.StartsWith(bee.Replace('\\', '/') + "/",
+                    StringComparison.OrdinalIgnoreCase)
+                ? generated.Substring(bee.Length + 1)
+                : string.Empty;
+            string[] matches = Directory.GetFiles(beeRoot, "Player*.dag",
+                    SearchOption.TopDirectoryOnly)
+                .Where(path =>
+                {
+                    string jsonPath = path + ".json";
+                    if (!File.Exists(jsonPath)) return false;
+                    string json = ReadTextWithoutBom(jsonPath).Replace("\\/", "/");
+                    return json.IndexOf(generated, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        !string.IsNullOrWhiteSpace(relative) &&
+                        json.IndexOf(relative, StringComparison.OrdinalIgnoreCase) >= 0;
+                })
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+            if (matches.Length != 1)
+                throw new BuildFailedException("Expected exactly one Player Bee DAG bound to generated C++ " +
+                    generated + " under " + beeRoot + "; found " + matches.Length + ".");
+            return Path.GetFullPath(matches[0]);
         }
 
         private static bool HaveSameGuardIdentity(DheNativeGuardResult expected,
@@ -1248,23 +1296,12 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static DhePlayerArtifactFinalizeResult FinalizeAndroidPlayerArtifact(
-            string projectRoot, string outputPath, int timeoutSeconds, string logPath,
-            bool development)
+            string projectRoot, string outputPath, string dagPath, int timeoutSeconds,
+            string logPath, bool development)
         {
             string beeRoot = RequireDirectory(Path.Combine(projectRoot, "Library", "Bee"),
                 "Unity Bee root");
-            string[] gradleRoots = Directory.GetFiles(beeRoot, "settings.gradle",
-                    SearchOption.AllDirectories)
-                .Select(Path.GetDirectoryName)
-                .Where(path => !string.IsNullOrWhiteSpace(path) &&
-                    Directory.Exists(Path.Combine(path, "launcher")) &&
-                    FindAndroidLibraryModules(path).Length == 1)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(path => File.GetLastWriteTimeUtc(
-                    Path.Combine(path, "settings.gradle"))).ToArray();
-            if (gradleRoots.Length == 0)
-                throw new BuildFailedException("Unity Android Gradle project was not found under: " + beeRoot);
-            string gradleRoot = gradleRoots[0];
+            string gradleRoot = ResolveAndroidGradleRootFromBeeDag(projectRoot, beeRoot, dagPath);
             string androidLibraryRoot = FindAndroidLibraryModules(gradleRoot).Single();
 
             string playerPackage = RequireDirectory(BuildPipeline.GetPlaybackEngineDirectory(
@@ -1346,11 +1383,66 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("Unity Android JNI staging contains no libil2cpp.so.");
             List<string> nativeEntries = new List<string>();
             List<string> nativeHashes = new List<string>();
-            using (ZipArchive archive = ZipFile.OpenRead(outputPath))
+            ValidateAndroidPlayerNativeLibraries(outputPath, nativePaths, nativeEntries, nativeHashes);
+            return new DhePlayerArtifactFinalizeResult
+            {
+                Kind = appBundle ? "android-aab" : "android-apk",
+                OutputPath = Path.GetFullPath(outputPath),
+                OutputSha256 = Sha256Hex(File.ReadAllBytes(outputPath)),
+                GradleRoot = gradleRoot,
+                BuildToolPath = javaPath,
+                BuildProgramPath = launcherJars[0],
+                BuildTask = task,
+                BuildLogPath = artifactLogPath,
+                ExitCode = exitCode,
+                NativeLibraryEntries = nativeEntries.ToArray(),
+                NativeLibrarySourcePaths = nativePaths.Select(Path.GetFullPath).ToArray(),
+                NativeLibrarySha256 = nativeHashes.ToArray(),
+                Passed = true,
+            };
+        }
+
+        private static string ResolveAndroidGradleRootFromBeeDag(string projectRoot,
+            string beeRoot, string dagPath)
+        {
+            string resolvedDag = RequireFile(dagPath, "Unity Android Player Bee DAG");
+            string beePrefix = Path.GetFullPath(beeRoot).TrimEnd(Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!resolvedDag.StartsWith(beePrefix, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("Unity Android Player Bee DAG is outside the project Bee root.");
+            string inputDataPath = RequireFile(Path.Combine(beeRoot,
+                Path.GetFileNameWithoutExtension(resolvedDag) + "-inputdata.json"),
+                "Unity Android Player Bee input data");
+            string destination = ReadJsonString(ReadTextWithoutBom(inputDataPath), "DestinationPath");
+            if (string.IsNullOrWhiteSpace(destination))
+                throw new BuildFailedException("Unity Android Player Bee input data has no DestinationPath.");
+            string gradleRoot = Path.GetFullPath(Path.IsPathRooted(destination) ? destination :
+                Path.Combine(projectRoot, destination));
+            if (!gradleRoot.StartsWith(beePrefix, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("Unity Android Gradle project is outside the project Bee root: " +
+                    gradleRoot);
+            RequireFile(Path.Combine(gradleRoot, "settings.gradle"),
+                "Unity Android Gradle settings");
+            RequireDirectory(Path.Combine(gradleRoot, "launcher"),
+                "Unity Android Gradle launcher");
+            if (FindAndroidLibraryModules(gradleRoot).Length != 1)
+                throw new BuildFailedException("Unity Android Gradle project must contain exactly one " +
+                    "Unity/Tuanjie library module: " + gradleRoot);
+            return gradleRoot;
+        }
+
+        private static void ValidateAndroidPlayerNativeLibraries(string outputPath,
+            string[] nativePaths, List<string> nativeEntries, List<string> nativeHashes)
+        {
+            if (nativePaths == null || nativePaths.Length == 0)
+                throw new BuildFailedException("Unity Android JNI staging contains no libil2cpp.so.");
+            using (ZipArchive archive = ZipFile.OpenRead(RequireFile(outputPath,
+                       "DHE Android Player artifact")))
             {
                 foreach (string nativePath in nativePaths)
                 {
-                    string abi = new DirectoryInfo(Path.GetDirectoryName(nativePath)).Name;
+                    string source = RequireFile(nativePath, "finalized Android libil2cpp.so");
+                    string abi = new DirectoryInfo(Path.GetDirectoryName(source)).Name;
                     string suffix = "/lib/" + abi + "/libil2cpp.so";
                     ZipArchiveEntry[] entries = archive.Entries.Where(entry =>
                             string.Equals(entry.FullName, "lib/" + abi + "/libil2cpp.so",
@@ -1360,7 +1452,7 @@ namespace HybridCLR.Editor.Commands
                     if (entries.Length != 1)
                         throw new BuildFailedException("Android Player must contain exactly one " +
                             abi + " libil2cpp.so; found " + entries.Length + ".");
-                    string expectedHash = Sha256Hex(File.ReadAllBytes(nativePath));
+                    string expectedHash = Sha256Hex(File.ReadAllBytes(source));
                     string actualHash;
                     using (Stream stream = entries[0].Open())
                     using (SHA256 sha = SHA256.Create())
@@ -1375,20 +1467,6 @@ namespace HybridCLR.Editor.Commands
                     nativeHashes.Add(actualHash);
                 }
             }
-            return new DhePlayerArtifactFinalizeResult
-            {
-                Kind = appBundle ? "android-aab" : "android-apk",
-                OutputPath = Path.GetFullPath(outputPath),
-                OutputSha256 = Sha256Hex(File.ReadAllBytes(outputPath)),
-                BuildToolPath = javaPath,
-                BuildProgramPath = launcherJars[0],
-                BuildTask = task,
-                BuildLogPath = artifactLogPath,
-                ExitCode = exitCode,
-                NativeLibraryEntries = nativeEntries.ToArray(),
-                NativeLibrarySha256 = nativeHashes.ToArray(),
-                Passed = true,
-            };
         }
 
         private static string[] FindAndroidLibraryModules(string gradleRoot)
@@ -3439,12 +3517,14 @@ namespace HybridCLR.Editor.Commands
         public string Kind;
         public string OutputPath;
         public string OutputSha256;
+        public string GradleRoot;
         public string BuildToolPath;
         public string BuildProgramPath;
         public string BuildTask;
         public string BuildLogPath;
         public int ExitCode;
         public string[] NativeLibraryEntries;
+        public string[] NativeLibrarySourcePaths;
         public string[] NativeLibrarySha256;
         public bool Passed;
     }

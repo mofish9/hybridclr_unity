@@ -85,7 +85,13 @@ namespace HybridCLR.Editor.Commands
                 StringComparison.OrdinalIgnoreCase);
             bool artifactPassed = !artifactRequired || artifact != null && artifact.Passed &&
                 artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
-                artifact.NativeLibrarySha256 != null && artifact.NativeLibrarySha256.Length > 0;
+                !string.IsNullOrWhiteSpace(artifact.GradleRoot) &&
+                artifact.NativeLibraryEntries != null &&
+                artifact.NativeLibrarySourcePaths != null &&
+                artifact.NativeLibrarySha256 != null &&
+                artifact.NativeLibraryEntries.Length > 0 &&
+                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySourcePaths.Length &&
+                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySha256.Length;
             bool rebuildPassed = rebuild != null && rebuild.ExitCode == 0 && artifactPassed;
             WriteJson(Path.Combine(adapterRoot, "native-finalize.json"), new NativeFinalizeEvidence
             {
@@ -109,12 +115,14 @@ namespace HybridCLR.Editor.Commands
                 playerArtifactKind = artifact?.Kind,
                 playerArtifactPath = artifact?.OutputPath,
                 playerArtifactSha256 = artifact?.OutputSha256,
+                playerArtifactGradleRoot = artifact?.GradleRoot,
                 playerArtifactBuildToolPath = artifact?.BuildToolPath,
                 playerArtifactBuildProgramPath = artifact?.BuildProgramPath,
                 playerArtifactBuildTask = artifact?.BuildTask,
                 playerArtifactBuildLogPath = artifact?.BuildLogPath,
                 playerArtifactExitCode = artifact?.ExitCode ?? -1,
                 playerArtifactNativeLibraryEntries = artifact?.NativeLibraryEntries ?? Array.Empty<string>(),
+                playerArtifactNativeLibrarySourcePaths = artifact?.NativeLibrarySourcePaths ?? Array.Empty<string>(),
                 playerArtifactNativeLibrarySha256 = artifact?.NativeLibrarySha256 ?? Array.Empty<string>(),
             });
             if (!rebuildPassed)
@@ -872,12 +880,14 @@ namespace HybridCLR.Editor.Commands
             public string playerArtifactKind;
             public string playerArtifactPath;
             public string playerArtifactSha256;
+            public string playerArtifactGradleRoot;
             public string playerArtifactBuildToolPath;
             public string playerArtifactBuildProgramPath;
             public string playerArtifactBuildTask;
             public string playerArtifactBuildLogPath;
             public int playerArtifactExitCode;
             public string[] playerArtifactNativeLibraryEntries;
+            public string[] playerArtifactNativeLibrarySourcePaths;
             public string[] playerArtifactNativeLibrarySha256;
         }
 
