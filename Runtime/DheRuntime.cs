@@ -30,6 +30,7 @@ namespace HybridCLR
         public string AotSnapshotKind;
         public string BaseId;
         public string ManagedAssemblySetSha256;
+        public string AotAssemblySetSha256;
         public string AotSnapshotSha256;
         public string NativeGuardSourceSha256;
         public string NativeManifestSha256;
@@ -38,6 +39,7 @@ namespace HybridCLR
         public string RuntimeProtocol;
         public string RuntimeContract;
         public string[] RuntimeCapabilities;
+        public string[] AotAssemblyNames;
         public string RuntimeAssetRoot;
         public string BaseMetaVersionAssetRoot;
         public string[] AssemblyNames;
@@ -146,6 +148,8 @@ namespace HybridCLR
             public string nativeGuardSourceSha256;
             public string nativeManifestSha256;
             public string managedAssemblySetSha256;
+            public string aotAssemblySetSha256;
+            public string[] aotAssemblyNames;
             public string runtimeProtocol;
             public string nativeRuntimeContract;
             public string[] runtimeCapabilities;
@@ -588,6 +592,8 @@ namespace HybridCLR
                 if (buildIdentity.IdentityVersion != 1 || !IsSha256(baseId) ||
                     string.IsNullOrWhiteSpace(buildIdentity.Target) ||
                     !IsSha256(buildIdentity.ManagedAssemblySetSha256) ||
+                    !TryValidateAotAssemblyInventory(buildIdentity.AotAssemblyNames,
+                        buildIdentity.AotAssemblySetSha256) ||
                     !IsSha256(buildIdentity.AotSnapshotSha256) ||
                     !IsSha256(buildIdentity.BaseMetaVersionSetSha256) ||
                     !IsSha256(buildIdentity.AotMetadataSetId) ||
@@ -677,11 +683,18 @@ namespace HybridCLR
             DheRuntimeIdentity buildIdentity)
         {
             return candidate != null && buildIdentity != null &&
+                TryValidateAotAssemblyInventory(candidate.aotAssemblyNames,
+                    candidate.aotAssemblySetSha256) &&
                 string.Equals(candidate.baseId, buildIdentity.BaseId,
                     StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.target, buildIdentity.Target, StringComparison.Ordinal) &&
                 string.Equals(candidate.managedAssemblySetSha256,
                     buildIdentity.ManagedAssemblySetSha256, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.aotAssemblySetSha256,
+                    buildIdentity.AotAssemblySetSha256, StringComparison.OrdinalIgnoreCase) &&
+                new HashSet<string>(candidate.aotAssemblyNames ?? Array.Empty<string>(),
+                    StringComparer.OrdinalIgnoreCase).SetEquals(
+                    buildIdentity.AotAssemblyNames ?? Array.Empty<string>()) &&
                 string.Equals(candidate.aotSnapshotSha256, buildIdentity.AotSnapshotSha256,
                     StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.baseMetaVersionSetSha256,
@@ -1509,6 +1522,8 @@ namespace HybridCLR
             }
             if (!IsSha256(identity.BaseId) ||
                 !IsSha256(identity.ManagedAssemblySetSha256) ||
+                !TryValidateAotAssemblyInventory(identity.AotAssemblyNames,
+                    identity.AotAssemblySetSha256) ||
                 !IsSha256(identity.AotSnapshotSha256) ||
                 !IsSha256(identity.BaseMetaVersionSetSha256) ||
                 !IsSha256(identity.AotMetadataSetId) ||
@@ -1531,6 +1546,8 @@ namespace HybridCLR
             }
 
             HashSet<string> identityNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> aotAssemblyNames = new HashSet<string>(
+                identity.AotAssemblyNames, StringComparer.OrdinalIgnoreCase);
             List<KeyValuePair<string, byte[]>> baseMetaVersions =
                 new List<KeyValuePair<string, byte[]>>();
             for (int index = 0; index < identity.AssemblyNames.Length; index++)
@@ -1540,6 +1557,12 @@ namespace HybridCLR
                 {
                     throw new InvalidDataException(
                         "DHE Player build identity contains an empty or duplicate assembly.");
+                }
+                if (!aotAssemblyNames.Contains(assemblyName))
+                {
+                    throw new InvalidDataException(
+                        "DHE Player identity assembly is absent from its AOT inventory: " +
+                        assemblyName);
                 }
                 if (!Artifacts.TryGetValue(assemblyName, out DheAssemblyArtifact artifact) ||
                     !IsDifferentialArtifact(artifact) ||
@@ -1552,6 +1575,14 @@ namespace HybridCLR
                 }
                 baseMetaVersions.Add(new KeyValuePair<string, byte[]>(assemblyName,
                     artifact.BaseMetaVersion));
+            }
+            foreach (KeyValuePair<string, DheAssemblyArtifact> artifact in Artifacts.Where(pair =>
+                         !IsDifferentialArtifact(pair.Value)))
+            {
+                if (aotAssemblyNames.Contains(artifact.Key))
+                    throw new InvalidDataException(
+                        "DHE interpreter-only assembly already exists in the Base AOT inventory: " +
+                        artifact.Key);
             }
             if (!string.Equals(Sha256NamedByteSet(baseMetaVersions),
                     identity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase))
@@ -1690,6 +1721,8 @@ namespace HybridCLR
                 "target=" + (value.Target ?? string.Empty) + "\n" +
                 "managedAssemblySetSha256=" +
                 (value.ManagedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "aotAssemblySetSha256=" +
+                (value.AotAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "aotSnapshotSha256=" +
                 (value.AotSnapshotSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "baseMetaVersionSetSha256=" +
@@ -1707,6 +1740,22 @@ namespace HybridCLR
                 "baseMetaVersionAssetRoot=" +
                 NormalizeAssetRoot(value.BaseMetaVersionAssetRoot) + "\n";
             return Sha256Hex(System.Text.Encoding.UTF8.GetBytes(canonical));
+        }
+
+        private static bool TryValidateAotAssemblyInventory(string[] assemblyNames,
+            string expectedHash)
+        {
+            string[] names = assemblyNames ?? Array.Empty<string>();
+            if (names.Length == 0 || names.Any(string.IsNullOrWhiteSpace) ||
+                names.Any(name => !string.Equals(name, NormalizeAssemblyName(name),
+                    StringComparison.Ordinal)) ||
+                names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length ||
+                !IsSha256(expectedHash))
+                return false;
+            string canonical = string.Concat(names.OrderBy(name => name, StringComparer.Ordinal)
+                .Select(name => name + "\n"));
+            return string.Equals(Sha256Hex(System.Text.Encoding.UTF8.GetBytes(canonical)),
+                expectedHash, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsCompatibilityPolicy(string value)

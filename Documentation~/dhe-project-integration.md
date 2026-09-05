@@ -48,6 +48,13 @@ identity and always restores the source template. Archive `baseline/`,
 `build-identity.json`, and `native/dhe-native-manifest.json` for every
 online Base.
 
+Identity staging enumerates the complete stripped AOT DLL inventory, not only
+the configured DHE assemblies. It stores normalized `aotAssemblyNames` plus
+`aotAssemblySetSha256`, requires the DHE set to be a subset, and repeats the
+inventory and supplemental-metadata checks before and after final Player
+construction. Do not prune or replace `AssembliesPostIl2CppStrip` between
+scripts-only and final build.
+
 `DheBuildPipeline.BuildPlayer` adds `HYBRIDCLR_DHE_BASE_PLAYER` only to the
 Base Player compilation. A project may use this symbol for Base-only AOT
 contract probes that intentionally reference APIs removed from a later current
@@ -55,7 +62,8 @@ assembly; ordinary Editor and current-generation compilation do not receive
 that symbol.
 
 `build-identity.json` uses identity v1. Its `baseId` is a composite SHA-256 over
-the target, managed/AOT/Base-MetaVersion/AOT-metadata sets, native guard/manifest, runtime
+the target, managed DHE set, complete AOT inventory, AOT snapshot,
+Base-MetaVersion/AOT-metadata sets, native guard/manifest, runtime
 protocol/contract/capabilities, and runtime asset roots. Do not use an app
 version or managed assembly hash as a Base selector.
 `runtimeContract` is an immutable runtime implementation release identifier;
@@ -126,6 +134,11 @@ for additional roots, then set each registry entry's `payloadVariantId` to the
 variant consumed by that Base. The runtime plan keeps the variant hash and asset
 paths bound to the Base selection, and staging copies only the selected DLL/MV
 variant while preserving the same one-package release model.
+For each Base, an assembly in its DHE set uses `dhe-differential`; an assembly
+absent from its complete AOT inventory may use `interpreter-only`. An assembly
+already present in that inventory but outside DHE is rejected. This prevents a
+resource update from loading a second managed image for an AOT assembly that
+the Base Player has already registered.
 Every resource update requires `resource-update-plan-integrity-v1` and
 `resource-update-aot-metadata-set-selection-v1`; updates carrying non-empty
 supplemental metadata also require `resource-update-aot-metadata-path-v1`. The

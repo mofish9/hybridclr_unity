@@ -143,6 +143,8 @@ namespace HybridCLR.Editor.Commands
                     result = BuildPlayer(adapter, context, BuildOptions.None);
                 }
                 DheProjectBuildSupport.ValidateFinalNativeIdentity(context.OutputRoot, result);
+                DheProjectBuildSupport.ValidateStagedBuildIdentity(
+                    CreateIdentityOptions(adapter, context));
                 DheProjectBuildSupport.WriteNativeEvidence(CreateNativeOptions(adapter, context),
                     result, true);
                 adapter.RunPlayerSmoke?.Invoke(new DheProjectPlayerSmokeContext
@@ -220,6 +222,8 @@ namespace HybridCLR.Editor.Commands
                 ProjectRoot = adapter.ProjectRoot,
                 OutputRoot = context.OutputRoot,
                 BaselineRoot = context.BaselineRoot,
+                AotAssemblyRoot = Path.GetFullPath(
+                    SettingsUtil.GetAssembliesPostIl2CppStripDir(context.Target)),
                 ProjectPlanPath = context.ProjectPlanPath,
                 Target = context.TargetName,
                 Workflow = adapter.Workflow,

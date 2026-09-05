@@ -119,6 +119,21 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException(
                     "DHE build identity assembly set does not match project settings.");
 
+            if (string.IsNullOrWhiteSpace(options.AotAssemblyRoot))
+                throw new BuildFailedException(
+                    "DHE stripped AOT assembly inventory root is not configured.");
+            string aotAssemblyRoot = Path.GetFullPath(options.AotAssemblyRoot);
+            string[] aotAssemblyNames = ReadAotAssemblyInventory(aotAssemblyRoot);
+            var aotAssemblyNameSet = new HashSet<string>(aotAssemblyNames,
+                StringComparer.OrdinalIgnoreCase);
+            string[] missingDheAssemblies = assemblyNames.Where(name =>
+                !aotAssemblyNameSet.Contains(name)).ToArray();
+            if (missingDheAssemblies.Length != 0)
+                throw new BuildFailedException(
+                    "DHE Base assemblies are missing from the stripped AOT inventory: " +
+                    string.Join(", ", missingDheAssemblies));
+            string aotAssemblySetHash = Sha256AssemblyNameSet(aotAssemblyNames);
+
             string baselineRoot = Path.GetFullPath(options.BaselineRoot);
             var baselineRecords = new List<KeyValuePair<string, byte[]>>();
             var snapshotRecords = new List<KeyValuePair<string, byte[]>>();
@@ -200,7 +215,8 @@ namespace HybridCLR.Editor.Commands
                 !IsSha256(runtimePlan.aotMetadataSetId))
                 throw new BuildFailedException(
                     "DHE build identity requires the current runtime plan schema.");
-            ValidateBaseRuntimePlanMetadata(options.ProjectRoot, runtimePlanPath, runtimePlan);
+            ValidateBaseRuntimePlanMetadata(options.ProjectRoot, runtimePlanPath, runtimePlan,
+                aotAssemblyRoot);
             string runtimeAssetRoot = NormalizeAssetRoot(runtimePlan.runtimeAssetRoot,
                 "runtime asset root");
             string baseMetaVersionAssetRoot = NormalizeAssetRoot(
@@ -218,7 +234,8 @@ namespace HybridCLR.Editor.Commands
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.Ordinal).OrderBy(value => value,
                     StringComparer.Ordinal).ToArray();
-            string baseId = ComputeBaseId(options.Target, baselineSetHash, snapshotSetHash,
+            string baseId = ComputeBaseId(options.Target, baselineSetHash, aotAssemblySetHash,
+                snapshotSetHash,
                 baseMetaVersionSetHash, runtimePlan.aotMetadataSetId,
                 guard.NativeGuardSourceSha256,
                 guard.NativeManifestSha256, guard.RuntimeProtocol, guard.RuntimeContract,
@@ -226,6 +243,7 @@ namespace HybridCLR.Editor.Commands
             string sourcePath = ResolveProjectAsset(options.ProjectRoot,
                 options.BuildIdentityAssetPath);
             string source = BuildIdentitySource(options, baseId, baselineSetHash,
+                aotAssemblySetHash, aotAssemblyNames,
                 snapshotSetHash, baseMetaVersionSetHash, runtimePlan.aotMetadataSetId,
                 guard, runtimeCapabilities,
                 runtimeAssetRoot, baseMetaVersionAssetRoot, assemblyNames,
@@ -248,6 +266,8 @@ namespace HybridCLR.Editor.Commands
                 stagedSourceSha256 = stagedSourceSha256,
                 baseId = baseId,
                 managedAssemblySetSha256 = baselineSetHash,
+                aotAssemblySetSha256 = aotAssemblySetHash,
+                aotAssemblyNames = aotAssemblyNames,
                 aotSnapshotSha256 = snapshotSetHash,
                 aotSnapshotKind = AotSnapshotKind,
                 nativeGuardSourceSha256 = guard.NativeGuardSourceSha256,
@@ -285,8 +305,15 @@ namespace HybridCLR.Editor.Commands
                 !IsSha256(identity.stagedSourceSha256) || !File.Exists(expectedSourcePath) ||
                 !string.Equals(ToHex(Sha256(File.ReadAllBytes(expectedSourcePath))),
                     identity.stagedSourceSha256, StringComparison.OrdinalIgnoreCase) ||
+                !TryValidateAotAssemblyInventory(identity.aotAssemblyNames,
+                    identity.aotAssemblySetSha256, out _) ||
+                !(identity.assemblies ?? Array.Empty<BuildIdentityAssembly>()).All(assembly =>
+                    new HashSet<string>(identity.aotAssemblyNames,
+                        StringComparer.OrdinalIgnoreCase).Contains(
+                        NormalizeAssemblyName(assembly?.assemblyName))) ||
                 !string.Equals(identity.baseId, ComputeBaseId(identity.target,
-                    identity.managedAssemblySetSha256, identity.aotSnapshotSha256,
+                    identity.managedAssemblySetSha256, identity.aotAssemblySetSha256,
+                    identity.aotSnapshotSha256,
                     identity.baseMetaVersionSetSha256, identity.aotMetadataSetId,
                     identity.nativeGuardSourceSha256,
                     identity.nativeManifestSha256, identity.runtimeProtocol,
@@ -295,6 +322,15 @@ namespace HybridCLR.Editor.Commands
                     StringComparison.OrdinalIgnoreCase))
                 throw new BuildFailedException("DHE final Player has no valid staged BuildIdentity. " +
                     "Run the scripts-only DHE build stage again before BuildFinalPlayer.");
+
+            string[] currentAotAssemblyNames = ReadAotAssemblyInventory(options.AotAssemblyRoot);
+            if (!string.Equals(Sha256AssemblyNameSet(currentAotAssemblyNames),
+                    identity.aotAssemblySetSha256, StringComparison.OrdinalIgnoreCase) ||
+                !new HashSet<string>(currentAotAssemblyNames, StringComparer.OrdinalIgnoreCase)
+                    .SetEquals(identity.aotAssemblyNames))
+                throw new BuildFailedException(
+                    "DHE stripped AOT assembly inventory changed after identity staging. " +
+                    "Run the scripts-only DHE build stage again.");
 
             foreach (BuildIdentityAssembly assembly in identity.assemblies ??
                 Array.Empty<BuildIdentityAssembly>())
@@ -367,7 +403,8 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static string BuildIdentitySource(DheProjectIdentityOptions options,
-            string baseId, string managedAssemblySetHash, string snapshotHash,
+            string baseId, string managedAssemblySetHash, string aotAssemblySetHash,
+            string[] aotAssemblyNames, string snapshotHash,
             string baseMetaVersionSetHash, string aotMetadataSetId, DheNativeGuardResult guard,
             string[] runtimeCapabilities, string runtimeAssetRoot,
             string baseMetaVersionAssetRoot, string[] assemblyNames,
@@ -379,6 +416,8 @@ namespace HybridCLR.Editor.Commands
                 baseMetaVersionHashes.Select(hash => "            " + Quote(hash)));
             string capabilityValues = string.Join(",\n",
                 runtimeCapabilities.Select(value => "            " + Quote(value)));
+            string aotAssemblyValues = string.Join(",\n",
+                aotAssemblyNames.Select(name => "            " + Quote(name)));
             return "namespace " + options.IdentityNamespace + "\n{\n" +
                 "    internal static class " + options.IdentityClassName + "\n    {\n" +
                 "        public const int IdentityVersion = 1;\n" +
@@ -387,6 +426,8 @@ namespace HybridCLR.Editor.Commands
                 "        public const string BaseId = \"" + baseId + "\";\n" +
                 "        public const string ManagedAssemblySetSha256 = \"" +
                 managedAssemblySetHash + "\";\n" +
+                "        public const string AotAssemblySetSha256 = \"" +
+                aotAssemblySetHash + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + snapshotHash + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" +
                 guard.NativeGuardSourceSha256 + "\";\n" +
@@ -403,6 +444,8 @@ namespace HybridCLR.Editor.Commands
                 Quote(baseMetaVersionAssetRoot) + ";\n" +
                 "        public static readonly string[] RuntimeCapabilities =\n        {\n" +
                 capabilityValues + "\n        };\n" +
+                "        public static readonly string[] AotAssemblyNames =\n        {\n" +
+                aotAssemblyValues + "\n        };\n" +
                 "        public static readonly string[] AssemblyNames =\n        {\n" +
                 assemblyValues + "\n        };\n" +
                 "        public static readonly string[] BaseMetaVersionHashes =\n        {\n" +
@@ -421,6 +464,7 @@ namespace HybridCLR.Editor.Commands
                 "        public const string AotSnapshotKind = \"uninitialized-template\";\n" +
                 "        public const string BaseId = \"" + ZeroSha256 + "\";\n" +
                 "        public const string ManagedAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
+                "        public const string AotAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeManifestSha256 = \"" + ZeroSha256 + "\";\n" +
@@ -431,6 +475,7 @@ namespace HybridCLR.Editor.Commands
                 "        public const string RuntimeAssetRoot = \"\";\n" +
                 "        public const string BaseMetaVersionAssetRoot = \"\";\n" +
                 "        public static readonly string[] RuntimeCapabilities = new string[0];\n" +
+                "        public static readonly string[] AotAssemblyNames = new string[0];\n" +
                 "        public static readonly string[] AssemblyNames = new string[0];\n" +
                 "        public static readonly string[] BaseMetaVersionHashes = new string[0];\n" +
                 BuildIdentityFactorySource() +
@@ -448,6 +493,7 @@ namespace HybridCLR.Editor.Commands
                 "                AotSnapshotKind = AotSnapshotKind,\n" +
                 "                BaseId = BaseId,\n" +
                 "                ManagedAssemblySetSha256 = ManagedAssemblySetSha256,\n" +
+                "                AotAssemblySetSha256 = AotAssemblySetSha256,\n" +
                 "                AotSnapshotSha256 = AotSnapshotSha256,\n" +
                 "                NativeGuardSourceSha256 = NativeGuardSourceSha256,\n" +
                 "                NativeManifestSha256 = NativeManifestSha256,\n" +
@@ -456,6 +502,7 @@ namespace HybridCLR.Editor.Commands
                 "                RuntimeProtocol = RuntimeProtocol,\n" +
                 "                RuntimeContract = RuntimeContract,\n" +
                 "                RuntimeCapabilities = RuntimeCapabilities,\n" +
+                "                AotAssemblyNames = AotAssemblyNames,\n" +
                 "                RuntimeAssetRoot = RuntimeAssetRoot,\n" +
                 "                BaseMetaVersionAssetRoot = BaseMetaVersionAssetRoot,\n" +
                 "                AssemblyNames = AssemblyNames,\n" +
@@ -551,7 +598,8 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static void ValidateBaseRuntimePlanMetadata(string projectRoot,
-            string runtimePlanPath, BuildIdentityRuntimePlan runtimePlan)
+            string runtimePlanPath, BuildIdentityRuntimePlan runtimePlan,
+            string aotAssemblyRoot)
         {
             if (!string.Equals(runtimePlan.selection, "embedded-base-metaversion",
                     StringComparison.Ordinal) ||
@@ -589,6 +637,13 @@ namespace HybridCLR.Editor.Commands
                         StringComparison.OrdinalIgnoreCase))
                     throw new BuildFailedException(
                         "DHE Base runtime plan AOT metadata hash mismatch for " + name + ".");
+                string strippedPath = RequireFile(Path.Combine(aotAssemblyRoot, name + ".dll"),
+                    name + " stripped AOT metadata source");
+                if (!string.Equals(ToHex(Sha256(File.ReadAllBytes(strippedPath))), metadata.sha256,
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new BuildFailedException(
+                        "DHE Base runtime plan AOT metadata is stale for " + name +
+                        ". Run StageRuntimePlan again after regenerating stripped AOT assemblies.");
                 records.Add(new KeyValuePair<string, byte[]>(name, bytes));
             }
             if (!string.Equals(Sha256NamedByteSet(records), runtimePlan.aotMetadataSetId,
@@ -617,6 +672,54 @@ namespace HybridCLR.Editor.Commands
             }
         }
 
+        private static string Sha256AssemblyNameSet(IEnumerable<string> assemblyNames)
+        {
+            string canonical = string.Concat((assemblyNames ?? Array.Empty<string>())
+                .Select(NormalizeAssemblyName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .Select(name => name + "\n"));
+            return ToHex(Sha256(Encoding.UTF8.GetBytes(canonical)));
+        }
+
+        private static string[] ReadAotAssemblyInventory(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+                throw new BuildFailedException(
+                    "DHE stripped AOT assembly inventory root is not configured.");
+            string fullRoot = Path.GetFullPath(root);
+            if (!Directory.Exists(fullRoot))
+                throw new DirectoryNotFoundException(
+                    "DHE stripped AOT assembly inventory was not found: " + fullRoot);
+            string[] names = Directory.GetFiles(fullRoot, "*.dll", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileNameWithoutExtension)
+                .Select(NormalizeAssemblyName)
+                .OrderBy(name => name, StringComparer.Ordinal).ToArray();
+            if (names.Length == 0 || names.Any(string.IsNullOrWhiteSpace) ||
+                names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
+                throw new BuildFailedException(
+                    "DHE stripped AOT assembly inventory is empty or contains duplicate names.");
+            return names;
+        }
+
+        private static bool TryValidateAotAssemblyInventory(string[] assemblyNames,
+            string expectedHash, out string error)
+        {
+            error = string.Empty;
+            string[] names = assemblyNames ?? Array.Empty<string>();
+            if (names.Length == 0 || names.Any(string.IsNullOrWhiteSpace) ||
+                names.Any(name => !string.Equals(name, NormalizeAssemblyName(name),
+                    StringComparison.Ordinal)) ||
+                names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length ||
+                !IsSha256(expectedHash) ||
+                !string.Equals(Sha256AssemblyNameSet(names), expectedHash,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                error = "DHE AOT assembly inventory is missing, duplicated, or has an invalid hash.";
+                return false;
+            }
+            return true;
+        }
+
         private static byte[] Sha256(byte[] bytes)
         {
             using (SHA256 sha = SHA256.Create()) return sha.ComputeHash(bytes ?? Array.Empty<byte>());
@@ -629,7 +732,8 @@ namespace HybridCLR.Editor.Commands
         }
 
         private static string ComputeBaseId(string target, string managedAssemblySetSha256,
-            string aotSnapshotSha256, string baseMetaVersionSetSha256,
+            string aotAssemblySetSha256, string aotSnapshotSha256,
+            string baseMetaVersionSetSha256,
             string aotMetadataSetId,
             string nativeGuardSourceSha256, string nativeManifestSha256,
             string runtimeProtocol, string runtimeContract, IEnumerable<string> runtimeCapabilities,
@@ -643,6 +747,8 @@ namespace HybridCLR.Editor.Commands
                 "target=" + (target ?? string.Empty) + "\n" +
                 "managedAssemblySetSha256=" +
                 (managedAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
+                "aotAssemblySetSha256=" +
+                (aotAssemblySetSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "aotSnapshotSha256=" +
                 (aotSnapshotSha256 ?? string.Empty).ToLowerInvariant() + "\n" +
                 "baseMetaVersionSetSha256=" +
@@ -757,6 +863,8 @@ namespace HybridCLR.Editor.Commands
             public string stagedSourceSha256;
             public string baseId;
             public string managedAssemblySetSha256;
+            public string aotAssemblySetSha256;
+            public string[] aotAssemblyNames;
             public string aotSnapshotSha256;
             public string aotSnapshotKind;
             public string nativeGuardSourceSha256;
@@ -853,6 +961,7 @@ namespace HybridCLR.Editor.Commands
         public string ProjectRoot;
         public string OutputRoot;
         public string BaselineRoot;
+        public string AotAssemblyRoot;
         public string ProjectPlanPath;
         public string Target;
         public string Workflow = "dhe-opt4";

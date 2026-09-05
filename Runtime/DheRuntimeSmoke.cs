@@ -62,6 +62,7 @@ namespace HybridCLR
         public string[] loadedDheAssemblies;
         public string[] plannedDifferentialAssemblies;
         public string[] plannedInterpreterOnlyAssemblies;
+        public string[] loadedInterpreterOnlyAssemblies;
         public bool retryValidated;
         public string retryAssemblyName;
         public string retryFailure;
@@ -192,6 +193,8 @@ namespace HybridCLR
                 loadedDheAssemblies = loaded,
                 plannedDifferentialAssemblies = DheRuntime.DifferentialAssemblyNames,
                 plannedInterpreterOnlyAssemblies = DheRuntime.InterpreterOnlyAssemblyNames,
+                loadedInterpreterOnlyAssemblies = DheRuntime.InterpreterOnlyAssemblyNames
+                    .Where(loadedSet.Contains).ToArray(),
                 retryValidated = retryValidated,
                 retryAssemblyName = DheRuntime.TransactionRetryAssemblyName,
                 retryFailure = retryValidated ? DheRuntime.TransactionRetryFailure.ToString() : null,
