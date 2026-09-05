@@ -158,9 +158,13 @@ existing hot-update load flow:
 3. Call `DheRuntime.LoadAotMetadataImages`; it resolves paths from the validated
    runtime plan, verifies every payload before the first native load, and then loads
    the complete supplemental metadata set.
-4. Read every planned current DLL, preserve the project load order, and call
-   `DheRuntime.LoadAssemblyImages` once before any ordinary `Assembly.Load`
-   or game logic. The batch call publishes the complete DHE set atomically.
+4. Read every planned current DLL, preserve the project load order, and split
+   the records by `DheRuntime.GetAssemblyExecutionMode`. Call
+   `DheRuntime.LoadAssemblyImages` once with the `dhe-differential` records;
+   then call `DheRuntime.LoadInterpreterAssemblyImage` for each
+   `interpreter-only` record. Do this before game logic. The differential
+   batch is atomic on the native side, while interpreter-only records are
+   authenticated and loaded through the ordinary HybridCLR interpreter path.
 
 The demo's `DheStreamingAssetReader` covers filesystem platforms and Android
 APK ZIP entries; a production provider must keep the same relative-path and

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using UnityEngine;
 
@@ -127,6 +128,7 @@ namespace HybridCLR
         private sealed class DheAssemblyRecord
         {
             public string assemblyName;
+            public string executionMode;
             public string current;
             public string currentSha256;
             public string currentMetaVersion;
@@ -158,6 +160,7 @@ namespace HybridCLR
             public bool compatible;
             public bool guardCoverageValidated;
             public int unsupportedChangeCount;
+            public DheAssemblyMode[] assemblyModes;
         }
 
         [Serializable]
@@ -221,6 +224,14 @@ namespace HybridCLR
             public string aotMetadataSetId;
             public string payloadVariantId;
             public string currentAssemblySetSha256;
+            public DheAssemblyMode[] assemblyModes;
+        }
+
+        [Serializable]
+        private sealed class DheAssemblyMode
+        {
+            public string assemblyName;
+            public string executionMode;
         }
 
         private sealed class DheAssemblyArtifact
@@ -229,6 +240,7 @@ namespace HybridCLR
             public byte[] BaseMetaVersion;
             public byte[] Current;
             public string ExpectedCurrentSha256;
+            public string ExecutionMode;
         }
 
         public static bool Enabled => enabled;
@@ -277,6 +289,17 @@ namespace HybridCLR
                 return names;
             }
         }
+
+        public static string[] DifferentialAssemblyNames => Artifacts
+            .Where(pair => IsDifferentialMode(pair.Value.ExecutionMode))
+            .Select(pair => pair.Key)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        public static string[] InterpreterOnlyAssemblyNames => Artifacts
+            .Where(pair => string.Equals(pair.Value.ExecutionMode, "interpreter-only",
+                StringComparison.Ordinal))
+            .Select(pair => pair.Key)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
 
         public static void Reset()
         {
@@ -353,6 +376,7 @@ namespace HybridCLR
                 }
                 DheAotMetadataRecord[] selectedAotMetadata = SelectAotMetadata(plan, identity);
                 DheAssemblyRecord[] selectedAssemblies = SelectPayloadAssemblies(plan, identity);
+                ApplySelectedAssemblyModes(plan, identity, selectedAssemblies);
                 SetSelectedPayloadIdentity(plan, identity);
 
                 foreach (DheAssemblyRecord record in selectedAssemblies)
@@ -373,13 +397,20 @@ namespace HybridCLR
                         throw new InvalidDataException(
                             "DHE runtime plan current payload hash binding is invalid: " + assemblyName);
                     }
+                    string executionMode = NormalizeExecutionMode(record.executionMode);
+                    byte[]? baseMetaVersion = null;
+                    if (IsDifferentialMode(executionMode))
+                    {
+                        baseMetaVersion = provider.LoadBytes(ValidateBaseMetaVersionAssetPath(
+                            record.baseMetaVersion, plan.baseMetaVersionAssetRoot,
+                            assemblyName + " Base MetaVersion"));
+                    }
                     Artifacts.Add(assemblyName, new DheAssemblyArtifact
                     {
                         MetaVersion = currentMetaVersion,
-                        BaseMetaVersion = provider.LoadBytes(ValidateBaseMetaVersionAssetPath(
-                            record.baseMetaVersion, plan.baseMetaVersionAssetRoot,
-                            assemblyName + " Base MetaVersion")),
+                        BaseMetaVersion = baseMetaVersion,
                         ExpectedCurrentSha256 = record.currentSha256.ToLowerInvariant(),
+                        ExecutionMode = executionMode,
                     });
                 }
 
@@ -817,7 +848,16 @@ namespace HybridCLR
 
         public static bool IsDheAssembly(string assemblyName)
         {
-            return enabled && Artifacts.ContainsKey(NormalizeAssemblyName(assemblyName));
+            return enabled && Artifacts.TryGetValue(NormalizeAssemblyName(assemblyName),
+                out DheAssemblyArtifact artifact) && IsDifferentialMode(artifact.ExecutionMode);
+        }
+
+        public static string GetAssemblyExecutionMode(string assemblyName)
+        {
+            string normalizedName = NormalizeAssemblyName(assemblyName);
+            return enabled && Artifacts.TryGetValue(normalizedName,
+                    out DheAssemblyArtifact artifact)
+                ? artifact.ExecutionMode : string.Empty;
         }
 
         public static bool ValidateAotMetadata(string assemblyName, byte[] bytes, out string error)
@@ -938,7 +978,7 @@ namespace HybridCLR
             out LoadImageErrorCode code, out string error)
         {
             error = string.Empty;
-            if (Artifacts.Count != 1)
+            if (Artifacts.Values.Count(IsDifferentialArtifact) != 1)
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
                 error = "DHE plans with multiple assemblies must use LoadAssemblyImages " +
@@ -946,7 +986,8 @@ namespace HybridCLR
                 return false;
             }
             string normalizedName = NormalizeAssemblyName(assemblyName);
-            if (!Artifacts.TryGetValue(normalizedName, out DheAssemblyArtifact artifact))
+            if (!Artifacts.TryGetValue(normalizedName, out DheAssemblyArtifact artifact) ||
+                !IsDifferentialArtifact(artifact))
             {
                 code = LoadImageErrorCode.DHE_MV_ASSEMBLY_NOT_FOUND;
                 error = "DHE runtime plan does not contain assembly: " + normalizedName;
@@ -1004,11 +1045,17 @@ namespace HybridCLR
             error = string.Empty;
             code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
             if (!enabled || assemblyNames == null || currentDlls == null ||
-                assemblyNames.Length == 0 || assemblyNames.Length != currentDlls.Length ||
-                assemblyNames.Length != Artifacts.Count || LoadedAssemblies.Count != 0)
+                assemblyNames.Length != currentDlls.Length ||
+                assemblyNames.Length != Artifacts.Values.Count(IsDifferentialArtifact) ||
+                LoadedAssemblies.Count != 0)
             {
                 error = "DHE batch load must contain the complete unloaded runtime plan.";
                 return false;
+            }
+            if (assemblyNames.Length == 0)
+            {
+                code = LoadImageErrorCode.OK;
+                return true;
             }
 
             try
@@ -1024,6 +1071,7 @@ namespace HybridCLR
                     byte[] dll = currentDlls[index];
                     if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) ||
                         !Artifacts.TryGetValue(name, out DheAssemblyArtifact artifact) ||
+                        !IsDifferentialArtifact(artifact) ||
                         dll == null ||
                         !string.Equals(Sha256Hex(dll), artifact.ExpectedCurrentSha256,
                             StringComparison.OrdinalIgnoreCase))
@@ -1085,6 +1133,57 @@ namespace HybridCLR
             catch (Exception exception)
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Loads a current assembly that is absent from the selected Base via
+        /// the ordinary HybridCLR interpreter path. The plan still authenticates
+        /// its bytes, but no Base MetaVersion or native DHE registration exists
+        /// for this assembly.
+        /// </summary>
+        public static bool LoadInterpreterAssemblyImage(string assemblyName, byte[] currentDll,
+            out Assembly assembly, out LoadImageErrorCode code, out string error)
+        {
+            assembly = null;
+            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            error = string.Empty;
+            string normalizedName = NormalizeAssemblyName(assemblyName);
+            if (!enabled || !Artifacts.TryGetValue(normalizedName,
+                    out DheAssemblyArtifact artifact) ||
+                !string.Equals(artifact.ExecutionMode, "interpreter-only", StringComparison.Ordinal))
+            {
+                error = "DHE runtime plan does not mark assembly as interpreter-only: " + normalizedName;
+                return false;
+            }
+            if (currentDll == null || !string.Equals(Sha256Hex(currentDll),
+                    artifact.ExpectedCurrentSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH;
+                error = "Interpreter-only assembly does not match the runtime plan: " + normalizedName;
+                return false;
+            }
+            try
+            {
+                assembly = Assembly.Load(currentDll);
+                if (assembly == null || !string.Equals(assembly.GetName().Name,
+                        normalizedName, StringComparison.OrdinalIgnoreCase))
+                {
+                    assembly = null;
+                    code = LoadImageErrorCode.BAD_IMAGE;
+                    error = "Interpreter-only assembly identity mismatch: " + normalizedName;
+                    return false;
+                }
+                artifact.Current = (byte[])currentDll.Clone();
+                LoadedAssemblies.Add(normalizedName);
+                code = LoadImageErrorCode.OK;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                code = LoadImageErrorCode.BAD_IMAGE;
                 error = exception.Message;
                 return false;
             }
@@ -1284,6 +1383,62 @@ namespace HybridCLR
             return selected.assemblies;
         }
 
+        private static void ApplySelectedAssemblyModes(RuntimePlan plan,
+            DheRuntimeIdentity buildIdentity, DheAssemblyRecord[] assemblies)
+        {
+            DheBaseSelection[] selections = plan.baseSelections ?? Array.Empty<DheBaseSelection>();
+            if (selections.Length == 0)
+            {
+                foreach (DheAssemblyRecord record in assemblies)
+                    record.executionMode = NormalizeExecutionMode(record.executionMode);
+                return;
+            }
+
+            DheBaseSelection[] matches = selections.Where(selection => selection != null &&
+                string.Equals(selection.baseId, buildIdentity.BaseId,
+                    StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidDataException("DHE runtime plan does not select assembly modes for this Base.");
+            DheAssemblyMode[] modes = matches[0].assemblyModes ?? Array.Empty<DheAssemblyMode>();
+            if (modes.Length == 0)
+            {
+                foreach (DheAssemblyRecord record in assemblies)
+                    record.executionMode = NormalizeExecutionMode(record.executionMode);
+                return;
+            }
+            var modesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DheAssemblyMode mode in modes)
+            {
+                string name = NormalizeAssemblyName(mode?.assemblyName);
+                string executionMode = NormalizeExecutionMode(mode?.executionMode);
+                if (!modesByName.TryAdd(name, executionMode))
+                    throw new InvalidDataException("DHE runtime plan contains duplicate assembly mode: " + name);
+            }
+            if (modesByName.Count != assemblies.Length)
+                throw new InvalidDataException("DHE runtime plan assembly modes do not match the payload.");
+            foreach (DheAssemblyRecord record in assemblies)
+            {
+                string name = NormalizeAssemblyName(record?.assemblyName);
+                if (!modesByName.TryGetValue(name, out string executionMode))
+                    throw new InvalidDataException("DHE runtime plan has no assembly mode: " + name);
+                record.executionMode = executionMode;
+            }
+        }
+
+        private static string NormalizeExecutionMode(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "dhe-differential";
+            if (string.Equals(value, "dhe-differential", StringComparison.Ordinal) ||
+                string.Equals(value, "interpreter-only", StringComparison.Ordinal)) return value;
+            throw new InvalidDataException("DHE runtime plan contains an unknown assembly execution mode: " + value);
+        }
+
+        private static bool IsDifferentialMode(string value) =>
+            string.Equals(value, "dhe-differential", StringComparison.Ordinal);
+
+        private static bool IsDifferentialArtifact(DheAssemblyArtifact artifact) =>
+            artifact != null && IsDifferentialMode(artifact.ExecutionMode);
+
         private static void SetSelectedPayloadIdentity(RuntimePlan plan,
             DheRuntimeIdentity buildIdentity)
         {
@@ -1367,9 +1522,10 @@ namespace HybridCLR
             {
                 throw new InvalidDataException("DHE Player build identity is incomplete.");
             }
+            int differentialCount = Artifacts.Values.Count(IsDifferentialArtifact);
             if (identity.AssemblyNames == null || identity.BaseMetaVersionHashes == null ||
                 identity.AssemblyNames.Length != identity.BaseMetaVersionHashes.Length ||
-                identity.AssemblyNames.Length != Artifacts.Count || identity.AssemblyNames.Length == 0)
+                identity.AssemblyNames.Length != differentialCount || identity.AssemblyNames.Length == 0)
             {
                 throw new InvalidDataException("DHE Player build identity is missing or empty.");
             }
@@ -1386,6 +1542,7 @@ namespace HybridCLR
                         "DHE Player build identity contains an empty or duplicate assembly.");
                 }
                 if (!Artifacts.TryGetValue(assemblyName, out DheAssemblyArtifact artifact) ||
+                    !IsDifferentialArtifact(artifact) ||
                     artifact.BaseMetaVersion == null ||
                     !string.Equals(Sha256Hex(artifact.BaseMetaVersion),
                         identity.BaseMetaVersionHashes[index], StringComparison.OrdinalIgnoreCase))
@@ -1404,7 +1561,8 @@ namespace HybridCLR
 
         private static bool HasTransactionProbeCandidate(DheAssemblyArtifact artifact)
         {
-            return artifact != null && artifact.MetaVersion != null &&
+            return IsDifferentialArtifact(artifact) && artifact.MetaVersion != null &&
+                artifact.BaseMetaVersion != null &&
                 FindChangedMetaVersionMethodTokenOffset(artifact.BaseMetaVersion,
                     artifact.MetaVersion) >= 0;
         }

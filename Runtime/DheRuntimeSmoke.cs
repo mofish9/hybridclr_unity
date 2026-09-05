@@ -60,6 +60,8 @@ namespace HybridCLR
         public string loadError;
         public string[] plannedDheAssemblies;
         public string[] loadedDheAssemblies;
+        public string[] plannedDifferentialAssemblies;
+        public string[] plannedInterpreterOnlyAssemblies;
         public bool retryValidated;
         public string retryAssemblyName;
         public string retryFailure;
@@ -188,6 +190,8 @@ namespace HybridCLR
                 loadError = passed ? "OK" : error,
                 plannedDheAssemblies = planned,
                 loadedDheAssemblies = loaded,
+                plannedDifferentialAssemblies = DheRuntime.DifferentialAssemblyNames,
+                plannedInterpreterOnlyAssemblies = DheRuntime.InterpreterOnlyAssemblyNames,
                 retryValidated = retryValidated,
                 retryAssemblyName = DheRuntime.TransactionRetryAssemblyName,
                 retryFailure = retryValidated ? DheRuntime.TransactionRetryFailure.ToString() : null,
