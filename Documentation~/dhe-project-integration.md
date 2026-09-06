@@ -144,12 +144,14 @@ mixed registry/parallel arguments, and identity/baseId mismatches, then records
 the registry SHA-256 and entry count in the resource manifest. Adding a new
 online Base is an audited registry change; it does not create a second Base-specific
 delta payload. For target-specific managed metadata shapes, one resource manifest
-may contain multiple current payload variants. Pass `-CurrentRoot` for the default
-variant and `-CurrentVariantRoots {"android":"C:/build/current-android","windows":"C:/build/current-windows"}`
-for additional roots, then set each registry entry's `payloadVariantId` to the
+may contain multiple current payload variants. Pass
+`-CurrentRoot C:/build/current-windows -CurrentVariantId windows` for the primary
+variant and `-CurrentVariantRoots {"android":"C:/build/current-android"}` for
+additional roots, then set each registry entry's `payloadVariantId` to the
 variant consumed by that Base. The runtime plan keeps the variant hash and asset
 paths bound to the Base selection, and staging copies only the selected DLL/MV
-variant while preserving the same one-package release model.
+variant while preserving the same one-package release model. Omitting
+`-CurrentVariantId` retains the legacy `default` name for single-target releases.
 For each Base, an assembly in its DHE set uses `dhe-differential`; an assembly
 absent from its complete AOT inventory may use `interpreter-only`. An assembly
 already present in that inventory but outside DHE is rejected. This prevents a
