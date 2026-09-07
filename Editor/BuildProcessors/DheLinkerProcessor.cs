@@ -19,7 +19,12 @@ namespace HybridCLR.Editor.BuildProcessors
                 "HybridCLR", "DHE", data.target.ToString(), "link.xml"));
             // Bee invokes this while constructing its graph, before it copies
             // DLLs into data.inputDirectory. Match its PlayerBuildConfig inputs.
-            string[] inputs = report.GetFiles().Where(file => file.role == "ManagedLibrary" ||
+#if UNITY_2022_2_OR_NEWER
+            BuildFile[] files = report.GetFiles();
+#else
+            BuildFile[] files = report.files;
+#endif
+            string[] inputs = files.Where(file => file.role == "ManagedLibrary" ||
                 file.role == "DependentManagedLibrary" || file.role == "ManagedEngineAPI")
                 .Select(file => file.path).GroupBy(Path.GetFileName).Select(group => group.First()).ToArray();
             DheLinkerPreservation.Write(inputs, SettingsUtil.DheAotAssemblyNames, output,
