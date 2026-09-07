@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using HybridCLR.Editor.Link;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -16,7 +17,12 @@ namespace HybridCLR.Editor.BuildProcessors
             if (!SettingsUtil.Enable || SettingsUtil.DheAotAssemblyNames.Count == 0) return null;
             string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library",
                 "HybridCLR", "DHE", data.target.ToString(), "link.xml"));
-            DheLinkerPreservation.Write(data.inputDirectory, SettingsUtil.DheAotAssemblyNames, output,
+            // Bee invokes this while constructing its graph, before it copies
+            // DLLs into data.inputDirectory. Match its PlayerBuildConfig inputs.
+            string[] inputs = report.GetFiles().Where(file => file.role == "ManagedLibrary" ||
+                file.role == "DependentManagedLibrary" || file.role == "ManagedEngineAPI")
+                .Select(file => file.path).GroupBy(Path.GetFileName).Select(group => group.First()).ToArray();
+            DheLinkerPreservation.Write(inputs, SettingsUtil.DheAotAssemblyNames, output,
                 SettingsUtil.HybridCLRSettings.dhePreserveAotAssemblies);
             Debug.Log("[HybridCLR DHE] Preserved Base assemblies and resolved external types: " + output);
             return output;

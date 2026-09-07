@@ -12,6 +12,13 @@ namespace HybridCLR.Editor.Link
         public static void Write(string inputDirectory, IEnumerable<string> assemblyNames,
             string outputPath, IEnumerable<string> futureAotAssemblyNames = null)
         {
+            Write(Directory.GetFiles(inputDirectory, "*.dll"), assemblyNames, outputPath,
+                futureAotAssemblyNames);
+        }
+
+        public static void Write(IEnumerable<string> inputAssemblies, IEnumerable<string> assemblyNames,
+            string outputPath, IEnumerable<string> futureAotAssemblyNames = null)
+        {
             var roots = new HashSet<string>(assemblyNames, StringComparer.Ordinal);
             if (roots.Count == 0) throw new ArgumentException("DHE assembly set is empty.");
             var fullAssemblies = new HashSet<string>(roots, StringComparer.Ordinal);
@@ -26,7 +33,7 @@ namespace HybridCLR.Editor.Link
             {
                 // Resolve facade forwarders using this Player's actual linker
                 // inputs, never the Editor's or host CLR's framework assemblies.
-                foreach (string path in Directory.GetFiles(inputDirectory, "*.dll")
+                foreach (string path in inputAssemblies.Select(Path.GetFullPath).Distinct(StringComparer.Ordinal)
                     .OrderBy(path => path, StringComparer.Ordinal))
                 {
                     var module = ModuleDefMD.Load(File.ReadAllBytes(path), context);
