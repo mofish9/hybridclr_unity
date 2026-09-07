@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HybridCLR.Editor.Il2CppDef;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -225,6 +226,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             EnsureActiveBuildTarget(target);
+            using var compiler = DheAotCompiler.Enter();
             // Unity 2021's Bee profiler writes Library/Bee/buildreport.json
             // before guaranteeing that the parent directory exists.
             Directory.CreateDirectory(Path.GetFullPath(Path.Combine(
@@ -545,6 +547,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             BuildTargetGroup group = EnsureActiveBuildTarget(options.Target);
+            using var compiler = DheAotCompiler.Enter();
             if (options.CleanBuild)
             {
                 ClearPlayerOutput(outputPath, options.Target);
@@ -590,6 +593,7 @@ namespace HybridCLR.Editor.Commands
                 {
                     throw new BuildFailedException("DHE Player build failed: " + report.summary.result);
                 }
+                compiler.RecordGeneration(FindGeneratedCppRoot(SettingsUtil.ProjectDir, GetDheAotAssemblyNames()));
                 if (options.NativeFinalizeOptions != null)
                 {
                     options.NativeFinalizeOptions.RebuildPlayer = true;
@@ -831,6 +835,7 @@ namespace HybridCLR.Editor.Commands
 				runtimeProtocol = NativeRuntimeProtocol,
                 runtimeContract = NativeRuntimeContract,
                 runtimeCapabilities = NativeRuntimeCapabilities,
+                compilerIdentity = options.CompilerIdentity,
                 generatedCppRoot = generatedRoot,
                 guardMode = "universal",
                 changedMethodCount = changedRequested,
@@ -881,6 +886,7 @@ namespace HybridCLR.Editor.Commands
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
             string projectRoot = RequireDirectory(options.ProjectRoot, "DHE project root");
+            using var compiler = DheAotCompiler.Enter();
             string planPath = RequireFile(options.ProjectPlanPath, "DHE project plan");
             DheProjectPlan plan = JsonUtility.FromJson<DheProjectPlan>(File.ReadAllText(planPath));
             if (plan == null || plan.schemaVersion != 1 || !plan.complete ||
@@ -908,6 +914,7 @@ namespace HybridCLR.Editor.Commands
             string manifestPath = string.IsNullOrWhiteSpace(options.OutputManifestPath)
                 ? Path.Combine(projectRoot, "Library", "DHE", "dhe-native-manifest.json")
                 : Path.GetFullPath(options.OutputManifestPath);
+            compiler.RequireGeneration(generatedCppRoot);
             Func<DheNativeGuardResult> injectGuards = () => InjectGeneratedGuards(new DheNativeGuardOptions
             {
                 MvJsonPaths = mvPaths,
@@ -915,6 +922,7 @@ namespace HybridCLR.Editor.Commands
                 OutputManifestPath = manifestPath,
                 RequireCompleteCoverage = options.RequireCompleteCoverage,
                 GuardAllMethods = options.GuardAllMethods,
+                CompilerIdentity = compiler.Identity,
             });
             DheNativeGuardResult guard = injectGuards();
             DheBeeRebuildResult rebuild = null;
@@ -939,6 +947,7 @@ namespace HybridCLR.Editor.Commands
                     },
                 });
             }
+            compiler.RecordGeneration(generatedCppRoot);
             return new DheNativeFinalizeResult
             {
                 ProjectPlanPath = planPath,
@@ -3241,6 +3250,7 @@ namespace HybridCLR.Editor.Commands
 			public string runtimeProtocol;
             public string runtimeContract;
             public string[] runtimeCapabilities;
+            public DheAotCompilerIdentity compilerIdentity;
             public string generatedCppRoot;
             public int changedMethodCount;
             public int supportedChangedMethodCount;
@@ -3414,6 +3424,7 @@ namespace HybridCLR.Editor.Commands
 
     public sealed class DheNativeGuardOptions
     {
+        public DheAotCompilerIdentity CompilerIdentity;
         public string[] MvJsonPaths;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
