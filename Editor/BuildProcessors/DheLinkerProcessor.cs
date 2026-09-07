@@ -17,16 +17,17 @@ namespace HybridCLR.Editor.BuildProcessors
             if (!SettingsUtil.Enable || SettingsUtil.DheAotAssemblyNames.Count == 0) return null;
             string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library",
                 "HybridCLR", "DHE", data.target.ToString(), "link.xml"));
-            // Bee invokes this while constructing its graph, before it copies
-            // DLLs into data.inputDirectory. Match its PlayerBuildConfig inputs.
 #if UNITY_2022_2_OR_NEWER
-            BuildFile[] files = report.GetFiles();
-#else
-            BuildFile[] files = report.files;
-#endif
-            string[] inputs = files.Where(file => file.role == "ManagedLibrary" ||
+            // Newer Bee invokes this before populating staging. Match the
+            // PlayerBuildConfig input list, including framework dependencies.
+            string[] inputs = report.GetFiles().Where(file => file.role == "ManagedLibrary" ||
                 file.role == "DependentManagedLibrary" || file.role == "ManagedEngineAPI")
                 .Select(file => file.path).GroupBy(Path.GetFileName).Select(group => group.First()).ToArray();
+#else
+            // Unity 2021 supplies the prepared inputs here; its BuildReport
+            // has not recorded the complete managed input set at this point.
+            string[] inputs = Directory.GetFiles(data.inputDirectory, "*.dll");
+#endif
             DheLinkerPreservation.Write(inputs, SettingsUtil.DheAotAssemblyNames, output,
                 SettingsUtil.HybridCLRSettings.dhePreserveAotAssemblies);
             Debug.Log("[HybridCLR DHE] Preserved Base assemblies and resolved external types: " + output);
