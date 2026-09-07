@@ -129,17 +129,38 @@ namespace HybridCLR.Editor.Commands
 
             DheBeeRebuildResult rebuild = nativeResult.BeeRebuildResult;
             DhePlayerArtifactFinalizeResult artifact = nativeResult.PlayerArtifactResult;
+            if (artifact == null && string.Equals(options.Target, BuildTarget.iOS.ToString(),
+                    StringComparison.OrdinalIgnoreCase))
+                artifact = ValidateIosXcodeExport(options.PlayerOutputPath);
             bool artifactRequired = string.Equals(options.Target, BuildTarget.Android.ToString(),
+                StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(options.Target, BuildTarget.iOS.ToString(),
+                    StringComparison.OrdinalIgnoreCase);
+            bool androidArtifact = string.Equals(options.Target, BuildTarget.Android.ToString(),
+                StringComparison.OrdinalIgnoreCase);
+            bool iosArtifact = string.Equals(options.Target, BuildTarget.iOS.ToString(),
                 StringComparison.OrdinalIgnoreCase);
             bool artifactPassed = !artifactRequired || artifact != null && artifact.Passed &&
-                artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
-                !string.IsNullOrWhiteSpace(artifact.GradleRoot) &&
-                artifact.NativeLibraryEntries != null &&
-                artifact.NativeLibrarySourcePaths != null &&
-                artifact.NativeLibrarySha256 != null &&
-                artifact.NativeLibraryEntries.Length > 0 &&
-                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySourcePaths.Length &&
-                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySha256.Length;
+                artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputPath) &&
+                !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
+                (string.IsNullOrWhiteSpace(options.PlayerOutputPath) ||
+                    string.Equals(Path.GetFullPath(artifact.OutputPath),
+                        Path.GetFullPath(options.PlayerOutputPath),
+                        StringComparison.OrdinalIgnoreCase)) &&
+                (androidArtifact && !string.IsNullOrWhiteSpace(artifact.GradleRoot) &&
+                    artifact.NativeLibraryEntries != null &&
+                    artifact.NativeLibrarySourcePaths != null &&
+                    artifact.NativeLibrarySha256 != null &&
+                    artifact.NativeLibraryEntries.Length > 0 &&
+                    artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySourcePaths.Length &&
+                    artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySha256.Length ||
+                 iosArtifact && string.Equals(artifact.Kind, "ios-xcode-project",
+                     StringComparison.Ordinal) && string.Equals(artifact.BuildTask, "xcode-export",
+                         StringComparison.Ordinal) && artifact.NativeLibraryEntries != null &&
+                    artifact.NativeLibrarySourcePaths != null && artifact.NativeLibrarySha256 != null &&
+                    artifact.NativeLibraryEntries.Length == 0 &&
+                    artifact.NativeLibrarySourcePaths.Length == 0 &&
+                    artifact.NativeLibrarySha256.Length == 0);
             bool rebuildPassed = rebuild != null && rebuild.ExitCode == 0 && artifactPassed;
             WriteJson(Path.Combine(adapterRoot, "native-finalize.json"), new NativeFinalizeEvidence
             {
@@ -375,6 +396,63 @@ namespace HybridCLR.Editor.Commands
             });
             AssetDatabase.ImportAsset(options.BuildIdentityAssetPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        private static DhePlayerArtifactFinalizeResult ValidateIosXcodeExport(string outputPath)
+        {
+            string exportRoot = RequireDirectory(outputPath,
+                "Unity iOS Xcode export root");
+            string[] xcodeProjects = Directory.GetDirectories(exportRoot, "*.xcodeproj",
+                SearchOption.TopDirectoryOnly);
+            if (xcodeProjects.Length != 1)
+                throw new BuildFailedException("Unity iOS export must contain exactly one .xcodeproj; found " +
+                    xcodeProjects.Length + ".");
+            RequireFile(Path.Combine(xcodeProjects[0], "project.pbxproj"),
+                "Unity iOS Xcode project.pbxproj");
+            foreach (string directory in new[] { "Classes", "Libraries", "Data" })
+                RequireDirectory(Path.Combine(exportRoot, directory),
+                    "Unity iOS Xcode export " + directory + " directory");
+            return new DhePlayerArtifactFinalizeResult
+            {
+                Kind = "ios-xcode-project",
+                OutputPath = Path.GetFullPath(exportRoot),
+                OutputSha256 = Sha256Directory(exportRoot),
+                BuildTask = "xcode-export",
+                ExitCode = 0,
+                NativeLibraryEntries = new string[0],
+                NativeLibrarySourcePaths = new string[0],
+                NativeLibrarySha256 = new string[0],
+                Passed = true,
+            };
+        }
+
+        private static string Sha256Directory(string root)
+        {
+            string fullRoot = RequireDirectory(root, "Directory to hash").TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            using (SHA256 sha = SHA256.Create())
+            {
+                foreach (string path in Directory.GetFiles(fullRoot, "*",
+                    SearchOption.AllDirectories).OrderBy(path =>
+                        Path.GetRelativePath(fullRoot, path).Replace('\\', '/'),
+                        StringComparer.Ordinal))
+                {
+                    string relative = Path.GetRelativePath(fullRoot, path).Replace('\\', '/');
+                    byte[] name = Encoding.UTF8.GetBytes(relative + "\n");
+                    sha.TransformBlock(name, 0, name.Length, name, 0);
+                    using (FileStream input = File.OpenRead(path))
+                    {
+                        byte[] buffer = new byte[1024 * 1024];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            sha.TransformBlock(buffer, 0, read, buffer, 0);
+                    }
+                    byte[] separator = { (byte)'\n' };
+                    sha.TransformBlock(separator, 0, separator.Length, separator, 0);
+                }
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return BitConverter.ToString(sha.Hash).Replace("-", string.Empty).ToLowerInvariant();
+            }
         }
 
         public static void ValidateStagedBuildIdentity(DheProjectIdentityOptions options)
@@ -928,6 +1006,13 @@ namespace HybridCLR.Editor.Commands
                 ? Path.GetFileNameWithoutExtension(trimmed) : trimmed;
         }
 
+        private static string RequireDirectory(string path, string description)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                throw new BuildFailedException(description + " is missing: " + path);
+            return Path.GetFullPath(path);
+        }
+
         private static string RequireFile(string path, string description)
         {
             string full = Path.GetFullPath(path ?? string.Empty);
@@ -1108,6 +1193,7 @@ namespace HybridCLR.Editor.Commands
         public int BeeMaxAttempts = 8;
         public int BeeTimeoutSeconds = 600;
         public bool GuardAllMethods;
+        public string PlayerOutputPath;
     }
 
     public sealed class DheProjectIdentityOptions

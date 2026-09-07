@@ -207,6 +207,7 @@ namespace HybridCLR.Editor.Commands
                 ProjectPlanPath = context.ProjectPlanPath,
                 OutputRoot = context.OutputRoot,
                 Target = context.TargetName,
+                PlayerOutputPath = ResolvePlayerOutput(adapter, context),
                 // Every DHE Base must remain consumable by later
                 // resource-only updates.  The native finalizer therefore
                 // requires universal guards for both bootstrap and

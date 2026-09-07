@@ -90,8 +90,11 @@ from that DAG's input data, invokes the Editor-owned Java/Gradle distribution,
 and rebuilds the requested APK/AAB. `adapter/native-finalize.json` records the
 DAG, Gradle root, artifact SHA-256, and aligned Bee source/archive-entry hashes
 for every `libil2cpp.so`; the external C# host must revalidate this evidence.
-The iOS path uses the same C# Bee state machine but still requires macOS/Xcode,
-signing, and device gates.
+The iOS path uses the same C# Bee state machine. The final export is recorded as
+an `ios-xcode-project` artifact and is accepted only when it contains exactly one
+`.xcodeproj` with `project.pbxproj`, plus `Classes`, `Libraries`, and `Data`; the
+host binds a canonical directory hash to that export. macOS/Xcode compilation,
+linking, signing, IPA packaging, and device gates remain separate prerequisites.
 
 ## Resource-only update
 

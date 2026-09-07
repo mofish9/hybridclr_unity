@@ -58,7 +58,7 @@ namespace HybridCLR
         private const string PlanAssetPath = "Assets/GameMain/HotfixDlls/DheRuntimePlan.json";
         private const string DefaultAssetRoot = "Assets/GameMain/HotfixDlls/";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-		private const string NativeRuntimeContract = "dhe-runtime-v2";
+		private const string NativeRuntimeContract = "dhe-runtime-v3";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -77,6 +77,8 @@ namespace HybridCLR
 			"removed-types-v1",
 			"logical-existing-type-properties-events-v1",
 			"logical-existing-member-custom-attributes-v1",
+            "supplemental-method-custom-attributes-v1",
+            "assembly-reference-evolution-v1",
             "supplemental-nested-types-v1",
             "supplemental-top-level-types-v1",
         };
