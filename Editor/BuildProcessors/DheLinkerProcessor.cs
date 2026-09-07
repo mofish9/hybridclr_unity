@@ -16,7 +16,8 @@ namespace HybridCLR.Editor.BuildProcessors
             if (!SettingsUtil.Enable || SettingsUtil.DheAotAssemblyNames.Count == 0) return null;
             string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library",
                 "HybridCLR", "DHE", data.target.ToString(), "link.xml"));
-            DheLinkerPreservation.Write(data.inputDirectory, SettingsUtil.DheAotAssemblyNames, output);
+            DheLinkerPreservation.Write(data.inputDirectory, SettingsUtil.DheAotAssemblyNames, output,
+                SettingsUtil.HybridCLRSettings.dhePreserveAotAssemblies);
             Debug.Log("[HybridCLR DHE] Preserved Base assemblies and resolved external types: " + output);
             return output;
         }

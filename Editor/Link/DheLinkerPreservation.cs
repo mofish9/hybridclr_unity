@@ -10,10 +10,12 @@ namespace HybridCLR.Editor.Link
     public static class DheLinkerPreservation
     {
         public static void Write(string inputDirectory, IEnumerable<string> assemblyNames,
-            string outputPath)
+            string outputPath, IEnumerable<string> futureAotAssemblyNames = null)
         {
             var roots = new HashSet<string>(assemblyNames, StringComparer.Ordinal);
             if (roots.Count == 0) throw new ArgumentException("DHE assembly set is empty.");
+            var fullAssemblies = new HashSet<string>(roots, StringComparer.Ordinal);
+            fullAssemblies.UnionWith(futureAotAssemblyNames ?? Array.Empty<string>());
             var modules = new Dictionary<string, ModuleDefMD>(StringComparer.Ordinal);
             var context = ModuleDef.CreateModuleContext();
             var resolver = (AssemblyResolver)context.AssemblyResolver;
@@ -44,6 +46,9 @@ namespace HybridCLR.Editor.Link
                 }
 
                 var preserved = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                foreach (string name in fullAssemblies)
+                    if (!modules.ContainsKey(name))
+                        throw new FileNotFoundException("DHE preserved linker input is missing: " + name);
                 foreach (string root in roots.OrderBy(name => name, StringComparer.Ordinal))
                 {
                     if (!modules.TryGetValue(root, out ModuleDefMD module))
@@ -56,7 +61,7 @@ namespace HybridCLR.Editor.Link
                             throw new InvalidDataException("Unresolved DHE linker type: " +
                                 root + ":" + reference.FullName + " in " + reference.DefinitionAssembly);
                         string owner = definition.Module.Assembly.Name.String;
-                        if (roots.Contains(owner)) continue;
+                        if (fullAssemblies.Contains(owner)) continue;
                         if (!preserved.TryGetValue(owner, out SortedSet<string> types))
                             preserved.Add(owner, types = new SortedSet<string>(StringComparer.Ordinal));
                         types.Add(definition.FullName);
@@ -64,7 +69,7 @@ namespace HybridCLR.Editor.Link
                 }
 
                 var linker = new XElement("linker");
-                foreach (string root in roots.OrderBy(name => name, StringComparer.Ordinal))
+                foreach (string root in fullAssemblies.OrderBy(name => name, StringComparer.Ordinal))
                     linker.Add(new XElement("assembly", new XAttribute("fullname", root),
                         new XAttribute("preserve", "all")));
                 foreach (var assembly in preserved)

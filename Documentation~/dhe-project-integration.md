@@ -217,6 +217,12 @@ type forwarding, and their members are preserved in the defining assembly.
 Missing roots or unresolved types fail the build before emitting the extra
 linker descriptor. Ordinary non-DHE builds keep their existing linker behavior.
 
+`dhePreserveAotAssemblies` retains selected non-DHE AOT assemblies in full, even
+when the Base hotfix code does not yet use their types. Its default is `mscorlib`,
+`System`, and `System.Core`. Add other future-facing AOT libraries before freezing
+the Base. This is a size/build-time tradeoff, not a claim that those assemblies
+become hot-updatable. An explicitly empty set disables this extra preservation.
+
 This prevents a `netstandard` facade entry from silently losing members of the
 actual `mscorlib` or `System` implementation. It does not restore APIs already
 stripped from an archived Base, nor does it preserve every previously unreferenced
