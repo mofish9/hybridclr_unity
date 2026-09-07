@@ -208,3 +208,17 @@ Every Player reads Base MetaVersion from its immutable built-in asset root and c
 it with the current MetaVersion from its selected payload variant. Project code must
 not select a per-Base remote delta or reimplement MV parsing, Base identity matching,
 transaction retry, changed-method dispatch, or native identity checks.
+# DHE linker preservation
+
+When DHE is enabled, the package's UnityLinker callback preserves the complete
+configured DHE assembly set. External types referenced by those assemblies are
+resolved against the target Player's actual pre-link assemblies, including facade
+type forwarding, and their members are preserved in the defining assembly.
+Missing roots or unresolved types fail the build before emitting the extra
+linker descriptor. Ordinary non-DHE builds keep their existing linker behavior.
+
+This prevents a `netstandard` facade entry from silently losing members of the
+actual `mscorlib` or `System` implementation. It does not restore APIs already
+stripped from an archived Base, nor does it preserve every previously unreferenced
+external type. Additional future-facing AOT API surface still needs a Base-time
+linker policy and validation against that Base's archived AOT inventory.
