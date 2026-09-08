@@ -646,6 +646,8 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException(
                     "DHE Base Players require universal guards for resource-only updates.");
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
+            DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
+                Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
             string[] mvPaths = (options.MvJsonPaths ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -837,6 +839,7 @@ namespace HybridCLR.Editor.Commands
                 runtimeContract = NativeRuntimeContract,
                 runtimeCapabilities = NativeRuntimeCapabilities,
                 compilerIdentity = options.CompilerIdentity,
+                runtimeSourceIdentity = runtimeSourceIdentity,
                 generatedCppRoot = generatedRoot,
                 guardMode = "universal",
                 changedMethodCount = changedRequested,
@@ -948,6 +951,9 @@ namespace HybridCLR.Editor.Commands
                     },
                 });
             }
+            DheNativeSourceIdentity.RequireUnchanged(
+                JsonUtility.FromJson<DheNativeManifestDocument>(File.ReadAllText(manifestPath)).runtimeSourceIdentity,
+                DheNativeSourceIdentity.Capture(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp")));
             compiler.RecordGeneration(generatedCppRoot);
             return new DheNativeFinalizeResult
             {
@@ -3252,6 +3258,7 @@ namespace HybridCLR.Editor.Commands
             public string runtimeContract;
             public string[] runtimeCapabilities;
             public DheAotCompilerIdentity compilerIdentity;
+            public DheNativeSourceIdentity runtimeSourceIdentity;
             public string generatedCppRoot;
             public int changedMethodCount;
             public int supportedChangedMethodCount;
