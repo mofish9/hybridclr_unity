@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v23";
+        private const string NativeRuntimeContract = "dhe-runtime-v24";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -47,6 +47,9 @@ namespace HybridCLR.Editor.Commands
             "base-virtual-slots-on-current-descendants-v1",
             "closed-current-parent-vtables-v1",
             "open-generic-dispatch-definitions-v1",
+            "supplemental-closed-generic-methods-v1",
+            "closed-interpreter-parent-vtables-v1",
+            "closed-generic-method-definitions-v1",
 			"supplemental-existing-type-methods-v1",
 			"removed-existing-type-methods-v1",
 			"existing-type-method-signature-replacement-v1",
