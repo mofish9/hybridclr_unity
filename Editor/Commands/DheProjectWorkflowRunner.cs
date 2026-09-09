@@ -137,11 +137,14 @@ namespace HybridCLR.Editor.Commands
             try
             {
                 DheNativeFinalizeResult result = BuildPlayer(adapter, context, BuildOptions.None);
-                if (!DheProjectBuildSupport.FinalNativeIdentityMatches(context.OutputRoot, result,
-                    out string identityError))
+                bool nativeMatches = DheProjectBuildSupport.FinalNativeIdentityMatches(context.OutputRoot, result,
+                    out string identityError);
+                bool aotMatches = DheProjectBuildSupport.FinalAotAnalysisSnapshotMatches(
+                    CreateIdentityOptions(adapter, context), out string aotError);
+                if (!nativeMatches || !aotMatches)
                 {
-                    Debug.LogWarning("DHE native identity changed during the final Player pass; " +
-                        "settling the embedded identity and rebuilding once. " + identityError);
+                    Debug.LogWarning("DHE native identity or AOT inputs changed during the final Player pass; " +
+                        "settling the embedded identity and rebuilding once. " + identityError + " " + aotError);
                     DheProjectBuildSupport.StageBuildIdentity(CreateIdentityOptions(adapter, context),
                         result);
                     result = BuildPlayer(adapter, context, BuildOptions.None);

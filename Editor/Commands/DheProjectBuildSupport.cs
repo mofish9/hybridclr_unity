@@ -460,6 +460,33 @@ namespace HybridCLR.Editor.Commands
             }
         }
 
+        public static bool FinalAotAnalysisSnapshotMatches(DheProjectIdentityOptions options, out string error)
+        {
+            string identityPath = RequireFile(Path.Combine(Path.GetFullPath(options.OutputRoot),
+                "build-identity.json"), "DHE staged build identity");
+            var identity = JsonUtility.FromJson<BuildIdentityEvidence>(File.ReadAllText(identityPath));
+            string manifest = Path.Combine(Path.GetFullPath(options.OutputRoot), identity.aotAnalysisSnapshot);
+            string[] names = identity.assemblies.Select(assembly => assembly.assemblyName).ToArray();
+            // A corrupted capture must fail; only a legitimate final-build
+            // input change can trigger the bounded identity settling pass.
+            DheAotAnalysisSnapshot.Validate(manifest, identity.aotAnalysisSnapshotSha256,
+                Path.Combine(Path.GetDirectoryName(manifest), "assemblies"), names,
+                value => JsonUtility.FromJson<DheAotAnalysisSnapshot.Manifest>(value));
+            try
+            {
+                DheAotAnalysisSnapshot.Validate(manifest, identity.aotAnalysisSnapshotSha256,
+                    options.AotAssemblyRoot, names,
+                    value => JsonUtility.FromJson<DheAotAnalysisSnapshot.Manifest>(value));
+                error = null;
+                return true;
+            }
+            catch (InvalidDataException exception)
+            {
+                error = exception.Message;
+                return false;
+            }
+        }
+
         public static void ValidateStagedBuildIdentity(DheProjectIdentityOptions options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
