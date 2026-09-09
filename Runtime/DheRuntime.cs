@@ -117,6 +117,10 @@ namespace HybridCLR
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, DheFrozenAotSource> FrozenAotSources =
             new Dictionary<string, DheFrozenAotSource>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, byte[]> FrozenAotSourceBytes =
+            new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, byte[]> FrozenAotBaseMetaVersionBytes =
+            new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedAssemblies =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedMutableAssemblies =
@@ -300,6 +304,7 @@ namespace HybridCLR
             public uint[] currentStorageTypeTokens;
             public uint[] currentExecutionMethodTokens;
             public uint[] excludedBaseTypeTokens;
+            public string sourceKind;
         }
 
         public static bool Enabled => enabled;
@@ -371,6 +376,8 @@ namespace HybridCLR
             AotMetadataHashes.Clear();
             AotMetadataPaths.Clear();
             FrozenAotSources.Clear();
+            FrozenAotSourceBytes.Clear();
+            FrozenAotBaseMetaVersionBytes.Clear();
             LoadedAssemblies.Clear();
             LoadedMutableAssemblies.Clear();
             identity = null;
@@ -454,18 +461,23 @@ namespace HybridCLR
                 {
                     string name = NormalizeAssemblyName(source?.assemblyName);
                     if (string.IsNullOrWhiteSpace(name) || Artifacts.ContainsKey(name) ||
-                        !FrozenAotSources.TryAdd(name, source) || !IsSha256(source.sourceSha256) ||
+                        !FrozenAotSources.TryAdd(name, source) || source.sourceKind != "frozen-base-aot" ||
+                        !IsSha256(source.sourceSha256) ||
                         !IsSha256(source.baseMetaVersionSha256) || source.currentStorageTypeTokens == null ||
                         source.currentExecutionMethodTokens == null || source.excludedBaseTypeTokens == null)
                         throw new InvalidDataException("DHE frozen AOT source record is invalid: " + name);
                     source.source = ValidateAssetPath(source.source, name + " frozen AOT source");
                     source.baseMetaVersion = ValidateBaseMetaVersionAssetPath(source.baseMetaVersion,
                         plan.baseMetaVersionAssetRoot, name + " frozen AOT Base MetaVersion");
-                    if (!string.Equals(Sha256Hex(provider.LoadBytes(source.source)), source.sourceSha256,
+                    byte[] sourceBytes = provider.LoadBytes(source.source);
+                    byte[] sourceMvBytes = provider.LoadBytes(source.baseMetaVersion);
+                    if (!string.Equals(Sha256Hex(sourceBytes), source.sourceSha256,
                             StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(Sha256Hex(provider.LoadBytes(source.baseMetaVersion)), source.baseMetaVersionSha256,
+                        !string.Equals(Sha256Hex(sourceMvBytes), source.baseMetaVersionSha256,
                             StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("DHE frozen AOT source hash binding is invalid: " + name);
+                    FrozenAotSourceBytes.Add(name, sourceBytes);
+                    FrozenAotBaseMetaVersionBytes.Add(name, sourceMvBytes);
                 }
 
                 foreach (DheAssemblyRecord record in selectedAssemblies)
@@ -564,6 +576,8 @@ namespace HybridCLR
                 LoadedAssemblies.Clear();
                 LoadedMutableAssemblies.Clear();
                 FrozenAotSources.Clear();
+                FrozenAotSourceBytes.Clear();
+                FrozenAotBaseMetaVersionBytes.Clear();
                 identity = null;
                 selectedPayloadVariantId = null;
                 selectedPayloadCurrentAssemblySetSha256 = null;
@@ -1175,10 +1189,16 @@ namespace HybridCLR
                 error = "DHE batch load must contain the complete unloaded runtime plan.";
                 return false;
             }
-            if (assemblyNames.Length == 0)
+            bool hasFrozenSources = FrozenAotSources.Count != 0;
+            if (assemblyNames.Length == 0 && !hasFrozenSources)
             {
                 code = LoadImageErrorCode.OK;
                 return true;
+            }
+            if (hasFrozenSources && LoadedAssemblies.Count != 0)
+            {
+                error = "DHE frozen and mutable sources must be loaded in one initial transaction.";
+                return false;
             }
 
             try
@@ -1208,6 +1228,40 @@ namespace HybridCLR
                     artifacts[index] = artifact;
                     baseMetaVersions[index] = artifact.BaseMetaVersion;
                     currentMetaVersions[index] = artifact.MetaVersion;
+                }
+
+                if (hasFrozenSources)
+                {
+                    var frozenNames = FrozenAotSources.Keys.OrderBy(name => name,
+                        StringComparer.OrdinalIgnoreCase).ToArray();
+                    var allNames = frozenNames.Concat(normalizedNames).ToArray();
+                    if (allNames.Length != allNames.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+                    {
+                        error = "DHE frozen source assembly overlaps mutable payload: " +
+                            allNames.GroupBy(name => name, StringComparer.OrdinalIgnoreCase).First(group => group.Count() > 1).Key;
+                        return false;
+                    }
+                    var allDlls = frozenNames.Select(name => FrozenAotSourceBytes[name]).Concat(currentDlls).ToArray();
+                    var allBase = frozenNames.Select(name => FrozenAotBaseMetaVersionBytes[name]).Concat(baseMetaVersions).ToArray();
+                    var allCurrent = frozenNames.Select(name => FrozenAotBaseMetaVersionBytes[name]).Concat(currentMetaVersions).ToArray();
+                    var allTypes = frozenNames.Select(name => FrozenAotSources[name].currentStorageTypeTokens).Concat(
+                        artifacts.Select(artifact => artifact.ExecutionPlan?.currentStorageTypeTokens ?? Array.Empty<uint>())).ToArray();
+                    var allMethods = frozenNames.Select(name => FrozenAotSources[name].currentExecutionMethodTokens).Concat(
+                        artifacts.Select(artifact => artifact.ExecutionPlan?.currentExecutionMethodTokens ?? Array.Empty<uint>())).ToArray();
+                    var kinds = frozenNames.Select(_ => 1).Concat(normalizedNames.Select(_ => 0)).ToArray();
+                    var excluded = frozenNames.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(
+                        normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
+                    code = RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+                        allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded);
+                    if (code != LoadImageErrorCode.OK)
+                    {
+                        error = "DHE frozen/mutable atomic registration returned " + code + ".";
+                        return false;
+                    }
+                    foreach (string name in allNames) LoadedAssemblies.Add(name);
+                    foreach (string name in normalizedNames) LoadedMutableAssemblies.Add(name);
+                    foreach (string name in frozenNames) FrozenAotSources.Remove(name);
+                    return true;
                 }
 
                 if (validationProbesEnabled && !transactionProbeAttempted)
@@ -1255,106 +1309,6 @@ namespace HybridCLR
             catch (Exception exception)
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
-                error = exception.Message;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Loads the immutable ordinary AOT sources selected by a Base. The
-        /// source DLL and MV are intentionally passed as both Base and Current;
-        /// the native source role prevents this API from being used to install a
-        /// newer ordinary AOT assembly. Call before <see cref="LoadAssemblyImages"/>.
-        /// </summary>
-        public static bool LoadFrozenAotImages(string[] assemblyNames, byte[][] sourceDlls,
-            byte[][] baseMetaVersions, uint[][] currentStorageTypeTokens,
-            uint[][] currentExecutionMethodTokens, uint[][] excludedBaseTypeTokens,
-            string[] expectedSourceSha256, out LoadImageErrorCode code, out string error)
-        {
-            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
-            error = string.Empty;
-            if (!enabled || assemblyNames == null || sourceDlls == null || baseMetaVersions == null ||
-                currentStorageTypeTokens == null || currentExecutionMethodTokens == null ||
-                excludedBaseTypeTokens == null || expectedSourceSha256 == null ||
-                assemblyNames.Length == 0 || assemblyNames.Length != sourceDlls.Length ||
-                assemblyNames.Length != baseMetaVersions.Length ||
-                assemblyNames.Length != currentStorageTypeTokens.Length ||
-                assemblyNames.Length != currentExecutionMethodTokens.Length ||
-                assemblyNames.Length != excludedBaseTypeTokens.Length ||
-                assemblyNames.Length != expectedSourceSha256.Length || LoadedMutableAssemblies.Count != 0)
-            {
-                error = "DHE frozen source batch is incomplete or runtime has already loaded mutable assemblies.";
-                return false;
-            }
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var kinds = new int[assemblyNames.Length];
-            var current = new byte[assemblyNames.Length][];
-            for (int index = 0; index < assemblyNames.Length; index++)
-            {
-                string name = NormalizeAssemblyName(assemblyNames[index]);
-                if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) || sourceDlls[index] == null ||
-                    baseMetaVersions[index] == null || currentStorageTypeTokens[index] == null ||
-                    currentExecutionMethodTokens[index] == null || excludedBaseTypeTokens[index] == null ||
-                    !IsSha256(expectedSourceSha256[index]) ||
-                    !string.Equals(Sha256Hex(sourceDlls[index]), expectedSourceSha256[index],
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    error = "DHE frozen source is missing, duplicated, or has the wrong Base hash: " + name;
-                    code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH;
-                    return false;
-                }
-                // Native validation additionally requires Base/Current MV hashes
-                // and records to be identical for FrozenBaseAot.
-                current[index] = (byte[])baseMetaVersions[index].Clone();
-                kinds[index] = 1;
-            }
-            try
-            {
-                code = RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
-                    sourceDlls, baseMetaVersions, current, currentStorageTypeTokens,
-                    currentExecutionMethodTokens, kinds, excludedBaseTypeTokens);
-                if (code != LoadImageErrorCode.OK)
-                {
-                    error = "DHE frozen source registration returned " + code + ".";
-                    return false;
-                }
-                foreach (string name in seen) LoadedAssemblies.Add(name);
-                return true;
-            }
-            catch (Exception exception)
-            {
-                error = exception.Message;
-                code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
-                return false;
-            }
-        }
-
-        /// <summary>Loads every frozen source declared by the authenticated Base plan.</summary>
-        public static bool LoadFrozenAotImages(IDheRuntimeAssetProvider provider,
-            out LoadImageErrorCode code, out string error)
-        {
-            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
-            error = string.Empty;
-            if (provider == null || FrozenAotSources.Count == 0)
-            {
-                error = "DHE Base plan contains no frozen AOT source records.";
-                return false;
-            }
-            var records = FrozenAotSources.Values.OrderBy(source => source.assemblyName,
-                StringComparer.OrdinalIgnoreCase).ToArray();
-            try
-            {
-                return LoadFrozenAotImages(records.Select(source => source.assemblyName).ToArray(),
-                    records.Select(source => provider.LoadBytes(source.source)).ToArray(),
-                    records.Select(source => provider.LoadBytes(source.baseMetaVersion)).ToArray(),
-                    records.Select(source => source.currentStorageTypeTokens).ToArray(),
-                    records.Select(source => source.currentExecutionMethodTokens).ToArray(),
-                    records.Select(source => source.excludedBaseTypeTokens).ToArray(),
-                    records.Select(source => source.sourceSha256).ToArray(), out code, out error);
-            }
-            catch (Exception exception)
-            {
-                code = LoadImageErrorCode.BAD_IMAGE;
                 error = exception.Message;
                 return false;
             }
