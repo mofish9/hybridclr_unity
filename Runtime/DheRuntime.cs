@@ -34,6 +34,7 @@ namespace HybridCLR
         public string ManagedAssemblySetSha256;
         public string AotAssemblySetSha256;
         public string AotSnapshotSha256;
+        public string AotAnalysisSnapshotSha256;
         public string NativeGuardSourceSha256;
         public string NativeManifestSha256;
         public string BaseMetaVersionSetSha256;
@@ -172,6 +173,7 @@ namespace HybridCLR
             public string engineWorkflow;
             public string il2cppCodeGeneration;
             public string aotSnapshotSha256;
+            public string aotAnalysisSnapshotSha256;
             public string baseMetaVersionSetSha256;
             public string nativeGuardSourceSha256;
             public string nativeManifestSha256;
@@ -449,6 +451,7 @@ namespace HybridCLR
                     if (record.executionPlan != null)
                     {
                         if (!IsDifferentialMode(executionMode) || identity.EngineWorkflow != "Unity2022Fgs" ||
+                            !IsSha256(identity.AotAnalysisSnapshotSha256) ||
                             !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains(DheExecutionPlan.Capability))
                             throw new InvalidDataException("DHE Current execution plan is unsupported by this Base: " + assemblyName);
                         record.executionPlan.Validate(assemblyName, baseMetaVersion, currentMetaVersion);
@@ -750,6 +753,8 @@ namespace HybridCLR
                     StringComparer.OrdinalIgnoreCase).SetEquals(
                     buildIdentity.AotAssemblyNames ?? Array.Empty<string>()) &&
                 string.Equals(candidate.aotSnapshotSha256, buildIdentity.AotSnapshotSha256,
+                    StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.aotAnalysisSnapshotSha256, buildIdentity.AotAnalysisSnapshotSha256,
                     StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(candidate.baseMetaVersionSetSha256,
                     buildIdentity.BaseMetaVersionSetSha256, StringComparison.OrdinalIgnoreCase) &&
@@ -1601,6 +1606,7 @@ namespace HybridCLR
                     "DHE Player build identity version or snapshot kind is invalid.");
             }
             if (!IsSha256(identity.BaseId) ||
+                (identity.AotAnalysisSnapshotSha256 != null && !IsSha256(identity.AotAnalysisSnapshotSha256)) ||
                 !IsSha256(identity.ManagedAssemblySetSha256) ||
                 !TryValidateAotAssemblyInventory(identity.AotAssemblyNames,
                     identity.AotAssemblySetSha256) ||
@@ -1824,6 +1830,8 @@ namespace HybridCLR
                 "runtimeAssetRoot=" + NormalizeAssetRoot(value.RuntimeAssetRoot) + "\n" +
                 "baseMetaVersionAssetRoot=" +
                 NormalizeAssetRoot(value.BaseMetaVersionAssetRoot) + "\n";
+            if (!string.IsNullOrWhiteSpace(value.AotAnalysisSnapshotSha256))
+                canonical += "aotAnalysisSnapshotSha256=" + value.AotAnalysisSnapshotSha256.ToLowerInvariant() + "\n";
             return Sha256Hex(System.Text.Encoding.UTF8.GetBytes(canonical));
         }
 

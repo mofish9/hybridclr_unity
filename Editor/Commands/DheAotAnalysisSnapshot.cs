@@ -149,6 +149,8 @@ namespace HybridCLR.Editor.Commands
                 if (!field.IsStatic || field.HasFieldRVA ||
                     (field.FieldType.FullName != "System.String" && field.FieldType.FullName != "System.Int32" && field.FieldType.FullName != "System.String[]"))
                     throw new InvalidDataException("Unexpected generated identity field: " + field.FullName);
+                if (field.HasConstant && field.FieldType.FullName == "System.String[]")
+                    throw new InvalidDataException("Unexpected generated identity array constant: " + field.FullName);
                 if (field.HasConstant)
                     field.Constant = new ConstantUser(field.FieldType.FullName == "System.String" ? (object)"" : 0);
             }

@@ -20,6 +20,9 @@ namespace HybridCLR.Editor.Commands
             RequireAdapter(adapter);
             DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(false);
             context.EnsureTarget();
+            // Keep the generated type shape stable between the initial AOT
+            // snapshot and the final Player that embeds its snapshot hash.
+            DheProjectBuildSupport.RestoreBuildIdentityTemplate(CreateIdentityOptions(adapter, context));
             string baselineSource = Environment.GetEnvironmentVariable("DHE_BASELINE_ROOT");
             DheProjectPrepareResult prepared = DheBuildPipeline.PrepareProjectArtifacts(
                 new DheProjectPrepareOptions
