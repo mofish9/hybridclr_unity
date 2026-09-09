@@ -74,6 +74,7 @@ namespace HybridCLR
             "shared-type-initialization-v1",
             "current-static-value-storage-v1",
 			"frozen-aot-source-v1",
+			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
             "supplemental-existing-generic-type-fields-v1",
@@ -208,6 +209,7 @@ namespace HybridCLR
             public bool guardCoverageValidated;
             public int unsupportedChangeCount;
             public DheAssemblyMode[] assemblyModes;
+            public DheFrozenAotSource[] frozenAotSources;
         }
 
         [Serializable]
@@ -304,6 +306,7 @@ namespace HybridCLR
             public uint[] currentStorageTypeTokens;
             public uint[] currentExecutionMethodTokens;
             public uint[] excludedBaseTypeTokens;
+            public uint[] genericContextMethodTokens;
             public string sourceKind;
         }
 
@@ -457,20 +460,31 @@ namespace HybridCLR
                 DheBaseSelection selectedBase = (plan.baseSelections ?? Array.Empty<DheBaseSelection>())
                     .SingleOrDefault(selection => selection != null &&
                         string.Equals(selection.baseId, identity.BaseId, StringComparison.OrdinalIgnoreCase));
+                CanonicalFrozenSources(selectedBase?.frozenAotSources);
                 foreach (DheFrozenAotSource source in selectedBase?.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
                 {
                     string name = NormalizeAssemblyName(source?.assemblyName);
                     if (string.IsNullOrWhiteSpace(name) || Artifacts.ContainsKey(name) ||
+                        !(identity.AotAssemblyNames ?? Array.Empty<string>()).Contains(name) ||
+                        selectedAssemblies.Any(record => record != null && NormalizeAssemblyName(record.assemblyName) == name) ||
                         !FrozenAotSources.TryAdd(name, source) || source.sourceKind != "frozen-base-aot" ||
                         !IsSha256(source.sourceSha256) ||
                         !IsSha256(source.baseMetaVersionSha256) || source.currentStorageTypeTokens == null ||
                         source.currentExecutionMethodTokens == null || source.excludedBaseTypeTokens == null)
                         throw new InvalidDataException("DHE frozen AOT source record is invalid: " + name);
+                    if ((source.genericContextMethodTokens?.Length ?? 0) != 0 &&
+                        !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
+                        throw new InvalidDataException("Player does not support frozen generic context dispatch.");
                     source.source = ValidateAssetPath(source.source, name + " frozen AOT source");
                     source.baseMetaVersion = ValidateBaseMetaVersionAssetPath(source.baseMetaVersion,
                         plan.baseMetaVersionAssetRoot, name + " frozen AOT Base MetaVersion");
                     byte[] sourceBytes = provider.LoadBytes(source.source);
                     byte[] sourceMvBytes = provider.LoadBytes(source.baseMetaVersion);
+                    new DheExecutionPlan { schemaVersion = 1, assemblyName = name,
+                        baseMetaVersionSha256 = source.baseMetaVersionSha256, currentMetaVersionSha256 = source.baseMetaVersionSha256,
+                        currentStorageTypeTokens = source.currentStorageTypeTokens, currentExecutionMethodTokens = source.currentExecutionMethodTokens,
+                        currentStorageTypeTokenCount = source.currentStorageTypeTokens.Length,
+                        currentExecutionMethodTokenCount = source.currentExecutionMethodTokens.Length }.Validate(name, sourceMvBytes, sourceMvBytes);
                     if (!string.Equals(Sha256Hex(sourceBytes), source.sourceSha256,
                             StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(Sha256Hex(sourceMvBytes), source.baseMetaVersionSha256,
@@ -785,6 +799,13 @@ namespace HybridCLR
                 if (!CanonicalAssemblyModes(matches[0].assemblyModes).SequenceEqual(
                         CanonicalAssemblyModes(validatedMatches[0].assemblyModes), StringComparer.Ordinal))
                     throw new InvalidDataException("DHE resource validation assembly selections do not match the manifest.");
+                if (!CanonicalFrozenSources(matches[0].frozenAotSources).SequenceEqual(
+                        CanonicalFrozenSources(validatedMatches[0].frozenAotSources), StringComparer.Ordinal))
+                    throw new InvalidDataException("DHE resource validation frozen sources do not match the manifest.");
+                if ((matches[0].frozenAotSources ?? Array.Empty<DheFrozenAotSource>()).Any(source =>
+                        (source.genericContextMethodTokens?.Length ?? 0) != 0) &&
+                    !(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
+                    throw new InvalidDataException("DHE resource is missing its required frozen generic context capability.");
                 return true;
             }
             catch (Exception exception)
@@ -957,6 +978,8 @@ namespace HybridCLR
                 if (matchingSelections.Length != 1 ||
                     !CanonicalAssemblyModes(matchingSelections[0].assemblyModes).SequenceEqual(
                         CanonicalAssemblyModes(selectedBase.assemblyModes), StringComparer.Ordinal) ||
+                    !CanonicalFrozenSources(matchingSelections[0].frozenAotSources).SequenceEqual(
+                        CanonicalFrozenSources(selectedBase.frozenAotSources), StringComparer.Ordinal) ||
                     !string.Equals(matchingSelections[0].aotMetadataSetId,
                         selectedBase.aotMetadataSetId, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(matchingSelections[0].payloadVariantId ?? "default",
@@ -980,6 +1003,42 @@ namespace HybridCLR
                     enableValidationProbes);
             }
             catch (Exception exception) { error = exception.Message; return false; }
+        }
+
+        private static string[] CanonicalFrozenSources(DheFrozenAotSource[] sources)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return (sources ?? Array.Empty<DheFrozenAotSource>()).Select(source =>
+            {
+                string name = NormalizeAssemblyName(source?.assemblyName);
+                if (string.IsNullOrWhiteSpace(name) || !names.Add(name) || source.sourceKind != "frozen-base-aot" ||
+                    !IsSha256(source.sourceSha256) || source.excludedBaseTypeTokens == null)
+                    throw new InvalidDataException("DHE frozen source identity is invalid: " + name);
+                var plan = new DheExecutionPlan { schemaVersion = 1, assemblyName = name,
+                    baseMetaVersionSha256 = source.baseMetaVersionSha256, currentMetaVersionSha256 = source.baseMetaVersionSha256,
+                    currentStorageTypeTokens = source.currentStorageTypeTokens, currentExecutionMethodTokens = source.currentExecutionMethodTokens,
+                    currentStorageTypeTokenCount = source.currentStorageTypeTokens?.Length ?? 0,
+                    currentExecutionMethodTokenCount = source.currentExecutionMethodTokens?.Length ?? 0 };
+                string binding = plan.CanonicalBinding();
+                string Tokens(uint[] values, uint table, uint minimum)
+                {
+                    uint previous = 0;
+                    foreach (uint token in values)
+                    {
+                        if ((token >> 24) != table || (token & 0xffffffu) <= minimum || token <= previous)
+                            throw new InvalidDataException("DHE frozen source token selection is invalid: " + name);
+                        previous = token;
+                    }
+                    return string.Join(",", values.Select(token => token.ToString("X8")));
+                }
+                uint[] conditional = source.genericContextMethodTokens ?? Array.Empty<uint>();
+                if (conditional.Any(token => !source.currentExecutionMethodTokens.Contains(token)))
+                    throw new InvalidDataException("DHE conditional method is not in the frozen execution selection: " + name);
+                return binding + "|" + source.sourceSha256.ToUpperInvariant() + "|" +
+                    ValidateAssetPath(source.source, name + " frozen source") + "|" +
+                    ValidateAssetPath(source.baseMetaVersion, name + " frozen MV") + "|" +
+                    Tokens(source.excludedBaseTypeTokens, 2, 1) + "|" + Tokens(conditional, 6, 0);
+            }).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         }
 
         public static bool IsDheAssembly(string assemblyName)
@@ -1121,6 +1180,8 @@ namespace HybridCLR
                     "to preserve atomic registration.";
                 return false;
             }
+            if (FrozenAotSources.Count != 0)
+                return LoadAssemblyImages(new[] { assemblyName }, new[] { currentDll }, out code, out error);
             string normalizedName = NormalizeAssemblyName(assemblyName);
             if (!Artifacts.TryGetValue(normalizedName, out DheAssemblyArtifact artifact) ||
                 !IsDifferentialArtifact(artifact))
@@ -1251,14 +1312,20 @@ namespace HybridCLR
                     var kinds = frozenNames.Select(_ => 1).Concat(normalizedNames.Select(_ => 0)).ToArray();
                     var excluded = frozenNames.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(
                         normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
-                    code = RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
-                        allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded);
+                    var conditional = frozenNames.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>())
+                        .Concat(normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
+                    code = conditional.Any(tokens => tokens.Length != 0)
+                        ? RuntimeApi.LoadDifferentialHybridAssemblySources(allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded, conditional)
+                        : RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+                            allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded);
                     if (code != LoadImageErrorCode.OK)
                     {
                         error = "DHE frozen/mutable atomic registration returned " + code + ".";
                         return false;
                     }
                     foreach (string name in allNames) LoadedAssemblies.Add(name);
+                    for (int index = 0; index < artifacts.Length; ++index)
+                        artifacts[index].Current = (byte[])currentDlls[index].Clone();
                     foreach (string name in normalizedNames) LoadedMutableAssemblies.Add(name);
                     foreach (string name in frozenNames) FrozenAotSources.Remove(name);
                     return true;

@@ -44,6 +44,23 @@ namespace HybridCLR
             int[] sourceKinds, uint[][] excludedBaseTypeTokens);
 #endif
 
+        /// <summary>Atomically loads source plans with conditional frozen generic methods.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblySources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblySources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens);
+#endif
+
         /// <summary>
         /// load supplementary metadata assembly
         /// </summary>
