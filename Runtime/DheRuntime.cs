@@ -475,9 +475,8 @@ namespace HybridCLR
                     if ((source.genericContextMethodTokens?.Length ?? 0) != 0 &&
                         !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
                         throw new InvalidDataException("Player does not support frozen generic context dispatch.");
-                    source.source = ValidateAssetPath(source.source, name + " frozen AOT source");
-                    source.baseMetaVersion = ValidateBaseMetaVersionAssetPath(source.baseMetaVersion,
-                        plan.baseMetaVersionAssetRoot, name + " frozen AOT Base MetaVersion");
+                    source.source = ValidateFrozenAssetPath(source.source, identity, name, ".dll.bytes");
+                    source.baseMetaVersion = ValidateFrozenAssetPath(source.baseMetaVersion, identity, name, ".mv.bytes");
                     byte[] sourceBytes = provider.LoadBytes(source.source);
                     byte[] sourceMvBytes = provider.LoadBytes(source.baseMetaVersion);
                     new DheExecutionPlan { schemaVersion = 1, assemblyName = name,
@@ -1035,8 +1034,8 @@ namespace HybridCLR
                 if (conditional.Any(token => !source.currentExecutionMethodTokens.Contains(token)))
                     throw new InvalidDataException("DHE conditional method is not in the frozen execution selection: " + name);
                 return binding + "|" + source.sourceSha256.ToUpperInvariant() + "|" +
-                    ValidateAssetPath(source.source, name + " frozen source", selectedIdentity.RuntimeAssetRoot) + "|" +
-                    ValidateBaseMetaVersionAssetPath(source.baseMetaVersion, selectedIdentity.BaseMetaVersionAssetRoot, name + " frozen MV") + "|" +
+                    ValidateFrozenAssetPath(source.source, selectedIdentity, name, ".dll.bytes") + "|" +
+                    ValidateFrozenAssetPath(source.baseMetaVersion, selectedIdentity, name, ".mv.bytes") + "|" +
                     Tokens(source.excludedBaseTypeTokens, 2, 1) + "|" + Tokens(conditional, 6, 0);
             }).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         }
@@ -1974,6 +1973,18 @@ namespace HybridCLR
                 normalized.Split('/').Any(segment => segment == "." || segment == ".."))
                 throw new InvalidDataException("DHE " + description +
                     " path escapes the immutable Base MetaVersion root: " + path);
+            return normalized;
+        }
+
+        private static string ValidateFrozenAssetPath(string path, DheRuntimeIdentity identity,
+            string assemblyName, string suffix)
+        {
+            string normalized = ValidateAssetPath(path, assemblyName + " frozen source", identity.RuntimeAssetRoot);
+            string expected = NormalizeAssetRoot(identity.RuntimeAssetRoot) + "payload/frozen-aot/" +
+                identity.BaseId.ToLowerInvariant() + "/" + assemblyName + suffix;
+            if (!string.Equals(normalized, expected, StringComparison.Ordinal) ||
+                normalized.StartsWith(NormalizeAssetRoot(identity.BaseMetaVersionAssetRoot), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE frozen source must use a Base-specific resource path outside the immutable Base MV root: " + path);
             return normalized;
         }
 
