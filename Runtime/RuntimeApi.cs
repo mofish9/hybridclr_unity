@@ -76,6 +76,28 @@ namespace HybridCLR
             byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions);
 #endif
 
+        /// <summary>
+        /// Loads a complete DHE set with compiler-selected Current storage types
+        /// and execution methods. Each token is relative to that assembly's
+        /// Current MV; the runtime binds it to the corresponding Base member.
+        /// Arrays must have one non-null entry per DLL, including empty selections.
+        /// The compiler must validate layout dependencies and native ABI coverage
+        /// before calling this API. Register once at startup, before hotfix use.
+        /// </summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlan(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlan(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens);
+#endif
+
         /// <summary>Returns whether a loaded DHE MV marks this method as changed.</summary>
 #if UNITY_EDITOR
         public static bool IsDifferentialMethodChanged(MethodInfo method)
