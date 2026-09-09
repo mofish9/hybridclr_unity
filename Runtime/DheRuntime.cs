@@ -460,7 +460,7 @@ namespace HybridCLR
                 DheBaseSelection selectedBase = (plan.baseSelections ?? Array.Empty<DheBaseSelection>())
                     .SingleOrDefault(selection => selection != null &&
                         string.Equals(selection.baseId, identity.BaseId, StringComparison.OrdinalIgnoreCase));
-                CanonicalFrozenSources(selectedBase?.frozenAotSources);
+                CanonicalFrozenSources(selectedBase?.frozenAotSources, identity);
                 foreach (DheFrozenAotSource source in selectedBase?.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
                 {
                     string name = NormalizeAssemblyName(source?.assemblyName);
@@ -799,8 +799,8 @@ namespace HybridCLR
                 if (!CanonicalAssemblyModes(matches[0].assemblyModes).SequenceEqual(
                         CanonicalAssemblyModes(validatedMatches[0].assemblyModes), StringComparer.Ordinal))
                     throw new InvalidDataException("DHE resource validation assembly selections do not match the manifest.");
-                if (!CanonicalFrozenSources(matches[0].frozenAotSources).SequenceEqual(
-                        CanonicalFrozenSources(validatedMatches[0].frozenAotSources), StringComparer.Ordinal))
+                if (!CanonicalFrozenSources(matches[0].frozenAotSources, buildIdentity).SequenceEqual(
+                        CanonicalFrozenSources(validatedMatches[0].frozenAotSources, buildIdentity), StringComparer.Ordinal))
                     throw new InvalidDataException("DHE resource validation frozen sources do not match the manifest.");
                 if ((matches[0].frozenAotSources ?? Array.Empty<DheFrozenAotSource>()).Any(source =>
                         (source.genericContextMethodTokens?.Length ?? 0) != 0) &&
@@ -978,8 +978,8 @@ namespace HybridCLR
                 if (matchingSelections.Length != 1 ||
                     !CanonicalAssemblyModes(matchingSelections[0].assemblyModes).SequenceEqual(
                         CanonicalAssemblyModes(selectedBase.assemblyModes), StringComparer.Ordinal) ||
-                    !CanonicalFrozenSources(matchingSelections[0].frozenAotSources).SequenceEqual(
-                        CanonicalFrozenSources(selectedBase.frozenAotSources), StringComparer.Ordinal) ||
+                    !CanonicalFrozenSources(matchingSelections[0].frozenAotSources, buildIdentity).SequenceEqual(
+                        CanonicalFrozenSources(selectedBase.frozenAotSources, buildIdentity), StringComparer.Ordinal) ||
                     !string.Equals(matchingSelections[0].aotMetadataSetId,
                         selectedBase.aotMetadataSetId, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(matchingSelections[0].payloadVariantId ?? "default",
@@ -1005,7 +1005,7 @@ namespace HybridCLR
             catch (Exception exception) { error = exception.Message; return false; }
         }
 
-        private static string[] CanonicalFrozenSources(DheFrozenAotSource[] sources)
+        private static string[] CanonicalFrozenSources(DheFrozenAotSource[] sources, DheRuntimeIdentity selectedIdentity)
         {
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             return (sources ?? Array.Empty<DheFrozenAotSource>()).Select(source =>
@@ -1035,8 +1035,8 @@ namespace HybridCLR
                 if (conditional.Any(token => !source.currentExecutionMethodTokens.Contains(token)))
                     throw new InvalidDataException("DHE conditional method is not in the frozen execution selection: " + name);
                 return binding + "|" + source.sourceSha256.ToUpperInvariant() + "|" +
-                    ValidateAssetPath(source.source, name + " frozen source") + "|" +
-                    ValidateAssetPath(source.baseMetaVersion, name + " frozen MV") + "|" +
+                    ValidateAssetPath(source.source, name + " frozen source", selectedIdentity.RuntimeAssetRoot) + "|" +
+                    ValidateBaseMetaVersionAssetPath(source.baseMetaVersion, selectedIdentity.BaseMetaVersionAssetRoot, name + " frozen MV") + "|" +
                     Tokens(source.excludedBaseTypeTokens, 2, 1) + "|" + Tokens(conditional, 6, 0);
             }).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         }
@@ -1946,14 +1946,14 @@ namespace HybridCLR
             return true;
         }
 
-        private static string ValidateAssetPath(string path, string description)
+        private static string ValidateAssetPath(string path, string description, string expectedRoot = null)
         {
             if (string.IsNullOrWhiteSpace(path))
             {
                 throw new InvalidDataException("DHE " + description + " path is empty.");
             }
             string normalized = path.Replace('\\', '/');
-            if (!normalized.StartsWith(assetRoot, StringComparison.Ordinal) ||
+            if (!normalized.StartsWith(NormalizeAssetRoot(expectedRoot ?? assetRoot), StringComparison.Ordinal) ||
                 normalized.Contains("../", StringComparison.Ordinal) || normalized.EndsWith("/..",
                     StringComparison.Ordinal))
             {
