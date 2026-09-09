@@ -221,7 +221,24 @@ namespace HybridCLR.Editor.Il2CppDef
             try
             {
                 WriteNew(temporary, bytes);
-                File.Replace(temporary, path, null);
+                for (int attempt = 0; ; attempt++)
+                {
+                    try
+                    {
+                        CheckNoLinks(path);
+                        File.Replace(temporary, path, null);
+                        break;
+                    }
+                    catch (IOException exception) when (attempt < 6 && File.Exists(temporary) &&
+                        ((exception.HResult & 0xffff) == 32 || (exception.HResult & 0xffff) == 33 ||
+                         (exception.HResult & 0xffff) == 1175))
+                    {
+                        // Windows scanners/readers can briefly deny replacement.
+                        // Keep the old complete record and retry the same atomic
+                        // operation; never fall back to delete-then-write.
+                        System.Threading.Thread.Sleep(50 * (attempt + 1));
+                    }
+                }
             }
             finally
             {
