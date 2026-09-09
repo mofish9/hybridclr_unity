@@ -73,6 +73,7 @@ namespace HybridCLR
             "current-parameter-default-metadata-v1",
             "shared-type-initialization-v1",
             "current-static-value-storage-v1",
+			"frozen-aot-source-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
             "supplemental-existing-generic-type-fields-v1",
