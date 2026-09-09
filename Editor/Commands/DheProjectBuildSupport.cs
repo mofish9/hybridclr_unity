@@ -78,6 +78,7 @@ namespace HybridCLR.Editor.Commands
             {
                 ProjectRoot = Path.GetFullPath(options.ProjectRoot),
                 ProjectPlanPath = Path.GetFullPath(options.ProjectPlanPath),
+                AdditionalMvJsonPaths = options.AdditionalGuardMvJsonPaths,
                 OutputManifestPath = Path.Combine(outputRoot, "native", "dhe-native-manifest.json"),
                 BeeLogPath = Path.Combine(outputRoot, "native", "bee-rebuild.log"),
                 RequireCompleteCoverage = true,
@@ -1234,6 +1235,11 @@ namespace HybridCLR.Editor.Commands
     {
         public string ProjectRoot;
         public string ProjectPlanPath;
+        /// <summary>
+        /// Authenticated MV JSONs for ordinary AOT guard coverage. These
+        /// assemblies remain outside HybridCLR hotUpdateAssemblies.
+        /// </summary>
+        public string[] AdditionalGuardMvJsonPaths;
         public string OutputRoot;
         public string Target;
         public int BeeMaxAttempts = 8;

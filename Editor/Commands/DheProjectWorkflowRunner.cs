@@ -223,6 +223,7 @@ namespace HybridCLR.Editor.Commands
                 // subsequent Base rebuilds; bootstrap only controls the
                 // baseline creation policy.
                 GuardAllMethods = true,
+                AdditionalGuardMvJsonPaths = adapter.AdditionalGuardMvJsonPaths,
             };
         }
 
@@ -365,6 +366,11 @@ namespace HybridCLR.Editor.Commands
         public Func<string, string[], string[]> HotfixLoadOrderResolver;
         public Action<string, string> DependencyMapWriter;
         public Action<string> StageAdditionalRuntimeAssets;
+        /// <summary>
+        /// Optional authenticated MV JSONs for ordinary AOT guard coverage.
+        /// These inputs affect native guards only and never hotfix loading.
+        /// </summary>
+        public string[] AdditionalGuardMvJsonPaths;
     }
 
     public sealed class DheProjectPlayerSmokeContext

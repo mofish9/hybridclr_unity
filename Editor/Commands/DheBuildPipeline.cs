@@ -667,6 +667,7 @@ namespace HybridCLR.Editor.Commands
             DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
                 Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
             string[] mvPaths = (options.MvJsonPaths ?? Array.Empty<string>())
+                .Concat(options.AdditionalMvJsonPaths ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (mvPaths.Length == 0) throw new BuildFailedException("DHE guard injection requires at least one MV JSON.");
@@ -940,6 +941,7 @@ namespace HybridCLR.Editor.Commands
             Func<DheNativeGuardResult> injectGuards = () => InjectGeneratedGuards(new DheNativeGuardOptions
             {
                 MvJsonPaths = mvPaths,
+                AdditionalMvJsonPaths = options.AdditionalMvJsonPaths,
                 GeneratedCppRoot = generatedCppRoot,
                 OutputManifestPath = manifestPath,
                 RequireCompleteCoverage = options.RequireCompleteCoverage,
@@ -3452,6 +3454,12 @@ namespace HybridCLR.Editor.Commands
     {
         public DheAotCompilerIdentity CompilerIdentity;
         public string[] MvJsonPaths;
+        /// <summary>
+        /// Optional authenticated MV JSON inputs for ordinary AOT assemblies.
+        /// They are guard-only inputs and must never be added to
+        /// HybridCLR hotUpdateAssemblies.
+        /// </summary>
+        public string[] AdditionalMvJsonPaths;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
         public bool RequireCompleteCoverage = true;
@@ -3488,6 +3496,8 @@ namespace HybridCLR.Editor.Commands
     {
         public string ProjectRoot;
         public string ProjectPlanPath;
+        /// <summary>Guard-only MV JSONs for ordinary frozen AOT assemblies.</summary>
+        public string[] AdditionalMvJsonPaths;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
         public string BeeLogPath;
