@@ -75,6 +75,7 @@ namespace HybridCLR.Editor.Commands
                 DheProjectBuildSupport.CreateNativeFinalizeOptions(nativeOptions, false));
             DheProjectBuildSupport.WriteNativeEvidence(nativeOptions, result, false);
             DheProjectBuildSupport.StageBuildIdentity(CreateIdentityOptions(adapter, context), result);
+            WritePlayerBuildEvidence(adapter, context, true);
         }
 
         public static void StageRuntimePlan(DheProjectWorkflowAdapter adapter)
@@ -154,6 +155,7 @@ namespace HybridCLR.Editor.Commands
                     CreateIdentityOptions(adapter, context));
                 DheProjectBuildSupport.WriteNativeEvidence(CreateNativeOptions(adapter, context),
                     result, true);
+                WritePlayerBuildEvidence(adapter, context, false);
                 adapter.RunPlayerSmoke?.Invoke(new DheProjectPlayerSmokeContext
                 {
                     PlayerPath = ResolvePlayerOutput(adapter, context),
@@ -294,6 +296,27 @@ namespace HybridCLR.Editor.Commands
             if (!relative.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
                 throw new BuildFailedException("DHE runtime asset is outside Assets: " + resolved);
             return relative;
+        }
+
+        private static void WritePlayerBuildEvidence(DheProjectWorkflowAdapter adapter,
+            DheProjectWorkflowContext context, bool scriptsOnly)
+        {
+            WriteJson(Path.Combine(context.OutputRoot, "adapter", scriptsOnly ?
+                "build-scripts-only.json" : "build-final-player.json"), new PlayerBuildEvidence
+            {
+                schemaVersion = 1, format = "hybridclr.dhe-adapter-player-build.json",
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"), passed = true,
+                scriptsOnly = scriptsOnly, target = context.TargetName,
+                playerPath = ResolvePlayerOutput(adapter, context),
+            });
+        }
+
+        [Serializable]
+        private sealed class PlayerBuildEvidence
+        {
+            public int schemaVersion;
+            public string format, generatedAtUtc, target, playerPath;
+            public bool passed, scriptsOnly;
         }
 
         private static void WriteJson(string path, object value)
