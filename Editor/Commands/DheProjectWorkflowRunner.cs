@@ -36,8 +36,8 @@ namespace HybridCLR.Editor.Commands
                     Bootstrap = context.GetBooleanArgument("-dheBootstrap"),
                     RequireDheEqualsHotUpdate = true,
                 });
-            EnsureAssemblyRoot(SettingsUtil.GetHotUpdateDllsOutputDirByTarget(context.Target),
-                prepared.HotUpdateAssemblyNames, "hot-update output");
+            EnsureAssemblyRoot(prepared.CurrentOutputRoot,
+                prepared.HotUpdateAssemblyNames, "prepared Current output");
             WriteJson(Path.Combine(context.OutputRoot, "adapter", "prepare.json"),
                 new PrepareEvidence
                 {
@@ -84,8 +84,9 @@ namespace HybridCLR.Editor.Commands
             context.EnsureTarget();
             string runtimeAssetRoot = ResolveProjectPath(adapter.ProjectRoot,
                 adapter.RuntimeAssetRoot);
-            string currentAssemblyRoot = Path.GetFullPath(
-                SettingsUtil.GetHotUpdateDllsOutputDirByTarget(context.Target));
+            // Dependency callbacks must inspect the same frozen DLLs used by
+            // the project plan, including externally compiled hotfix inputs.
+            string currentAssemblyRoot = Path.GetFullPath(context.CurrentRoot);
             string fallbackRoot = context.GetArgument("-dheAotMetadataFallbackRoot");
             string fallbackManifest = context.GetArgument("-dheAotMetadataFallbackManifest");
             DheRuntimePlanResult result = DheBuildPipeline.StageRuntimePlan(
