@@ -114,6 +114,8 @@ namespace HybridCLR
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> AotMetadataPaths =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, DheFrozenAotSource> FrozenAotSources =
+            new Dictionary<string, DheFrozenAotSource>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedAssemblies =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedMutableAssemblies =
@@ -146,6 +148,7 @@ namespace HybridCLR
             public DheAotMetadataSet[] aotMetadataSets;
             public DheBaseSelection[] baseSelections;
             public DheAssemblyRecord[] assemblies;
+            public DheFrozenAotSource[] frozenAotSources;
             public DhePayloadVariant[] payloadVariants;
         }
 
@@ -284,6 +287,19 @@ namespace HybridCLR
             public DheExecutionPlan ExecutionPlan;
         }
 
+        [Serializable]
+        private sealed class DheFrozenAotSource
+        {
+            public string assemblyName;
+            public string source;
+            public string sourceSha256;
+            public string baseMetaVersion;
+            public string baseMetaVersionSha256;
+            public uint[] currentStorageTypeTokens;
+            public uint[] currentExecutionMethodTokens;
+            public uint[] excludedBaseTypeTokens;
+        }
+
         public static bool Enabled => enabled;
 
         public static int EmbeddedIdentityVersion => identity?.IdentityVersion ?? 0;
@@ -352,6 +368,7 @@ namespace HybridCLR
             Artifacts.Clear();
             AotMetadataHashes.Clear();
             AotMetadataPaths.Clear();
+            FrozenAotSources.Clear();
             LoadedAssemblies.Clear();
             LoadedMutableAssemblies.Clear();
             identity = null;
@@ -427,6 +444,24 @@ namespace HybridCLR
                     if (record != null) record.executionPlan = null;
                 ApplySelectedAssemblyModes(plan, identity, selectedAssemblies);
                 SetSelectedPayloadIdentity(plan, identity);
+                FrozenAotSources.Clear();
+                foreach (DheFrozenAotSource source in plan.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
+                {
+                    string name = NormalizeAssemblyName(source?.assemblyName);
+                    if (string.IsNullOrWhiteSpace(name) || Artifacts.ContainsKey(name) ||
+                        !FrozenAotSources.TryAdd(name, source) || !IsSha256(source.sourceSha256) ||
+                        !IsSha256(source.baseMetaVersionSha256) || source.currentStorageTypeTokens == null ||
+                        source.currentExecutionMethodTokens == null || source.excludedBaseTypeTokens == null)
+                        throw new InvalidDataException("DHE frozen AOT source record is invalid: " + name);
+                    source.source = ValidateAssetPath(source.source, name + " frozen AOT source");
+                    source.baseMetaVersion = ValidateBaseMetaVersionAssetPath(source.baseMetaVersion,
+                        plan.baseMetaVersionAssetRoot, name + " frozen AOT Base MetaVersion");
+                    if (!string.Equals(Sha256Hex(provider.LoadBytes(source.source)), source.sourceSha256,
+                            StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(Sha256Hex(provider.LoadBytes(source.baseMetaVersion)), source.baseMetaVersionSha256,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("DHE frozen AOT source hash binding is invalid: " + name);
+                }
 
                 foreach (DheAssemblyRecord record in selectedAssemblies)
                 {
@@ -522,6 +557,8 @@ namespace HybridCLR
                 AotMetadataHashes.Clear();
                 AotMetadataPaths.Clear();
                 LoadedAssemblies.Clear();
+                LoadedMutableAssemblies.Clear();
+                FrozenAotSources.Clear();
                 identity = null;
                 selectedPayloadVariantId = null;
                 selectedPayloadCurrentAssemblySetSha256 = null;
@@ -1283,6 +1320,37 @@ namespace HybridCLR
             {
                 error = exception.Message;
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+                return false;
+            }
+        }
+
+        /// <summary>Loads every frozen source declared by the authenticated Base plan.</summary>
+        public static bool LoadFrozenAotImages(IDheRuntimeAssetProvider provider,
+            out LoadImageErrorCode code, out string error)
+        {
+            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            error = string.Empty;
+            if (provider == null || FrozenAotSources.Count == 0)
+            {
+                error = "DHE Base plan contains no frozen AOT source records.";
+                return false;
+            }
+            var records = FrozenAotSources.Values.OrderBy(source => source.assemblyName,
+                StringComparer.OrdinalIgnoreCase).ToArray();
+            try
+            {
+                return LoadFrozenAotImages(records.Select(source => source.assemblyName).ToArray(),
+                    records.Select(source => provider.LoadBytes(source.source)).ToArray(),
+                    records.Select(source => provider.LoadBytes(source.baseMetaVersion)).ToArray(),
+                    records.Select(source => source.currentStorageTypeTokens).ToArray(),
+                    records.Select(source => source.currentExecutionMethodTokens).ToArray(),
+                    records.Select(source => source.excludedBaseTypeTokens).ToArray(),
+                    records.Select(source => source.sourceSha256).ToArray(), out code, out error);
+            }
+            catch (Exception exception)
+            {
+                code = LoadImageErrorCode.BAD_IMAGE;
+                error = exception.Message;
                 return false;
             }
         }
