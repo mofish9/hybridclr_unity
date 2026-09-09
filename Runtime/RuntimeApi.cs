@@ -27,6 +27,23 @@ namespace HybridCLR
         }
 #endif
 
+        /// <summary>Loads immutable Base ordinary AOT source projections.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens);
+#endif
+
         /// <summary>
         /// load supplementary metadata assembly
         /// </summary>

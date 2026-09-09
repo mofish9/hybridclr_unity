@@ -116,6 +116,8 @@ namespace HybridCLR
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedAssemblies =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> LoadedMutableAssemblies =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static bool initialized;
         private static bool enabled;
         private static bool transactionProbeAttempted;
@@ -351,6 +353,7 @@ namespace HybridCLR
             AotMetadataHashes.Clear();
             AotMetadataPaths.Clear();
             LoadedAssemblies.Clear();
+            LoadedMutableAssemblies.Clear();
             identity = null;
             assetRoot = DefaultAssetRoot;
             initialized = false;
@@ -1055,7 +1058,7 @@ namespace HybridCLR
             out LoadImageErrorCode code, out string error)
         {
             error = string.Empty;
-            if (Artifacts.Values.Count(IsDifferentialArtifact) != 1)
+            if (Artifacts.Values.Count(IsDifferentialArtifact) != 1 || LoadedMutableAssemblies.Count != 0)
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
                 error = "DHE plans with multiple assemblies must use LoadAssemblyImages " +
@@ -1103,6 +1106,7 @@ namespace HybridCLR
                 {
                     artifact.Current = currentDll == null ? null : (byte[])currentDll.Clone();
                     LoadedAssemblies.Add(normalizedName);
+                    LoadedMutableAssemblies.Add(normalizedName);
                     return true;
                 }
                 error = "DHE runtime returned " + code;
@@ -1124,7 +1128,7 @@ namespace HybridCLR
             if (!enabled || assemblyNames == null || currentDlls == null ||
                 assemblyNames.Length != currentDlls.Length ||
                 assemblyNames.Length != Artifacts.Values.Count(IsDifferentialArtifact) ||
-                LoadedAssemblies.Count != 0)
+                LoadedMutableAssemblies.Count != 0)
             {
                 error = "DHE batch load must contain the complete unloaded runtime plan.";
                 return false;
@@ -1198,6 +1202,7 @@ namespace HybridCLR
                 {
                     artifacts[index].Current = (byte[])currentDlls[index].Clone();
                     LoadedAssemblies.Add(normalizedNames[index]);
+                    LoadedMutableAssemblies.Add(normalizedNames[index]);
                 }
                 if (transactionProbeAttempted)
                 {
@@ -1209,6 +1214,75 @@ namespace HybridCLR
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
                 error = exception.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Loads the immutable ordinary AOT sources selected by a Base. The
+        /// source DLL and MV are intentionally passed as both Base and Current;
+        /// the native source role prevents this API from being used to install a
+        /// newer ordinary AOT assembly. Call before <see cref="LoadAssemblyImages"/>.
+        /// </summary>
+        public static bool LoadFrozenAotImages(string[] assemblyNames, byte[][] sourceDlls,
+            byte[][] baseMetaVersions, uint[][] currentStorageTypeTokens,
+            uint[][] currentExecutionMethodTokens, uint[][] excludedBaseTypeTokens,
+            string[] expectedSourceSha256, out LoadImageErrorCode code, out string error)
+        {
+            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            error = string.Empty;
+            if (!enabled || assemblyNames == null || sourceDlls == null || baseMetaVersions == null ||
+                currentStorageTypeTokens == null || currentExecutionMethodTokens == null ||
+                excludedBaseTypeTokens == null || expectedSourceSha256 == null ||
+                assemblyNames.Length == 0 || assemblyNames.Length != sourceDlls.Length ||
+                assemblyNames.Length != baseMetaVersions.Length ||
+                assemblyNames.Length != currentStorageTypeTokens.Length ||
+                assemblyNames.Length != currentExecutionMethodTokens.Length ||
+                assemblyNames.Length != excludedBaseTypeTokens.Length ||
+                assemblyNames.Length != expectedSourceSha256.Length || LoadedMutableAssemblies.Count != 0)
+            {
+                error = "DHE frozen source batch is incomplete or runtime has already loaded mutable assemblies.";
+                return false;
+            }
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var kinds = new int[assemblyNames.Length];
+            var current = new byte[assemblyNames.Length][];
+            for (int index = 0; index < assemblyNames.Length; index++)
+            {
+                string name = NormalizeAssemblyName(assemblyNames[index]);
+                if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) || sourceDlls[index] == null ||
+                    baseMetaVersions[index] == null || currentStorageTypeTokens[index] == null ||
+                    currentExecutionMethodTokens[index] == null || excludedBaseTypeTokens[index] == null ||
+                    !IsSha256(expectedSourceSha256[index]) ||
+                    !string.Equals(Sha256Hex(sourceDlls[index]), expectedSourceSha256[index],
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "DHE frozen source is missing, duplicated, or has the wrong Base hash: " + name;
+                    code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH;
+                    return false;
+                }
+                // Native validation additionally requires Base/Current MV hashes
+                // and records to be identical for FrozenBaseAot.
+                current[index] = (byte[])baseMetaVersions[index].Clone();
+                kinds[index] = 1;
+            }
+            try
+            {
+                code = RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+                    sourceDlls, baseMetaVersions, current, currentStorageTypeTokens,
+                    currentExecutionMethodTokens, kinds, excludedBaseTypeTokens);
+                if (code != LoadImageErrorCode.OK)
+                {
+                    error = "DHE frozen source registration returned " + code + ".";
+                    return false;
+                }
+                foreach (string name in seen) LoadedAssemblies.Add(name);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = exception.Message;
+                code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
                 return false;
             }
         }
