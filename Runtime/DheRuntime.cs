@@ -267,6 +267,7 @@ namespace HybridCLR
             public string payloadVariantId;
             public string currentAssemblySetSha256;
             public DheAssemblyMode[] assemblyModes;
+            public DheFrozenAotSource[] frozenAotSources;
         }
 
         [Serializable]
@@ -445,7 +446,10 @@ namespace HybridCLR
                 ApplySelectedAssemblyModes(plan, identity, selectedAssemblies);
                 SetSelectedPayloadIdentity(plan, identity);
                 FrozenAotSources.Clear();
-                foreach (DheFrozenAotSource source in plan.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
+                DheBaseSelection selectedBase = (plan.baseSelections ?? Array.Empty<DheBaseSelection>())
+                    .SingleOrDefault(selection => selection != null &&
+                        string.Equals(selection.baseId, identity.BaseId, StringComparison.OrdinalIgnoreCase));
+                foreach (DheFrozenAotSource source in selectedBase?.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
                 {
                     string name = NormalizeAssemblyName(source?.assemblyName);
                     if (string.IsNullOrWhiteSpace(name) || Artifacts.ContainsKey(name) ||
