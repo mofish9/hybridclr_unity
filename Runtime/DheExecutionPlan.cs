@@ -11,13 +11,15 @@ namespace HybridCLR
     [Serializable]
     public sealed class DheExecutionPlan
     {
-        public const string Capability = "current-storage-execution-plan-v1";
+        public const string Capability = "current-storage-execution-plan-array-v1";
         public int schemaVersion;
         public string assemblyName;
         public string baseMetaVersionSha256;
         public string currentMetaVersionSha256;
         public uint[] currentStorageTypeTokens;
         public uint[] currentExecutionMethodTokens;
+        public int currentStorageTypeTokenCount;
+        public int currentExecutionMethodTokenCount;
 
         /// <summary>Canonical representation used when comparing manifest, validation and runtime plan.</summary>
         public string CanonicalBinding()
@@ -28,6 +30,9 @@ namespace HybridCLR
                 throw new InvalidDataException("DHE execution plan identity is invalid.");
             ValidateTokens(currentStorageTypeTokens, 2, 1);
             ValidateTokens(currentExecutionMethodTokens, 6, 0);
+            if (currentStorageTypeTokenCount != currentStorageTypeTokens.Length ||
+                currentExecutionMethodTokenCount != currentExecutionMethodTokens.Length)
+                throw new InvalidDataException("DHE execution plan token counts do not match its selections.");
             return assemblyName + "|" + baseMetaVersionSha256.ToUpperInvariant() + "|" +
                 currentMetaVersionSha256.ToUpperInvariant() + "|" +
                 string.Join(",", currentStorageTypeTokens.Select(token => token.ToString("X8"))) + "|" +

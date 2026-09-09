@@ -37,7 +37,7 @@ namespace HybridCLR.Editor.Commands
             "resource-update-aot-metadata-path-v1",
             "resource-update-aot-metadata-set-selection-v1",
             "atomic-multi-assembly-registration-v1",
-            "current-storage-execution-plan-v1",
+            "current-storage-execution-plan-array-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
             "supplemental-existing-generic-type-fields-v1",

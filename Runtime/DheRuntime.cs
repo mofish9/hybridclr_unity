@@ -69,7 +69,7 @@ namespace HybridCLR
             "resource-update-aot-metadata-path-v1",
             "resource-update-aot-metadata-set-selection-v1",
             "atomic-multi-assembly-registration-v1",
-            "current-storage-execution-plan-v1",
+            "current-storage-execution-plan-array-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
             "supplemental-existing-generic-type-fields-v1",
@@ -266,7 +266,7 @@ namespace HybridCLR
         {
             public string assemblyName;
             public string executionMode;
-            public DheExecutionPlan executionPlan;
+            public DheExecutionPlan[] executionPlans;
         }
 
         private sealed class DheAssemblyArtifact
@@ -1495,8 +1495,19 @@ namespace HybridCLR
                 if (!modesByName.TryGetValue(name, out DheAssemblyMode mode))
                     throw new InvalidDataException("DHE runtime plan has no assembly mode: " + name);
                 record.executionMode = NormalizeExecutionMode(mode.executionMode);
-                record.executionPlan = mode.executionPlan;
+                record.executionPlan = SelectedExecutionPlan(mode);
             }
+        }
+
+        private static DheExecutionPlan SelectedExecutionPlan(DheAssemblyMode mode)
+        {
+            // Unity JsonUtility materializes null inline objects as empty
+            // instances. An optional array preserves absence unambiguously.
+            var plans = mode?.executionPlans;
+            if (plans == null || plans.Length == 0) return null;
+            if (plans.Length != 1 || plans[0] == null)
+                throw new InvalidDataException("DHE assembly must have zero or one execution plan.");
+            return plans[0];
         }
 
         private static string[] CanonicalAssemblyModes(DheAssemblyMode[] modes)
@@ -1506,10 +1517,11 @@ namespace HybridCLR
             {
                 string name = NormalizeAssemblyName(mode?.assemblyName);
                 string executionMode = NormalizeExecutionMode(mode?.executionMode);
+                DheExecutionPlan execution = SelectedExecutionPlan(mode);
                 if (string.IsNullOrWhiteSpace(name) || !names.Add(name) ||
-                    (mode.executionPlan != null && (!IsDifferentialMode(executionMode) || mode.executionPlan.assemblyName != name)))
+                    (execution != null && (!IsDifferentialMode(executionMode) || execution.assemblyName != name)))
                     throw new InvalidDataException("DHE assembly selection is invalid or duplicated.");
-                return name.ToUpperInvariant() + "=" + executionMode + "|" + (mode.executionPlan?.CanonicalBinding() ?? "");
+                return name.ToUpperInvariant() + "=" + executionMode + "|" + (execution?.CanonicalBinding() ?? "");
             }).OrderBy(value => value, StringComparer.Ordinal).ToArray();
         }
 
