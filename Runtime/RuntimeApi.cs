@@ -77,6 +77,27 @@ namespace HybridCLR
 #endif
 
         /// <summary>
+        /// Loads one complete graph and reports the synchronous native phase even
+        /// when an initializer throws: 0 not started, 1 preparing, 2 prepared,
+        /// 3 committed, 4 initialized. Phase 3 cannot be rolled back in-process.
+        /// </summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyBatchWithPhase(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens,
+            byte[][] interpreterDlls, out int phase)
+        { phase = 0; return LoadImageErrorCode.NOT_IMPLEMENT; }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyBatchWithPhase(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens,
+            byte[][] interpreterDlls, out int phase);
+#endif
+
+        /// <summary>
         /// load supplementary metadata assembly
         /// </summary>
         /// <param name="dllBytes"></param>

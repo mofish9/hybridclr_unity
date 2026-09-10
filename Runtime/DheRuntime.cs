@@ -54,12 +54,12 @@ namespace HybridCLR
     /// implementation. Projects only provide asset bytes and call this API
     /// from their existing hot-update lifecycle.
     /// </summary>
-    public static class DheRuntime
+    public static partial class DheRuntime
     {
         private const string PlanAssetPath = "Assets/GameMain/HotfixDlls/DheRuntimePlan.json";
         private const string DefaultAssetRoot = "Assets/GameMain/HotfixDlls/";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-		private const string NativeRuntimeContract = "dhe-runtime-v31";
+		private const string NativeRuntimeContract = "dhe-runtime-v32";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -81,6 +81,7 @@ namespace HybridCLR
             "aot-module-token-resolution-v1",
             "length-preserved-constant-strings-v1",
             "aot-inline-entry-guards-v1",
+            "tracked-native-load-phase-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -401,7 +402,7 @@ namespace HybridCLR
             .Select(pair => pair.Key)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
 
-        public static void Reset()
+        private static void ResetCore()
         {
             Artifacts.Clear();
             AotMetadataHashes.Clear();
@@ -424,7 +425,7 @@ namespace HybridCLR
             validationProbesEnabled = false;
         }
 
-        public static bool Initialize(IDheRuntimeAssetProvider provider, DheRuntimeIdentity buildIdentity,
+        private static bool InitializeCore(IDheRuntimeAssetProvider provider, DheRuntimeIdentity buildIdentity,
             out string error, string planAssetPath = PlanAssetPath, string runtimeAssetRoot = DefaultAssetRoot,
             bool enableValidationProbes = false)
         {
@@ -960,7 +961,7 @@ namespace HybridCLR
         }
 
         /// <summary>Initializes one current payload against this Player's embedded Base MV.</summary>
-        public static bool InitializeFromResourceUpdate(IDheRuntimeAssetProvider provider,
+        private static bool InitializeFromResourceUpdateCore(IDheRuntimeAssetProvider provider,
             DheRuntimeIdentity buildIdentity, string manifestAssetPath, out string error,
             string runtimeAssetRoot = DefaultAssetRoot, bool enableValidationProbes = false)
         {
@@ -1039,7 +1040,7 @@ namespace HybridCLR
                     error = "DHE requested runtime asset root does not match the resource manifest.";
                     return false;
                 }
-                return Initialize(provider, buildIdentity, out error, planPath, manifestRoot,
+                return InitializeCore(provider, buildIdentity, out error, planPath, manifestRoot,
                     enableValidationProbes);
             }
             catch (Exception exception) { error = exception.Message; return false; }
@@ -1244,11 +1245,11 @@ namespace HybridCLR
             }
         }
 
-        public static bool LoadAssemblyImage(string assemblyName, byte[] currentDll,
+        private static bool LoadAssemblyImageCore(string assemblyName, byte[] currentDll,
             out LoadImageErrorCode code, out string error)
         {
             error = string.Empty;
-            if (Artifacts.Values.Count(IsDifferentialArtifact) != 1 || LoadedMutableAssemblies.Count != 0)
+            if (Artifacts.Count != 1 || Artifacts.Values.Count(IsDifferentialArtifact) != 1 || LoadedMutableAssemblies.Count != 0)
             {
                 code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
                 error = "DHE plans with multiple assemblies must use LoadAssemblyImages " +
@@ -1256,7 +1257,7 @@ namespace HybridCLR
                 return false;
             }
             if (FrozenAotSources.Count != 0)
-                return LoadAssemblyImages(new[] { assemblyName }, new[] { currentDll }, out code, out error);
+                return LoadAssemblyImagesCore(new[] { assemblyName }, new[] { currentDll }, out code, out error);
             string normalizedName = NormalizeAssemblyName(assemblyName);
             if (!Artifacts.TryGetValue(normalizedName, out DheAssemblyArtifact artifact) ||
                 !IsDifferentialArtifact(artifact))
@@ -1317,7 +1318,7 @@ namespace HybridCLR
         /// assemblies and any captured frozen dependencies. Call before entering
         /// application code; module initializers run after metadata registration.
         /// </summary>
-        public static bool LoadCurrentAssemblyImages(string[] assemblyNames, byte[][] currentDlls,
+        private static bool LoadCurrentAssemblyImagesCore(string[] assemblyNames, byte[][] currentDlls,
             out LoadImageErrorCode code, out string error)
         {
             code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED; error = string.Empty;
@@ -1334,7 +1335,7 @@ namespace HybridCLR
                 inputs.Add(name, bytes);
             }
             string[] added = InterpreterOnlyAssemblyNames;
-            if (added.Length == 0) return LoadAssemblyImages(assemblyNames, currentDlls, out code, out error);
+            if (added.Length == 0) return LoadAssemblyImagesCore(assemblyNames, currentDlls, out code, out error);
             if (!(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("mixed-interpreter-source-batch-v1"))
             { error = "Base lacks mixed-interpreter-source-batch-v1."; return false; }
             try
@@ -1350,7 +1351,7 @@ namespace HybridCLR
                 var kinds = frozen.Select(_ => 1).Concat(differential.Select(_ => 0)).ToArray();
                 var excluded = frozen.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
                 var conditional = frozen.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>()).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
-                code = RuntimeApi.LoadDifferentialHybridAssemblyBatch(dlls, before, after, types, methods, kinds, excluded, conditional,
+                code = LoadTrackedNativeBatch(dlls, before, after, types, methods, kinds, excluded, conditional,
                     added.Select(name => inputs[name]).ToArray());
                 if (code != LoadImageErrorCode.OK) { error = "DHE mixed source batch returned " + code + "."; return false; }
                 foreach (string name in frozen.Concat(differential).Concat(added)) LoadedAssemblies.Add(name);
@@ -1362,11 +1363,13 @@ namespace HybridCLR
             catch (Exception exception) { error = exception.Message; return false; }
         }
 
-        public static bool LoadAssemblyImages(string[] assemblyNames, byte[][] currentDlls,
+        private static bool LoadAssemblyImagesCore(string[] assemblyNames, byte[][] currentDlls,
             out LoadImageErrorCode code, out string error)
         {
             error = string.Empty;
             code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED;
+            if (InterpreterOnlyAssemblyNames.Length != 0)
+            { error = "Use LoadCurrentAssemblyImages for a plan containing new interpreter assemblies."; return false; }
             if (!enabled || assemblyNames == null || currentDlls == null ||
                 assemblyNames.Length != currentDlls.Length ||
                 assemblyNames.Length != Artifacts.Values.Count(IsDifferentialArtifact) ||
@@ -1439,10 +1442,8 @@ namespace HybridCLR
                         normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
                     var conditional = frozenNames.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>())
                         .Concat(normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
-                    code = conditional.Any(tokens => tokens.Length != 0)
-                        ? RuntimeApi.LoadDifferentialHybridAssemblySources(allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded, conditional)
-                        : RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
-                            allDlls, allBase, allCurrent, allTypes, allMethods, kinds, excluded);
+                    code = LoadTrackedNativeBatch(allDlls, allBase, allCurrent, allTypes, allMethods,
+                        kinds, excluded, conditional, Array.Empty<byte[]>());
                     if (code != LoadImageErrorCode.OK)
                     {
                         error = "DHE frozen/mutable atomic registration returned " + code + ".";
@@ -1512,7 +1513,7 @@ namespace HybridCLR
         /// its bytes, but no Base MetaVersion or native DHE registration exists
         /// for this assembly.
         /// </summary>
-        public static bool LoadInterpreterAssemblyImage(string assemblyName, byte[] currentDll,
+        private static bool LoadInterpreterAssemblyImageCore(string assemblyName, byte[] currentDll,
             out Assembly assembly, out LoadImageErrorCode code, out string error)
         {
             assembly = null;
@@ -1535,7 +1536,11 @@ namespace HybridCLR
             }
             try
             {
+                nativeLoadPhase = 1;
+                System.Threading.Volatile.Write(ref nativeTouched, 1);
                 assembly = Assembly.Load(currentDll);
+                nativeLoadPhase = 3;
+                System.Threading.Volatile.Write(ref metadataCommitted, 1);
                 if (assembly == null || !string.Equals(assembly.GetName().Name,
                         normalizedName, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1547,6 +1552,7 @@ namespace HybridCLR
                 artifact.Current = (byte[])currentDll.Clone();
                 LoadedAssemblies.Add(normalizedName);
                 code = LoadImageErrorCode.OK;
+                nativeLoadPhase = 4;
                 return true;
             }
             catch (Exception exception)
@@ -1599,7 +1605,7 @@ namespace HybridCLR
             }
         }
 
-        public static bool RunTransactionProbe(out string error)
+        private static bool RunTransactionProbeCore(out string error)
         {
             error = string.Empty;
             if (transactionProbeAttempted)
@@ -1824,11 +1830,11 @@ namespace HybridCLR
         private static LoadImageErrorCode LoadNativeImages(byte[][] dlls, byte[][] before, byte[][] after,
             DheAssemblyArtifact[] artifacts)
         {
-            if (!artifacts.Any(artifact => artifact.ExecutionPlan != null))
-                return RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersion(dlls, before, after);
-            return RuntimeApi.LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlan(dlls, before, after,
-                artifacts.Select(artifact => artifact.ExecutionPlan?.currentStorageTypeTokens ?? Array.Empty<uint>()).ToArray(),
-                artifacts.Select(artifact => artifact.ExecutionPlan?.currentExecutionMethodTokens ?? Array.Empty<uint>()).ToArray());
+            return LoadTrackedNativeBatch(dlls, before, after,
+                artifacts.Select(artifact => artifact.ExecutionPlan?.currentStorageTypeTokens).ToArray(),
+                artifacts.Select(artifact => artifact.ExecutionPlan?.currentExecutionMethodTokens).ToArray(),
+                new int[dlls.Length], artifacts.Select(_ => Array.Empty<uint>()).ToArray(),
+                artifacts.Select(_ => Array.Empty<uint>()).ToArray(), Array.Empty<byte[]>());
         }
 
         private static string NormalizeExecutionMode(string value)

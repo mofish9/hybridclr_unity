@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v31";
+        private const string NativeRuntimeContract = "dhe-runtime-v32";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -49,6 +49,7 @@ namespace HybridCLR.Editor.Commands
             "aot-module-token-resolution-v1",
             "length-preserved-constant-strings-v1",
             "aot-inline-entry-guards-v1",
+            "tracked-native-load-phase-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -674,6 +675,9 @@ namespace HybridCLR.Editor.Commands
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
             DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
                 Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_TRACKED_LOAD_PHASE 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE public recovery requires the matching native load-phase API.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_INITIALIZATION 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE module initialization requires the matching runtime source capability.");
