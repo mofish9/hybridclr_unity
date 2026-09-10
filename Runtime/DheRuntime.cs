@@ -71,6 +71,7 @@ namespace HybridCLR
             "atomic-multi-assembly-registration-v1",
             "current-storage-execution-plan-array-v1",
             "physical-current-interface-additions-v1",
+            "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
             "shared-type-initialization-v1",
             "current-static-value-storage-v1",
@@ -566,6 +567,9 @@ namespace HybridCLR
                             !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains(DheExecutionPlan.Capability))
                             throw new InvalidDataException("DHE Current execution plan is unsupported by this Base: " + assemblyName);
                         record.executionPlan.Validate(assemblyName, baseMetaVersion, currentMetaVersion);
+                        if ((record.executionPlan.currentGenericContextMethodTokens?.Length ?? 0) != 0 &&
+                            !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains(DheExecutionPlan.GenericContextCapability))
+                            throw new InvalidDataException("Base lacks " + DheExecutionPlan.GenericContextCapability + ".");
                     }
                     Artifacts.Add(assemblyName, new DheAssemblyArtifact
                     {
@@ -848,6 +852,10 @@ namespace HybridCLR
                         (source.genericContextMethodTokens?.Length ?? 0) != 0) &&
                     !(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
                     throw new InvalidDataException("DHE resource is missing its required frozen generic context capability.");
+                if ((matches[0].assemblyModes ?? Array.Empty<DheAssemblyMode>()).Any(mode =>
+                        (SelectedExecutionPlan(mode)?.currentGenericContextMethodTokens?.Length ?? 0) != 0) &&
+                    !(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()).Contains(DheExecutionPlan.GenericContextCapability))
+                    throw new InvalidDataException("DHE resource is missing its required hotfix generic context capability.");
                 return true;
             }
             catch (Exception exception)
@@ -1351,7 +1359,8 @@ namespace HybridCLR
                 var methods = frozen.Select(name => FrozenAotSources[name].currentExecutionMethodTokens).Concat(artifacts.Select(row => row.ExecutionPlan?.currentExecutionMethodTokens)).ToArray();
                 var kinds = frozen.Select(_ => 1).Concat(differential.Select(_ => 0)).ToArray();
                 var excluded = frozen.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
-                var conditional = frozen.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>()).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
+                var conditional = frozen.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>())
+                    .Concat(artifacts.Select(row => row.ExecutionPlan?.currentGenericContextMethodTokens ?? Array.Empty<uint>())).ToArray();
                 code = LoadTrackedNativeBatch(dlls, before, after, types, methods, kinds, excluded, conditional,
                     added.Select(name => inputs[name]).ToArray());
                 if (code != LoadImageErrorCode.OK) { error = "DHE mixed source batch returned " + code + "."; return false; }
@@ -1442,7 +1451,7 @@ namespace HybridCLR
                     var excluded = frozenNames.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(
                         normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
                     var conditional = frozenNames.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>())
-                        .Concat(normalizedNames.Select(_ => Array.Empty<uint>())).ToArray();
+                        .Concat(artifacts.Select(row => row.ExecutionPlan?.currentGenericContextMethodTokens ?? Array.Empty<uint>())).ToArray();
                     code = LoadTrackedNativeBatch(allDlls, allBase, allCurrent, allTypes, allMethods,
                         kinds, excluded, conditional, Array.Empty<byte[]>());
                     if (code != LoadImageErrorCode.OK)
@@ -1835,7 +1844,8 @@ namespace HybridCLR
                 artifacts.Select(artifact => artifact.ExecutionPlan?.currentStorageTypeTokens).ToArray(),
                 artifacts.Select(artifact => artifact.ExecutionPlan?.currentExecutionMethodTokens).ToArray(),
                 new int[dlls.Length], artifacts.Select(_ => Array.Empty<uint>()).ToArray(),
-                artifacts.Select(_ => Array.Empty<uint>()).ToArray(), Array.Empty<byte[]>());
+                artifacts.Select(artifact => artifact.ExecutionPlan?.currentGenericContextMethodTokens ?? Array.Empty<uint>()).ToArray(),
+                Array.Empty<byte[]>());
         }
 
         private static string NormalizeExecutionMode(string value)

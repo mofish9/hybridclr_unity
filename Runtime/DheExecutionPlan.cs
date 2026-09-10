@@ -12,6 +12,7 @@ namespace HybridCLR
     public sealed class DheExecutionPlan
     {
         public const string Capability = "current-storage-execution-plan-array-v1";
+        public const string GenericContextCapability = "hotfix-generic-context-dispatch-v1";
         public int schemaVersion;
         public string assemblyName;
         public string baseMetaVersionSha256;
@@ -20,6 +21,8 @@ namespace HybridCLR
         public uint[] currentExecutionMethodTokens;
         public int currentStorageTypeTokenCount;
         public int currentExecutionMethodTokenCount;
+        public uint[] currentGenericContextMethodTokens;
+        public int currentGenericContextMethodTokenCount;
 
         /// <summary>Canonical representation used when comparing manifest, validation and runtime plan.</summary>
         public string CanonicalBinding()
@@ -30,13 +33,19 @@ namespace HybridCLR
                 throw new InvalidDataException("DHE execution plan identity is invalid.");
             ValidateTokens(currentStorageTypeTokens, 2, 1);
             ValidateTokens(currentExecutionMethodTokens, 6, 0);
+            uint[] conditional = currentGenericContextMethodTokens ?? Array.Empty<uint>();
+            ValidateTokens(conditional, 6, 0);
+            if (currentGenericContextMethodTokenCount != conditional.Length ||
+                conditional.Any(token => !currentExecutionMethodTokens.Contains(token)))
+                throw new InvalidDataException("DHE conditional generic methods must be counted execution-plan selections.");
             if (currentStorageTypeTokenCount != currentStorageTypeTokens.Length ||
                 currentExecutionMethodTokenCount != currentExecutionMethodTokens.Length)
                 throw new InvalidDataException("DHE execution plan token counts do not match its selections.");
             return assemblyName + "|" + baseMetaVersionSha256.ToUpperInvariant() + "|" +
                 currentMetaVersionSha256.ToUpperInvariant() + "|" +
                 string.Join(",", currentStorageTypeTokens.Select(token => token.ToString("X8"))) + "|" +
-                string.Join(",", currentExecutionMethodTokens.Select(token => token.ToString("X8")));
+                string.Join(",", currentExecutionMethodTokens.Select(token => token.ToString("X8"))) +
+                (conditional.Length == 0 ? "" : "|generic=" + string.Join(",", conditional.Select(token => token.ToString("X8"))));
         }
 
         /// <summary>Checks the exact embedded Base and downloaded Current before any native mutation.</summary>
@@ -55,6 +64,14 @@ namespace HybridCLR
                 ValidateMember(token, baseTypes, after.Types, false);
             foreach (uint token in currentExecutionMethodTokens)
                 ValidateMember(token, baseMethods, after.Methods, true);
+            var selectedOwners = new HashSet<string>(currentStorageTypeTokens.Select(token => after.Types[token].StableId),
+                StringComparer.Ordinal);
+            foreach (uint token in currentGenericContextMethodTokens ?? Array.Empty<uint>())
+            {
+                Member current = after.Methods[token];
+                if (current.Version != baseMethods[current.StableId].Version || selectedOwners.Contains(current.Owner))
+                    throw new InvalidDataException("DHE conditional generic selection has a changed body/metadata or selected owner.");
+            }
         }
 
         private static void ValidateTokens(uint[] tokens, uint table, uint minimumRow)
@@ -72,6 +89,7 @@ namespace HybridCLR
         private sealed class Member
         {
             internal string StableId;
+            internal string Version;
             internal string Owner;
             internal uint Flags;
         }
@@ -104,6 +122,7 @@ namespace HybridCLR
                 for (uint index = 0; index < count; index++, offset += width)
                 {
                     var member = new Member { StableId = Convert.ToBase64String(bytes, offset, 32),
+                        Version = Convert.ToBase64String(bytes, offset + 32, 32),
                         Owner = table == 0 ? null : Convert.ToBase64String(bytes, offset + 64, 32),
                         Flags = BitConverter.ToUInt32(bytes, offset + tokenOffset + 4) };
                     uint token = BitConverter.ToUInt32(bytes, offset + tokenOffset);
