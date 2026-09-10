@@ -224,6 +224,9 @@ namespace HybridCLR.Editor.Commands
                 // baseline creation policy.
                 GuardAllMethods = true,
                 AdditionalGuardMvJsonPaths = adapter.AdditionalGuardMvJsonPaths,
+                OrdinaryAotRoot = adapter.GuardOrdinaryAotMethods ? Path.GetFullPath(
+                    SettingsUtil.GetAssembliesPostIl2CppStripDir(context.Target)) : null,
+                OrdinaryGuardIdentityType = adapter.IdentityNamespace + "." + adapter.IdentityClassName,
             };
         }
 
@@ -371,6 +374,8 @@ namespace HybridCLR.Editor.Commands
         /// These inputs affect native guards only and never hotfix loading.
         /// </summary>
         public string[] AdditionalGuardMvJsonPaths;
+        /// <summary>Derive complete ordinary guards from the current final-build stripped input.</summary>
+        public bool GuardOrdinaryAotMethods;
     }
 
     public sealed class DheProjectPlayerSmokeContext

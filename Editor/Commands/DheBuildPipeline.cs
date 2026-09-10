@@ -939,16 +939,29 @@ namespace HybridCLR.Editor.Commands
                 ? Path.Combine(projectRoot, "Library", "DHE", "dhe-native-manifest.json")
                 : Path.GetFullPath(options.OutputManifestPath);
             compiler.RequireGeneration(generatedCppRoot);
-            Func<DheNativeGuardResult> injectGuards = () => InjectGeneratedGuards(new DheNativeGuardOptions
+            Func<DheNativeGuardResult> injectGuards = () =>
             {
+                string[] additional = options.AdditionalMvJsonPaths;
+                if (!string.IsNullOrWhiteSpace(options.OrdinaryAotRoot))
+                {
+                    if ((additional?.Length ?? 0) != 0)
+                        throw new BuildFailedException("Complete ordinary guards cannot be combined with a partial MV override.");
+                    additional = DheOrdinaryGuardInventory.Generate(options.OrdinaryAotRoot,
+                        assemblyNames, options.OrdinaryGuardIdentityType,
+                        Path.Combine(Path.GetDirectoryName(manifestPath), "ordinary-guards"),
+                        value => JsonUtility.ToJson(value, true)).MvJsonPaths;
+                }
+                return InjectGeneratedGuards(new DheNativeGuardOptions
+                {
                 MvJsonPaths = mvPaths,
-                AdditionalMvJsonPaths = options.AdditionalMvJsonPaths,
+                AdditionalMvJsonPaths = additional,
                 GeneratedCppRoot = generatedCppRoot,
                 OutputManifestPath = manifestPath,
                 RequireCompleteCoverage = options.RequireCompleteCoverage,
                 GuardAllMethods = options.GuardAllMethods,
                 CompilerIdentity = compiler.Identity,
-            });
+                });
+            };
             DheNativeGuardResult guard = injectGuards();
             DheBeeRebuildResult rebuild = null;
             if (options.RebuildPlayer)
@@ -3499,6 +3512,9 @@ namespace HybridCLR.Editor.Commands
         public string ProjectPlanPath;
         /// <summary>Guard-only MV JSONs for ordinary frozen AOT assemblies.</summary>
         public string[] AdditionalMvJsonPaths;
+        /// <summary>Regenerated after each build/strip pass; never a Prepare-stage snapshot.</summary>
+        public string OrdinaryAotRoot;
+        public string OrdinaryGuardIdentityType;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
         public string BeeLogPath;
