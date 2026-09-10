@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v29";
+        private const string NativeRuntimeContract = "dhe-runtime-v30";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -46,6 +46,7 @@ namespace HybridCLR.Editor.Commands
             "mixed-interpreter-source-batch-v1",
             "deferred-aot-module-initialization-v1",
             "current-literal-field-values-v1",
+            "aot-module-token-resolution-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -674,6 +675,9 @@ namespace HybridCLR.Editor.Commands
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_INITIALIZATION 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE module initialization requires the matching runtime source capability.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_TOKEN_RESOLUTION 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE AOT module evolution requires physical Base token resolution.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/vm/GlobalMetadata.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_CURRENT_LITERAL_VALUES 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE literal values require the matching IL2CPP metadata reader.");
