@@ -73,6 +73,8 @@ namespace HybridCLR
             "physical-current-interface-additions-v1",
             "physical-current-interface-evolution-v1",
             "physical-current-interface-map-v1",
+            "current-parameter-cache-selection-v1",
+            "physical-current-reference-virtual-invocation-v1",
             "current-implicit-interface-method-declarations-v1",
             "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
