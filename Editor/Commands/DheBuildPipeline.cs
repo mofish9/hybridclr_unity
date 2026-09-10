@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v30";
+        private const string NativeRuntimeContract = "dhe-runtime-v31";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -47,6 +47,8 @@ namespace HybridCLR.Editor.Commands
             "deferred-aot-module-initialization-v1",
             "current-literal-field-values-v1",
             "aot-module-token-resolution-v1",
+            "length-preserved-constant-strings-v1",
+            "aot-inline-entry-guards-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -678,6 +680,9 @@ namespace HybridCLR.Editor.Commands
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_TOKEN_RESOLUTION 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE AOT module evolution requires physical Base token resolution.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_LENGTH_PRESERVED_CONSTANT_STRINGS 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE metadata constants require length-preserving string conversion.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/vm/GlobalMetadata.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_CURRENT_LITERAL_VALUES 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE literal values require the matching IL2CPP metadata reader.");
@@ -789,6 +794,18 @@ namespace HybridCLR.Editor.Commands
                 if (!generic && matches.Count != 1)
                     throw new BuildFailedException("Expected one generated definition for '" +
                         method.DeclaringType + "::" + method.MethodName + "', found " + matches.Count + ".");
+                foreach (DheCppDefinition primary in matches.ToArray())
+                {
+                    if (!definitions.TryGetValue(primary.FunctionName + "_inline", out var inlineCopies)) continue;
+                    foreach (DheCppDefinition copy in inlineCopies)
+                    {
+                        DheInlineGuardPolicy.ValidateCopy(primary.FunctionName, primary.Signature,
+                            copy.FunctionName, copy.Signature);
+                        if (!string.IsNullOrWhiteSpace(copy.ManagedSignature) && !ManagedSignatureMatches(method, copy.ManagedSignature))
+                            throw new BuildFailedException("DHE inline definition conflicts with its managed signature: " + copy.FunctionName);
+                        matches.Add(copy);
+                    }
+                }
                 if (matches.Count > 4096)
                     throw new BuildFailedException("DHE generated definition fan-out is unexpectedly large for '" +
                         method.DeclaringType + "::" + method.MethodName + "': " + matches.Count + ".");
