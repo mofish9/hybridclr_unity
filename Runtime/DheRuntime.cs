@@ -74,6 +74,7 @@ namespace HybridCLR
             "shared-type-initialization-v1",
             "current-static-value-storage-v1",
 			"frozen-aot-source-v1",
+			"frozen-aot-snapshot-source-binding-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -310,6 +311,27 @@ namespace HybridCLR
             public string sourceKind;
         }
 
+        [Serializable]
+        private sealed class DheAotAnalysisManifest
+        {
+            public int schemaVersion;
+            public string format;
+            public string normalization;
+            public string identityAssembly;
+            public string identityType;
+            public DheAotAnalysisSource[] assemblies;
+        }
+
+        [Serializable]
+        private sealed class DheAotAnalysisSource
+        {
+            public string assemblyName;
+            public string file;
+            public string sha256;
+            public string normalizedSha256;
+            public bool dhe;
+        }
+
         public static bool Enabled => enabled;
 
         public static int EmbeddedIdentityVersion => identity?.IdentityVersion ?? 0;
@@ -461,6 +483,8 @@ namespace HybridCLR
                     .SingleOrDefault(selection => selection != null &&
                         string.Equals(selection.baseId, identity.BaseId, StringComparison.OrdinalIgnoreCase));
                 CanonicalFrozenSources(selectedBase?.frozenAotSources, identity);
+                var frozenSnapshot = (selectedBase?.frozenAotSources?.Length ?? 0) == 0
+                    ? null : ReadFrozenSnapshot(provider, identity);
                 foreach (DheFrozenAotSource source in selectedBase?.frozenAotSources ?? Array.Empty<DheFrozenAotSource>())
                 {
                     string name = NormalizeAssemblyName(source?.assemblyName);
@@ -472,6 +496,9 @@ namespace HybridCLR
                         !IsSha256(source.baseMetaVersionSha256) || source.currentStorageTypeTokens == null ||
                         source.currentExecutionMethodTokens == null || source.excludedBaseTypeTokens == null)
                         throw new InvalidDataException("DHE frozen AOT source record is invalid: " + name);
+                    if (!frozenSnapshot.TryGetValue(name, out DheAotAnalysisSource captured) || captured.dhe ||
+                        !string.Equals(captured.sha256, source.sourceSha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("DHE frozen source is not the ordinary DLL captured by this Base: " + name);
                     if ((source.genericContextMethodTokens?.Length ?? 0) != 0 &&
                         !(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
                         throw new InvalidDataException("Player does not support frozen generic context dispatch.");
@@ -489,6 +516,11 @@ namespace HybridCLR
                         !string.Equals(Sha256Hex(sourceMvBytes), source.baseMetaVersionSha256,
                             StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("DHE frozen AOT source hash binding is invalid: " + name);
+                    // Validate already checked MV framing. Its source field must
+                    // name the captured DLL, not only a resource-supplied MV hash.
+                    if (!string.Equals(BitConverter.ToString(sourceMvBytes, 28, 32).Replace("-", ""),
+                            captured.sha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("DHE frozen MV does not bind the captured Base DLL: " + name);
                     FrozenAotSourceBytes.Add(name, sourceBytes);
                     FrozenAotBaseMetaVersionBytes.Add(name, sourceMvBytes);
                 }
@@ -801,6 +833,9 @@ namespace HybridCLR
                 if (!CanonicalFrozenSources(matches[0].frozenAotSources, buildIdentity).SequenceEqual(
                         CanonicalFrozenSources(validatedMatches[0].frozenAotSources, buildIdentity), StringComparer.Ordinal))
                     throw new InvalidDataException("DHE resource validation frozen sources do not match the manifest.");
+                if ((matches[0].frozenAotSources?.Length ?? 0) != 0 &&
+                    !(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-aot-snapshot-source-binding-v1"))
+                    throw new InvalidDataException("DHE resource is missing its required frozen snapshot source binding capability.");
                 if ((matches[0].frozenAotSources ?? Array.Empty<DheFrozenAotSource>()).Any(source =>
                         (source.genericContextMethodTokens?.Length ?? 0) != 0) &&
                     !(matches[0].requiredRuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-generic-context-dispatch-v1"))
@@ -1002,6 +1037,41 @@ namespace HybridCLR
                     enableValidationProbes);
             }
             catch (Exception exception) { error = exception.Message; return false; }
+        }
+
+        private static Dictionary<string, DheAotAnalysisSource> ReadFrozenSnapshot(
+            IDheRuntimeAssetProvider provider, DheRuntimeIdentity selectedIdentity)
+        {
+            if (selectedIdentity.EngineWorkflow != "Unity2022Fgs" || !IsSha256(selectedIdentity.BaseId) ||
+                !IsSha256(selectedIdentity.AotAnalysisSnapshotSha256) ||
+                !(selectedIdentity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("frozen-aot-snapshot-source-binding-v1"))
+                throw new InvalidDataException("Player does not support authenticated frozen AOT sources.");
+            string path = NormalizeAssetRoot(selectedIdentity.RuntimeAssetRoot) + "payload/frozen-aot/" +
+                selectedIdentity.BaseId.ToLowerInvariant() + "/snapshot.json";
+            byte[] bytes = provider.LoadBytes(ValidateAssetPath(path, "frozen AOT snapshot"));
+            if (!string.Equals(Sha256Hex(bytes), selectedIdentity.AotAnalysisSnapshotSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("DHE frozen AOT snapshot is not the manifest embedded in this Base identity.");
+            var snapshot = JsonUtility.FromJson<DheAotAnalysisManifest>(new System.Text.UTF8Encoding(false, true).GetString(bytes));
+            if (snapshot == null || snapshot.schemaVersion != 1 || snapshot.format != "hybridclr.dhe-aot-analysis-snapshot.json" ||
+                snapshot.normalization != "dhe-aot-analysis-normalization-v1" || snapshot.assemblies == null ||
+                string.IsNullOrWhiteSpace(snapshot.identityType) || string.IsNullOrWhiteSpace(snapshot.identityAssembly))
+                throw new InvalidDataException("DHE frozen AOT snapshot format is invalid.");
+            var sources = new Dictionary<string, DheAotAnalysisSource>(StringComparer.Ordinal);
+            foreach (DheAotAnalysisSource row in snapshot.assemblies)
+            {
+                string name = row?.assemblyName;
+                if (string.IsNullOrWhiteSpace(name) || name == "." || name == ".." ||
+                    name.IndexOfAny(new[] { '/', '\\', ':', '\r', '\n' }) >= 0 ||
+                    NormalizeAssemblyName(name) != name || !sources.TryAdd(name, row) ||
+                    row.file != "assemblies/" + name + ".dll" || !IsSha256(row.sha256) || !IsSha256(row.normalizedSha256))
+                    throw new InvalidDataException("DHE frozen AOT snapshot assembly record is invalid.");
+            }
+            if (!new HashSet<string>(selectedIdentity.AotAssemblyNames ?? Array.Empty<string>(), StringComparer.Ordinal).SetEquals(sources.Keys) ||
+                !new HashSet<string>(selectedIdentity.AssemblyNames ?? Array.Empty<string>(), StringComparer.Ordinal)
+                    .SetEquals(sources.Values.Where(row => row.dhe).Select(row => row.assemblyName)) ||
+                !sources.TryGetValue(snapshot.identityAssembly, out DheAotAnalysisSource owner) || owner.dhe)
+                throw new InvalidDataException("DHE frozen AOT snapshot inventory does not match this Base.");
+            return sources;
         }
 
         private static string[] CanonicalFrozenSources(DheFrozenAotSource[] sources, DheRuntimeIdentity selectedIdentity)
