@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v27";
+        private const string NativeRuntimeContract = "dhe-runtime-v28";
         private static readonly string[] NativeRuntimeCapabilities =
         {
             "aot-guard-v1",
@@ -44,6 +44,7 @@ namespace HybridCLR.Editor.Commands
 			"frozen-aot-source-v1",
 			"frozen-aot-snapshot-source-binding-v1",
             "mixed-interpreter-source-batch-v1",
+            "deferred-aot-module-initialization-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -669,6 +670,11 @@ namespace HybridCLR.Editor.Commands
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
             DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
                 Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_INITIALIZATION 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE module initialization requires the matching runtime source capability.");
+            var primaryMvPaths = new HashSet<string>((options.MvJsonPaths ?? Array.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
             string[] mvPaths = (options.MvJsonPaths ?? Array.Empty<string>())
                 .Concat(options.AdditionalMvJsonPaths ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
@@ -711,6 +717,7 @@ namespace HybridCLR.Editor.Commands
                         GenericParameterCount = checked((uint)method.genericParameterCount),
                         DeclaringTypeGenericParameterCount = checked((uint)method.declaringTypeGenericParameterCount),
                         IsChanged = false,
+                        DeferModuleInitializer = primaryMvPaths.Contains(mvPath) && method.declaringType == "<Module>" && method.name == ".cctor",
                     });
                 }
             }
@@ -2544,6 +2551,7 @@ namespace HybridCLR.Editor.Commands
                 isStatic = method.IsStatic,
                 hasThis = hasThis,
                 managedParameterCount = Math.Max(0, parameters.Count - (hasThis ? 1 : 0) - (usesHiddenReturn ? 1 : 0)),
+                deferModuleInitializer = method.DeferModuleInitializer,
             };
         }
 
@@ -2656,7 +2664,15 @@ namespace HybridCLR.Editor.Commands
                 else
                     throw new BuildFailedException("Unsupported DHE native shape: " + shape);
             }
-            return "    // " + beginMarker + "\r\n" +
+            string deferredModuleGuard = string.Empty;
+            if (method.deferModuleInitializer)
+            {
+                if (method.declaringType != "<Module>" || method.methodName != ".cctor" || !method.isStatic || hasThis || count != 0 || method.returnType != "void")
+                    throw new BuildFailedException("Only a hotfix module cctor can defer initialization.");
+                deferredModuleGuard = "    if (!hybridclr::dhe::IsDheModuleInitializationReady(\"" +
+                    method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\")) return;\r\n";
+            }
+            return "    // " + beginMarker + "\r\n" + deferredModuleGuard +
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
@@ -3209,6 +3225,7 @@ namespace HybridCLR.Editor.Commands
             public uint GenericParameterCount;
             public uint DeclaringTypeGenericParameterCount;
             public bool IsChanged;
+            public bool DeferModuleInitializer;
         }
 
         private sealed class DheCppDefinition
@@ -3267,6 +3284,7 @@ namespace HybridCLR.Editor.Commands
             public bool isStatic;
             public bool hasThis;
             public int managedParameterCount;
+            public bool deferModuleInitializer;
         }
 
         [Serializable]
