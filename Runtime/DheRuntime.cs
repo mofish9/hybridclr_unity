@@ -78,6 +78,8 @@ namespace HybridCLR
             "current-generic-methodimpl-owners-v1",
             "current-virtual-signature-frames-v1",
             "current-scalar-instance-frames-v1",
+            "physical-current-parent-evolution-v1",
+            "current-identical-physical-frames-v1",
             "current-implicit-interface-method-declarations-v1",
             "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
