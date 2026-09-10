@@ -2658,7 +2658,7 @@ namespace HybridCLR.Editor.Commands
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
-                "        dheMethod = hybridclr::dhe::ResolveMethodByToken(\"" +
+                "        dheMethod = hybridclr::dhe::ResolveAotGuardMethodByToken(\"" +
                 method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) +
                 "\", " + method.methodToken + ");\r\n    }\r\n" +
                 "    if (hybridclr::dhe::ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
