@@ -82,6 +82,7 @@ namespace HybridCLR
             "current-identical-physical-frames-v1",
             "current-native-reference-physical-frames-v1",
             "current-parent-member-handles-v1",
+            "frozen-field-object-validation-v1",
             "current-implicit-interface-method-declarations-v1",
             "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
