@@ -66,7 +66,10 @@ namespace HybridCLR.Editor.Commands
                 if (module.Assembly == null || module.Assembly.Name.String != name)
                     throw new InvalidDataException("Ordinary guard DLL identity mismatch: " + file);
                 var methods = new List<Method>(); int excluded = 0;
-                foreach (var type in module.GetTypes().Where(type => type.Name != "<Module>"))
+                // Module methods are native Base entries too. Deferring a
+                // hotfix initializer is selected separately by the primary
+                // MV inventory; an ordinary module keeps eager execution.
+                foreach (var type in module.GetTypes())
                 {
                     if (type.FullName == identityType) { identityOwners++; excluded += type.Methods.Count; continue; }
                     foreach (var method in type.Methods)
