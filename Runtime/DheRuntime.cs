@@ -72,6 +72,7 @@ namespace HybridCLR
             "current-storage-execution-plan-array-v1",
             "physical-current-interface-additions-v1",
             "physical-current-interface-evolution-v1",
+            "current-implicit-interface-method-declarations-v1",
             "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
             "shared-type-initialization-v1",
