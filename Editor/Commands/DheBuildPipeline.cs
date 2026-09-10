@@ -28,65 +28,10 @@ namespace HybridCLR.Editor.Commands
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
         private const string NativeRuntimeContract = "dhe-runtime-v32";
+        // The identity must describe the same inventory that the Player
+        // validates. A second literal list can make a clean build unloadable.
         private static readonly string[] NativeRuntimeCapabilities =
-        {
-            "aot-guard-v1",
-            "stable-method-identity-v1",
-            "single-current-multibase-v1",
-            "resource-update-plan-integrity-v1",
-            "resource-update-aot-metadata-path-v1",
-            "resource-update-aot-metadata-set-selection-v1",
-            "atomic-multi-assembly-registration-v1",
-            "current-storage-execution-plan-array-v1",
-            "physical-current-interface-additions-v1",
-            "hotfix-generic-context-dispatch-v1",
-            "current-parameter-default-metadata-v1",
-            "shared-type-initialization-v1",
-            "current-static-value-storage-v1",
-			"frozen-aot-source-v1",
-			"frozen-aot-snapshot-source-binding-v1",
-            "mixed-interpreter-source-batch-v1",
-            "deferred-aot-module-initialization-v1",
-            "current-literal-field-values-v1",
-            "aot-module-token-resolution-v1",
-            "length-preserved-constant-strings-v1",
-            "aot-inline-entry-guards-v1",
-            "tracked-native-load-phase-v1",
-			"frozen-generic-context-dispatch-v1",
-			"supplemental-existing-type-instance-fields-v1",
-            "supplemental-existing-type-static-fields-v1",
-            "supplemental-existing-generic-type-fields-v1",
-            "supplemental-instance-field-addresses-v1",
-            "aot-fgs-field-address-null-check-v1",
-            "existing-interface-method-slots-v1",
-            "cross-assembly-interface-declarations-v1",
-            "inherited-interface-dispatch-v1",
-            "base-virtual-slots-on-current-descendants-v1",
-            "existing-class-virtual-methods-v1",
-            "closed-current-parent-vtables-v1",
-            "open-generic-dispatch-definitions-v1",
-            "supplemental-closed-generic-methods-v1",
-            "supplemental-generic-memberref-signatures-v1",
-            "closed-interpreter-parent-vtables-v1",
-            "closed-generic-method-definitions-v1",
-			"supplemental-existing-type-methods-v1",
-			"removed-existing-type-methods-v1",
-			"existing-type-method-signature-replacement-v1",
-			"removed-existing-type-fields-v1",
-			"removed-types-v1",
-			"logical-existing-type-properties-events-v1",
-			"logical-existing-member-custom-attributes-v1",
-            "supplemental-method-custom-attributes-v1",
-            "assembly-reference-evolution-v1",
-            "supplemental-type-base-references-v1",
-            "supplemental-type-declarations-v1",
-            "supplemental-method-generic-invocation-v1",
-            "supplemental-generic-unresolved-stubs-v1",
-            "homologous-attribute-constructors-v1",
-            "logical-attribute-members-v1",
-            "supplemental-nested-types-v1",
-            "supplemental-top-level-types-v1",
-        };
+            DheRuntime.GetSupportedRuntimeCapabilities();
         private const string NativeGuardBeginPrefix = "HYBRIDCLR_DHE_GUARD_BEGIN_V1:";
         private const string NativeGuardEndPrefix = "HYBRIDCLR_DHE_GUARD_END_V1:";
         internal const string CurrentGenerationBuildPhase = "current-generation";

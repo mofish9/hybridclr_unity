@@ -121,6 +121,15 @@ namespace HybridCLR
             "supplemental-top-level-types-v1",
         };
 
+        /// <summary>
+        /// Returns the capability inventory embedded by the matching Player
+        /// build pipeline. The returned array can be modified by the caller.
+        /// </summary>
+        public static string[] GetSupportedRuntimeCapabilities()
+        {
+            return (string[])NativeRuntimeCapabilities.Clone();
+        }
+
         private static readonly Dictionary<string, DheAssemblyArtifact> Artifacts =
             new Dictionary<string, DheAssemblyArtifact>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> AotMetadataHashes =
