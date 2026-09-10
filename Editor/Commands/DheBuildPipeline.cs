@@ -2648,13 +2648,19 @@ namespace HybridCLR.Editor.Commands
                 deferredModuleGuard = "    if (!hybridclr::dhe::IsDheModuleInitializationReady(\"" +
                     method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\")) return;\r\n";
             }
+            // Native callers may retain their AOT frame while passing a Current
+            // reference receiver. Resolve only after proving the actual object
+            // ancestry and every physical parameter/return type in the runtime.
+            string receiverSelection = hasThis && !method.declaringTypeIsValueType
+                ? "    dheMethod = hybridclr::dhe::ResolveNativeReferenceInvokeMethod(dheMethod, reinterpret_cast<void*>(__this));\r\n"
+                : string.Empty;
             return "    // " + beginMarker + "\r\n" + deferredModuleGuard +
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
                 "        dheMethod = hybridclr::dhe::ResolveAotGuardMethodByToken(\"" +
                 method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) +
-                "\", " + method.methodToken + ");\r\n    }\r\n" +
+                "\", " + method.methodToken + ");\r\n    }\r\n" + receiverSelection +
                 "    if (hybridclr::dhe::ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
                 "        dheMethod = hybridclr::dhe::ResolveInterpreterMethod(dheMethod);\r\n" +
                 "        " + helper.Replace("\r\n", "\r\n        ", StringComparison.Ordinal) + "\r\n    }\r\n" +
