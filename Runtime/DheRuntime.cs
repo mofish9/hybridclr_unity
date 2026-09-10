@@ -70,6 +70,7 @@ namespace HybridCLR
             "resource-update-aot-metadata-set-selection-v1",
             "atomic-multi-assembly-registration-v1",
             "current-storage-execution-plan-array-v1",
+            "physical-current-interface-additions-v1",
             "current-parameter-default-metadata-v1",
             "shared-type-initialization-v1",
             "current-static-value-storage-v1",
