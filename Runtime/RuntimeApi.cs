@@ -61,6 +61,21 @@ namespace HybridCLR
             int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens);
 #endif
 
+        /// <summary>Loads differential/frozen sources and new interpreter assemblies as one metadata graph.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyBatch(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens, byte[][] interpreterDlls)
+        { return LoadImageErrorCode.NOT_IMPLEMENT; }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyBatch(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens, byte[][] interpreterDlls);
+#endif
+
         /// <summary>
         /// load supplementary metadata assembly
         /// </summary>

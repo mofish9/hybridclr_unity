@@ -43,6 +43,7 @@ namespace HybridCLR.Editor.Commands
             "current-static-value-storage-v1",
 			"frozen-aot-source-v1",
 			"frozen-aot-snapshot-source-binding-v1",
+            "mixed-interpreter-source-batch-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",

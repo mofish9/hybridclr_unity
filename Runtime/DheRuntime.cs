@@ -75,6 +75,7 @@ namespace HybridCLR
             "current-static-value-storage-v1",
 			"frozen-aot-source-v1",
 			"frozen-aot-snapshot-source-binding-v1",
+            "mixed-interpreter-source-batch-v1",
 			"frozen-generic-context-dispatch-v1",
 			"supplemental-existing-type-instance-fields-v1",
             "supplemental-existing-type-static-fields-v1",
@@ -1304,6 +1305,56 @@ namespace HybridCLR
                 error = exception.Message;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Loads the complete Current payload, including new interpreter-only
+        /// assemblies and any captured frozen dependencies. Call before entering
+        /// application code; module initializers run after metadata registration.
+        /// </summary>
+        public static bool LoadCurrentAssemblyImages(string[] assemblyNames, byte[][] currentDlls,
+            out LoadImageErrorCode code, out string error)
+        {
+            code = LoadImageErrorCode.DHE_MV_REGISTRATION_FAILED; error = string.Empty;
+            if (!enabled || assemblyNames == null || currentDlls == null || assemblyNames.Length != currentDlls.Length ||
+                assemblyNames.Length != Artifacts.Count || LoadedAssemblies.Count != 0)
+            { error = "Current batch must contain the complete unloaded resource plan."; return false; }
+            var inputs = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < assemblyNames.Length; ++index)
+            {
+                string name = NormalizeAssemblyName(assemblyNames[index]); byte[] bytes = currentDlls[index];
+                if (string.IsNullOrEmpty(name) || inputs.ContainsKey(name) || !Artifacts.TryGetValue(name, out var artifact) || bytes == null ||
+                    !string.Equals(Sha256Hex(bytes), artifact.ExpectedCurrentSha256, StringComparison.OrdinalIgnoreCase))
+                { code = LoadImageErrorCode.DHE_MV_CURRENT_HASH_MISMATCH; error = "Current batch assembly missing, duplicate, or hash mismatch: " + name; return false; }
+                inputs.Add(name, bytes);
+            }
+            string[] added = InterpreterOnlyAssemblyNames;
+            if (added.Length == 0) return LoadAssemblyImages(assemblyNames, currentDlls, out code, out error);
+            if (!(identity.RuntimeCapabilities ?? Array.Empty<string>()).Contains("mixed-interpreter-source-batch-v1"))
+            { error = "Base lacks mixed-interpreter-source-batch-v1."; return false; }
+            try
+            {
+                string[] differential = DifferentialAssemblyNames;
+                string[] frozen = FrozenAotSources.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+                var artifacts = differential.Select(name => Artifacts[name]).ToArray();
+                var dlls = frozen.Select(name => FrozenAotSourceBytes[name]).Concat(differential.Select(name => inputs[name])).ToArray();
+                var before = frozen.Select(name => FrozenAotBaseMetaVersionBytes[name]).Concat(artifacts.Select(row => row.BaseMetaVersion)).ToArray();
+                var after = frozen.Select(name => FrozenAotBaseMetaVersionBytes[name]).Concat(artifacts.Select(row => row.MetaVersion)).ToArray();
+                var types = frozen.Select(name => FrozenAotSources[name].currentStorageTypeTokens).Concat(artifacts.Select(row => row.ExecutionPlan?.currentStorageTypeTokens)).ToArray();
+                var methods = frozen.Select(name => FrozenAotSources[name].currentExecutionMethodTokens).Concat(artifacts.Select(row => row.ExecutionPlan?.currentExecutionMethodTokens)).ToArray();
+                var kinds = frozen.Select(_ => 1).Concat(differential.Select(_ => 0)).ToArray();
+                var excluded = frozen.Select(name => FrozenAotSources[name].excludedBaseTypeTokens).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
+                var conditional = frozen.Select(name => FrozenAotSources[name].genericContextMethodTokens ?? Array.Empty<uint>()).Concat(differential.Select(_ => Array.Empty<uint>())).ToArray();
+                code = RuntimeApi.LoadDifferentialHybridAssemblyBatch(dlls, before, after, types, methods, kinds, excluded, conditional,
+                    added.Select(name => inputs[name]).ToArray());
+                if (code != LoadImageErrorCode.OK) { error = "DHE mixed source batch returned " + code + "."; return false; }
+                foreach (string name in frozen.Concat(differential).Concat(added)) LoadedAssemblies.Add(name);
+                foreach (string name in differential) LoadedMutableAssemblies.Add(name);
+                foreach (var pair in inputs) Artifacts[pair.Key].Current = (byte[])pair.Value.Clone();
+                foreach (string name in frozen) FrozenAotSources.Remove(name);
+                return true;
+            }
+            catch (Exception exception) { error = exception.Message; return false; }
         }
 
         public static bool LoadAssemblyImages(string[] assemblyNames, byte[][] currentDlls,
