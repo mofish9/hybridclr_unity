@@ -71,6 +71,7 @@ namespace HybridCLR
             "atomic-multi-assembly-registration-v1",
             "current-storage-execution-plan-array-v1",
             "physical-current-interface-additions-v1",
+            "physical-current-interface-evolution-v1",
             "hotfix-generic-context-dispatch-v1",
             "current-parameter-default-metadata-v1",
             "shared-type-initialization-v1",
