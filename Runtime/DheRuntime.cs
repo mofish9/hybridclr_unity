@@ -332,6 +332,7 @@ namespace HybridCLR
             public byte[] BaseMetaVersion;
             public byte[] Current;
             public string ExpectedCurrentSha256;
+            public string CurrentAssetPath;
             public string ExecutionMode;
             public DheExecutionPlan ExecutionPlan;
         }
@@ -443,8 +444,11 @@ namespace HybridCLR
             System.Threading.Volatile.Write(ref interpreterOnlyAssemblyNamesSnapshot, interpreterOnly);
         }
 
+        static partial void ResetPreparedDelivery();
+
         private static void ResetCore()
         {
+            ResetPreparedDelivery();
             Artifacts.Clear();
             AotMetadataHashes.Clear();
             AotMetadataPaths.Clear();
@@ -615,6 +619,7 @@ namespace HybridCLR
                         MetaVersion = currentMetaVersion,
                         BaseMetaVersion = baseMetaVersion,
                         ExpectedCurrentSha256 = record.currentSha256.ToLowerInvariant(),
+                        CurrentAssetPath = record.current,
                         ExecutionMode = executionMode,
                         ExecutionPlan = record.executionPlan,
                     });
