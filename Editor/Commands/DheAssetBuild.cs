@@ -52,7 +52,7 @@ namespace HybridCLR.Editor.Commands
                 if (!ids.Add(pair.Key) || !path.StartsWith(output.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("Asset output must be inside the fresh build directory.");
                 for (FileSystemInfo item = new FileInfo(path); item != null; item = item is FileInfo info ? info.Directory : ((DirectoryInfo)item).Parent)
-                    if ((item.Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException("Asset output cannot use links.");
+                    if ((item.Attributes & System.IO.FileAttributes.ReparsePoint) != 0) throw new IOException("Asset output cannot use links.");
                 string relative = path.Substring(output.TrimEnd(Path.DirectorySeparatorChar).Length + 1).Replace('\\', '/');
                 DheDeliveryManifest.RequirePath(relative);
                 assets.Add(new DheAssetBuildProvenance.AssetRecord { id = pair.Key, file = relative,
