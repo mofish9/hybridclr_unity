@@ -159,6 +159,14 @@ namespace HybridCLR
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> LoadedMutableAssemblies =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Public status properties are read by project/UI threads while the
+        // loader mutates the dictionaries above. Publish immutable array
+        // snapshots at transaction boundaries so readers never enumerate a
+        // collection that is being changed.
+        private static string[] plannedAssemblyNamesSnapshot = Array.Empty<string>();
+        private static string[] loadedAssemblyNamesSnapshot = Array.Empty<string>();
+        private static string[] differentialAssemblyNamesSnapshot = Array.Empty<string>();
+        private static string[] interpreterOnlyAssemblyNamesSnapshot = Array.Empty<string>();
         private static bool initialized;
         private static bool enabled;
         private static bool transactionProbeAttempted;
@@ -396,36 +404,44 @@ namespace HybridCLR
 
         public static string[] PlannedAssemblyNames
         {
-            get
-            {
-                string[] names = new string[Artifacts.Count];
-                Artifacts.Keys.CopyTo(names, 0);
-                Array.Sort(names, StringComparer.OrdinalIgnoreCase);
-                return names;
-            }
+            get => CloneSnapshot(ref plannedAssemblyNamesSnapshot);
         }
 
         public static string[] LoadedAssemblyNames
         {
-            get
-            {
-                string[] names = new string[LoadedAssemblies.Count];
-                LoadedAssemblies.CopyTo(names);
-                Array.Sort(names, StringComparer.OrdinalIgnoreCase);
-                return names;
-            }
+            get => CloneSnapshot(ref loadedAssemblyNamesSnapshot);
         }
 
-        public static string[] DifferentialAssemblyNames => Artifacts
-            .Where(pair => IsDifferentialMode(pair.Value.ExecutionMode))
-            .Select(pair => pair.Key)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+        public static string[] DifferentialAssemblyNames =>
+            CloneSnapshot(ref differentialAssemblyNamesSnapshot);
 
-        public static string[] InterpreterOnlyAssemblyNames => Artifacts
-            .Where(pair => string.Equals(pair.Value.ExecutionMode, "interpreter-only",
-                StringComparison.Ordinal))
-            .Select(pair => pair.Key)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+        public static string[] InterpreterOnlyAssemblyNames =>
+            CloneSnapshot(ref interpreterOnlyAssemblyNamesSnapshot);
+
+        private static string[] CloneSnapshot(ref string[] snapshot) =>
+            (string[])System.Threading.Volatile.Read(ref snapshot).Clone();
+
+        private static void PublishPublicSnapshots()
+        {
+            // Called only by the writer that owns loadBusy. Construct all
+            // arrays before release-publishing any of them. Each property is
+            // an independent snapshot, not a cross-property transaction view.
+            string[] planned = Artifacts.Keys.OrderBy(name => name,
+                StringComparer.OrdinalIgnoreCase).ToArray();
+            string[] loaded = LoadedAssemblies.OrderBy(name => name,
+                StringComparer.OrdinalIgnoreCase).ToArray();
+            string[] differential = Artifacts.Where(pair => IsDifferentialMode(pair.Value.ExecutionMode))
+                .Select(pair => pair.Key).OrderBy(name => name,
+                    StringComparer.OrdinalIgnoreCase).ToArray();
+            string[] interpreterOnly = Artifacts.Where(pair => string.Equals(
+                    pair.Value.ExecutionMode, "interpreter-only", StringComparison.Ordinal))
+                .Select(pair => pair.Key).OrderBy(name => name,
+                    StringComparer.OrdinalIgnoreCase).ToArray();
+            System.Threading.Volatile.Write(ref plannedAssemblyNamesSnapshot, planned);
+            System.Threading.Volatile.Write(ref loadedAssemblyNamesSnapshot, loaded);
+            System.Threading.Volatile.Write(ref differentialAssemblyNamesSnapshot, differential);
+            System.Threading.Volatile.Write(ref interpreterOnlyAssemblyNamesSnapshot, interpreterOnly);
+        }
 
         private static void ResetCore()
         {

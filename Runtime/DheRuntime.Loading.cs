@@ -34,7 +34,7 @@ namespace HybridCLR
                 lastLoadError = lastNativeException = null;
                 Volatile.Write(ref loadState, (int)DheLoadState.NotLoaded);
             }
-            finally { Volatile.Write(ref loadBusy, 0); }
+            finally { PublishAndReleaseLoad(); }
         }
 
         private static bool Configure(ConfigureOperation action, out string error)
@@ -47,7 +47,7 @@ namespace HybridCLR
                 { error = "DHE native metadata already exists. Restart the process before changing the resource plan."; return false; }
                 return action(out error);
             }
-            finally { Volatile.Write(ref loadBusy, 0); }
+            finally { PublishAndReleaseLoad(); }
         }
 
         public static bool Initialize(IDheRuntimeAssetProvider provider, DheRuntimeIdentity buildIdentity,
@@ -125,6 +125,12 @@ namespace HybridCLR
             }
             // Release after every state/error/bookkeeping write. Reentrant module
             // calls never wait on a monitor held by their initiating thread.
+            finally { PublishAndReleaseLoad(); }
+        }
+
+        private static void PublishAndReleaseLoad()
+        {
+            try { PublishPublicSnapshots(); }
             finally { Volatile.Write(ref loadBusy, 0); }
         }
 
