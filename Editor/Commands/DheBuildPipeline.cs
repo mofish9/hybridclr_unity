@@ -632,6 +632,9 @@ namespace HybridCLR.Editor.Commands
                 .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_TOKEN_RESOLUTION 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE AOT module evolution requires physical Base token resolution.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_PUBLIC_ASSEMBLY_IMAGE 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE serialized asset delivery requires public assembly image resolution.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_LENGTH_PRESERVED_CONSTANT_STRINGS 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE metadata constants require length-preserving string conversion.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/vm/GlobalMetadata.h"))
