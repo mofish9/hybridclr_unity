@@ -132,6 +132,7 @@ namespace HybridCLR
             "logical-attribute-members-v1",
             "supplemental-nested-types-v1",
             "supplemental-top-level-types-v1",
+            "public-assembly-image-resolution-v1",
         };
 
         /// <summary>
