@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-toolchain-layout.json",
+  "toolchainVersion": "0.1.35",
+  "contractVersion": 1,
+  "exactPaths": [
+    "HybridCLR.DheTool.dll",
+    "dnlib.dll",
+    "HybridCLR.DheTool.deps.json",
+    "HybridCLR.DheTool.runtimeconfig.json",
+    "build-provenance.json",
+    "manifests/dhe-toolchain-layout.json"
+  ],
+  "prefixes": [
+    "schemas/",
+    "templates/",
+    "manifests/",
+    "docs/"
+  ],
+  "generatedPaths": [
+    "dhe-source-boundary.json",
+    "dhe-toolchain-manifest.json"
+  ],
+  "commands": [
+    "version",
+    "mv",
+    "metaversion",
+    "batch",
+    "base-registry",
+    "resource-release-build",
+    "resource-release-plan",
+    "resource-release-qualify",
+    "resource-update",
+    "stage-resource-update",
+    "android-device-smoke",
+    "resource-player-evidence",
+    "resource-release-gate",
+    "channel-state",
+    "baseline-manifest",
+    "aot-metadata-manifest",
+    "preflight",
+    "workflow",
+    "release-gate",
+    "schema-validate",
+    "schema-gate",
+    "validate",
+    "archive",
+    "doctor",
+    "verify-package",
+    "new-adapter",
+    "new-config",
+    "tree-hash",
+    "file-hash"
+  ]
+}

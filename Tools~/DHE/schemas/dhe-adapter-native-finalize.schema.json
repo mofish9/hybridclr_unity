@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-adapter-native-finalize.schema.json",
+  "title": "HybridCLR DHE Adapter Native Finalize Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "target", "generatedCppRoot", "manifestPath", "nativeGuardSourceSha256", "nativeManifestSha256", "beeBackendPath", "dagPath", "logPath", "attempts", "exitCode", "graphRegenerations", "guardReapplications", "buildProgramPath", "playerArtifactKind", "playerArtifactPath", "playerArtifactSha256", "playerArtifactGradleRoot", "playerArtifactBuildToolPath", "playerArtifactBuildProgramPath", "playerArtifactBuildTask", "playerArtifactBuildLogPath", "playerArtifactExitCode", "playerArtifactNativeLibraryEntries", "playerArtifactNativeLibrarySourcePaths", "playerArtifactNativeLibrarySha256"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-adapter-native-finalize.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "generatedCppRoot": { "type": "string", "minLength": 1 },
+    "manifestPath": { "type": "string", "minLength": 1 },
+    "nativeGuardSourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "nativeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "beeBackendPath": { "type": "string", "minLength": 1 },
+    "dagPath": { "type": "string", "minLength": 1 },
+    "logPath": { "type": "string", "minLength": 1 },
+    "attempts": { "type": "integer", "minimum": 1, "maximum": 8 },
+    "exitCode": { "const": 0 },
+    "graphRegenerations": { "type": "integer", "minimum": 0, "maximum": 7 },
+    "guardReapplications": { "type": "integer", "minimum": 0, "maximum": 7 },
+    "buildProgramPath": { "type": ["string", "null"] },
+    "playerArtifactKind": { "type": ["string", "null"] },
+    "playerArtifactPath": { "type": ["string", "null"] },
+    "playerArtifactSha256": { "type": ["string", "null"] },
+    "playerArtifactGradleRoot": { "type": ["string", "null"] },
+    "playerArtifactBuildToolPath": { "type": ["string", "null"] },
+    "playerArtifactBuildProgramPath": { "type": ["string", "null"] },
+    "playerArtifactBuildTask": { "type": ["string", "null"] },
+    "playerArtifactBuildLogPath": { "type": ["string", "null"] },
+    "playerArtifactExitCode": { "type": "integer" },
+    "playerArtifactNativeLibraryEntries": { "type": "array", "items": { "type": "string" } },
+    "playerArtifactNativeLibrarySourcePaths": { "type": "array", "items": { "type": "string" } },
+    "playerArtifactNativeLibrarySha256": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "graphRegenerations": { "minimum": 1 } }, "required": ["graphRegenerations"] },
+      "then": {
+        "properties": {
+          "guardReapplications": { "minimum": 1 },
+          "buildProgramPath": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "target": { "const": "Android" } }, "required": ["target"] },
+      "then": {
+        "properties": {
+          "playerArtifactKind": { "enum": ["android-apk", "android-aab"] },
+          "playerArtifactPath": { "type": "string", "minLength": 1 },
+          "playerArtifactSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "playerArtifactGradleRoot": { "type": "string", "minLength": 1 },
+          "playerArtifactBuildToolPath": { "type": "string", "minLength": 1 },
+          "playerArtifactBuildProgramPath": { "type": "string", "minLength": 1 },
+          "playerArtifactBuildTask": { "type": "string", "pattern": "^:launcher:(?:assemble|bundle)(?:Debug|Release)$" },
+          "playerArtifactBuildLogPath": { "type": "string", "minLength": 1 },
+          "playerArtifactExitCode": { "const": 0 },
+          "playerArtifactNativeLibraryEntries": { "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "playerArtifactNativeLibrarySourcePaths": { "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "playerArtifactNativeLibrarySha256": { "minItems": 1, "uniqueItems": true }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "target": { "const": "iOS" } }, "required": ["target"] },
+      "then": {
+        "properties": {
+          "playerArtifactKind": { "const": "ios-xcode-project" },
+          "playerArtifactPath": { "type": "string", "minLength": 1 },
+          "playerArtifactSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "playerArtifactBuildTask": { "const": "xcode-export" },
+          "playerArtifactExitCode": { "const": 0 },
+          "playerArtifactNativeLibraryEntries": { "maxItems": 0 },
+          "playerArtifactNativeLibrarySourcePaths": { "maxItems": 0 },
+          "playerArtifactNativeLibrarySha256": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
+}

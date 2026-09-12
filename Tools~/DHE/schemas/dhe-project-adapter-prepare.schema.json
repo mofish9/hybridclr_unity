@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-project-adapter-prepare.schema.json",
+  "title": "HybridCLR DHE Project Adapter Prepare Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "toolchainContractVersion", "target", "pathSemantics", "projectPath", "settingsFile", "baselineRoot", "currentRoot", "baselineGeneratedFromCurrent", "baselineSourceRoot"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-project-adapter-prepare.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "toolchainContractVersion": { "const": 1 },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "pathSemantics": { "const": "workspace-absolute-v1" },
+    "projectPath": { "type": "string", "minLength": 1 },
+    "settingsFile": { "type": "string", "minLength": 1 },
+    "baselineRoot": { "type": "string", "minLength": 1 },
+    "currentRoot": { "type": "string", "minLength": 1 },
+    "baselineGeneratedFromCurrent": { "type": "boolean" },
+    "baselineSourceRoot": { "type": "string", "minLength": 1 },
+    "aotAssemblies": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

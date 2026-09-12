@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-resource-release-build-config.json",
+  "pathSemantics": "config-relative-v1",
+  "mode": "Release",
+  "settingsFile": "../../ProjectSettings/HybridCLRSettings.asset",
+  "outputRoot": "../../artifacts/dhe-resource-release",
+  "existingRegistry": "../../releases/base-registry/dhe-base-registry.json",
+  "previousRegistry": null,
+  "registryId": "production-channel-bases",
+  "currentVariants": [
+    {
+      "variantId": "android",
+      "root": "../../artifacts/current/Android",
+      "primary": true
+    },
+    {
+      "variantId": "ios",
+      "root": "../../artifacts/current/iOS",
+      "primary": false
+    }
+  ],
+  "newBases": [],
+  "retireBaseIds": [],
+  "retirementReason": null,
+  "channelSnapshot": "../../artifacts/channel-snapshot.json",
+  "expectedChannelSnapshotSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "initializeReleaseLedger": false
+}

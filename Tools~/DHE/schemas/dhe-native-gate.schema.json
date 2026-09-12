@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-native-gate.schema.json",
+  "title": "HybridCLR DHE Native Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "mergeReady", "profile", "configuration", "runtimeRoot", "runtimeManifest", "runtimeManifestSha256", "runtimeTreeSha256", "externalTreeSha256", "nativeExitCode", "surrogateHeadersAllowed", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-native-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "mergeReady": { "type": "boolean" },
+    "profile": { "enum": ["DHE-Tuanjie2022", "DHE-Unity2022", "DHE-Unity2021"] },
+    "configuration": { "const": "Release" },
+    "runtimeRoot": { "type": "string", "minLength": 1 },
+    "runtimeManifest": { "type": "string", "minLength": 1 },
+    "runtimeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimeTreeSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "externalTreeSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "nativeExitCode": { "type": "integer" },
+    "surrogateHeadersAllowed": { "type": "boolean" },
+    "surrogateExternalHeadersUsed": { "type": "boolean" },
+    "fullGenericSharingTests": { "type": "boolean" },
+    "log": { "type": "string", "minLength": 1 },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-source-boundary.json",
+  "pathBase": "manifest-directory-v1",
+  "exactPaths": [
+    "HybridCLR.DheTool.dll",
+    "dnlib.dll",
+    "HybridCLR.DheTool.deps.json",
+    "HybridCLR.DheTool.runtimeconfig.json",
+    "build-provenance.json",
+    "dhe-source-boundary.json",
+    "dhe-toolchain-manifest.json"
+  ],
+  "prefixes": [
+    "schemas/",
+    "templates/",
+    "manifests/",
+    "docs/"
+  ],
+  "generatedPrefixes": []
+}

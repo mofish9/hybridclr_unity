@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-project-plan-validation.schema.json",
+  "title": "HybridCLR DHE Project Plan Validation Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "coverageRequired", "coverageComplete", "plan", "assemblies", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-project-plan-validation.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "passed": { "type": "boolean" },
+    "coverageRequired": { "type": "boolean" },
+    "coverageComplete": { "type": "boolean" },
+    "plan": { "type": "string", "minLength": 1 },
+    "assemblies": { "type": "array" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}

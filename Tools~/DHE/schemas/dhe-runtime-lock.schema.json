@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-runtime-lock.schema.json",
+  "title": "HybridCLR DHE Runtime Patch Lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "patches"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-runtime-lock.json" },
+    "sourceMode": { "enum": ["overlay", "integrated"] },
+    "patches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "repository", "baseCommit", "path", "sha256", "applyRoot", "stripComponents"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "repository": { "enum": ["hybridclr", "hybridclr_unity", "il2cpp_plus"] },
+          "sourceMode": { "enum": ["overlay", "integrated"] },
+          "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "engineWorkflows": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] }
+          },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
+          "applyRoot": { "enum": ["libil2cpp", "package"] },
+          "stripComponents": { "type": "integer", "minimum": 0, "maximum": 8 },
+          "integratedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "expectedTreeSha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
+          "treeHashIgnoredPaths": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["sourceMode"],
+        "properties": { "sourceMode": { "const": "integrated" } }
+      },
+      "then": {
+        "properties": {
+          "patches": {
+            "items": {
+              "required": ["sourceMode", "integratedCommit", "expectedTreeSha256"]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

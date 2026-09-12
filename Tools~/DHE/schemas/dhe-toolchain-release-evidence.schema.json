@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-toolchain-release-evidence.schema.json",
+  "title": "HybridCLR DHE Toolchain Release Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "sourceHead", "sourceTree", "files"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-toolchain-release-evidence.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "sourceHead": { "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" },
+    "sourceTree": { "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" },
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 1030,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "sha256"],
+        "properties": {
+          "role": { "enum": ["regression", "player-changed", "demo-noop", "native-tuanjie2022", "native-unity2022", "native-unity2021", "resolver-tuanjie2022", "resolver-unity2022", "resolver-unity2021"] },
+          "engineWorkflow": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] },
+          "baseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    }
+  }
+}

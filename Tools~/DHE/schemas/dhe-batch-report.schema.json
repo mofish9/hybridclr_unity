@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-batch-report.schema.json",
+  "title": "HybridCLR DHE Batch Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "baselineRoot", "currentRoot", "compatibilityPolicy", "requireDheEqualsHotUpdate", "configurationPassed", "configurationErrors", "hotUpdateAssemblies", "dheAotAssemblies", "assemblies", "counts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-batch-report.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "baselineRoot": { "type": "string", "minLength": 1 },
+    "currentRoot": { "type": "string", "minLength": 1 },
+    "compatibilityPolicy": { "const": "dhe-proven-safe-subset-v1" },
+    "requireDheEqualsHotUpdate": { "type": "boolean" },
+    "configurationPassed": { "type": "boolean" },
+    "configurationErrors": { "type": "array", "items": { "type": "string" } },
+    "hotUpdateAssemblies": { "type": "array", "items": { "type": "string" } },
+    "dheAotAssemblies": { "type": "array", "items": { "type": "string" } },
+    "assemblies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "baseline", "current", "baseMetaVersionJson", "baseMetaVersionBytes", "currentMetaVersionJson", "currentMetaVersionBytes", "status", "changedMethodCount", "addedMethodCount", "removedMethodCount", "changedExistingTypeCount", "addedTypeCount", "removedTypeCount", "unsupportedChanges"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "baseline": { "type": "string" },
+          "current": { "type": "string" },
+          "baseMetaVersionJson": { "type": "string", "minLength": 1 },
+          "baseMetaVersionBytes": { "type": "string", "minLength": 1 },
+          "currentMetaVersionJson": { "type": "string", "minLength": 1 },
+          "currentMetaVersionBytes": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["compatible", "incompatible", "missing", "error"] },
+          "changedMethodCount": { "type": "integer", "minimum": 0 },
+          "addedMethodCount": { "type": "integer", "minimum": 0 },
+          "removedMethodCount": { "type": "integer", "minimum": 0 },
+          "changedExistingTypeCount": { "type": "integer", "minimum": 0 },
+          "addedTypeCount": { "type": "integer", "minimum": 0 },
+          "removedTypeCount": { "type": "integer", "minimum": 0 },
+          "unsupportedChanges": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "error": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["total", "compatible", "incompatible", "missing", "error"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "compatible": { "type": "integer", "minimum": 0 },
+        "incompatible": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

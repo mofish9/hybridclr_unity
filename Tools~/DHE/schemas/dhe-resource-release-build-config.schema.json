@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-release-build-config.schema.json",
+  "title": "HybridCLR DHE resource release build configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "format", "pathSemantics", "mode", "settingsFile",
+    "outputRoot", "existingRegistry", "previousRegistry", "registryId",
+    "currentVariants", "newBases", "retireBaseIds", "retirementReason",
+    "channelSnapshot", "expectedChannelSnapshotSha256",
+    "initializeReleaseLedger"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-release-build-config.json" },
+    "pathSemantics": { "const": "config-relative-v1" },
+    "mode": { "enum": ["Release", "Exploratory"] },
+    "settingsFile": { "type": "string", "minLength": 1 },
+    "outputRoot": { "type": "string", "minLength": 1 },
+    "existingRegistry": { "type": ["string", "null"], "minLength": 1 },
+    "previousRegistry": { "type": ["string", "null"], "minLength": 1 },
+    "registryId": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9._-]{1,128}$"
+    },
+    "currentVariants": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["variantId", "root", "primary"],
+        "properties": {
+          "variantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "root": { "type": "string", "minLength": 1 },
+          "primary": { "type": "boolean" }
+        }
+      }
+    },
+    "newBases": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "buildIdentity", "baselineRoot", "nativeManifest", "engineWorkflow",
+          "payloadVariantId", "label", "aotMetadataRoot"
+        ],
+        "properties": {
+          "buildIdentity": { "type": "string", "minLength": 1 },
+          "baselineRoot": { "type": "string", "minLength": 1 },
+          "nativeManifest": { "type": "string", "minLength": 1 },
+          "engineWorkflow": {
+            "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"]
+          },
+          "payloadVariantId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "label": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "aotMetadataRoot": { "type": ["string", "null"], "minLength": 1 }
+        }
+      }
+    },
+    "retireBaseIds": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+    },
+    "retirementReason": { "type": ["string", "null"], "minLength": 1, "maxLength": 512 },
+    "channelSnapshot": { "type": ["string", "null"], "minLength": 1 },
+    "expectedChannelSnapshotSha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "initializeReleaseLedger": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "Release" } }, "required": ["mode"] },
+      "then": {
+        "properties": {
+          "channelSnapshot": { "type": "string" },
+          "expectedChannelSnapshotSha256": { "type": "string" }
+        }
+      },
+      "else": {
+        "properties": {
+          "channelSnapshot": { "type": "null" },
+          "expectedChannelSnapshotSha256": { "type": "null" },
+          "initializeReleaseLedger": { "const": false }
+        }
+      }
+    }
+  ]
+}

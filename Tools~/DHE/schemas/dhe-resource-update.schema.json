@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-update.schema.json",
+  "title": "HybridCLR DHE Single-payload Resource Update",
+  "type": "object",
+  "additionalProperties": true,
+  "$defs": {
+    "frozenAotSource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assemblyName", "source", "sourceSha256", "baseMetaVersion", "baseMetaVersionSha256", "currentStorageTypeTokens", "currentExecutionMethodTokens", "excludedBaseTypeTokens", "genericContextMethodTokens", "sourceKind"],
+      "properties": {
+        "assemblyName": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "baseMetaVersion": { "type": "string", "minLength": 1 },
+        "baseMetaVersionSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "currentStorageTypeTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 33554434, "maximum": 50331647 } },
+        "currentExecutionMethodTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 } },
+        "excludedBaseTypeTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 33554434, "maximum": 50331647 } },
+        "genericContextMethodTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 } },
+        "sourceKind": { "const": "frozen-base-aot" }
+      }
+    },
+    "executionPlan": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "schemaVersion",
+        "assemblyName",
+        "baseMetaVersionSha256",
+        "currentMetaVersionSha256",
+        "currentStorageTypeTokens",
+        "currentExecutionMethodTokens",
+        "currentStorageTypeTokenCount",
+        "currentExecutionMethodTokenCount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "assemblyName": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n|/\\\\]+$"
+        },
+        "baseMetaVersionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "currentMetaVersionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "currentStorageTypeTokenCount": { "type": "integer", "minimum": 0 },
+        "currentExecutionMethodTokenCount": { "type": "integer", "minimum": 0 },
+        "currentGenericContextMethodTokenCount": { "type": "integer", "minimum": 0 },
+        "currentGenericContextMethodTokens": {
+          "type": ["array", "null"],
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 }
+        },
+        "currentStorageTypeTokens": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 33554434,
+            "maximum": 50331647
+          }
+        },
+        "currentExecutionMethodTokens": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 100663297,
+            "maximum": 117440511
+          }
+        }
+      }
+    }
+  },
+  "required": ["schemaVersion", "format", "payloadModel", "metaVersionSchema", "compatibilityPolicy", "runtimeProtocol", "compatibilityValidated", "validation", "validationSha256", "currentAssemblySetSha256", "baseRegistrySha256", "baseRegistryEntryCount", "baseRegistryAuditPath", "baseRegistryAuditSha256", "baseRegistryId", "baseRegistryRevision", "baseRegistryParentSha256", "baseRegistryParentAuditPath", "baseRegistryParentAuditSha256", "baseRegistryRetiredBaseCount", "baseRegistryLineageValidated", "playerUpdateRequired", "guardCoverageValidated", "runtimeComparison", "runtimePlan", "runtimePlanSha256", "runtimeAssetRoot", "baseMetaVersionAssetRoot", "aotMetadataSets", "assemblies", "supportedBases"],
+  "allOf": [
+    {
+      "if": { "required": ["mode"] },
+      "then": { "required": ["mode", "releaseReady", "releaseChannelId", "releaseRevision", "parentReleaseLedgerSha256", "releaseLedger"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Release" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": true }, "releaseChannelId": { "type": "string" }, "releaseRevision": { "type": "integer", "minimum": 1 }, "releaseLedger": { "const": "dhe-release-ledger.json" } } }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Exploratory" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": false }, "releaseChannelId": { "type": "null" }, "releaseRevision": { "type": "null" }, "parentReleaseLedgerSha256": { "type": "null" }, "releaseLedger": { "type": "null" } } }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-update.json" },
+    "mode": { "enum": ["Exploratory", "Release"] },
+    "releaseReady": { "type": "boolean" },
+    "releaseChannelId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "releaseRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "parentReleaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "releaseLedger": { "type": ["string", "null"], "enum": ["dhe-release-ledger.json", null] },
+    "payloadModel": { "enum": ["single-current-payload", "variant-current-payload"] },
+    "metaVersionSchema": { "const": 1 },
+    "compatibilityPolicy": { "const": "dhe-proven-safe-subset-v1" },
+    "runtimeProtocol": { "const": "dhe-runtime-protocol-v1" },
+    "compatibilityValidated": { "const": true },
+    "validation": { "const": "dhe-resource-update-validation.json" },
+    "validationSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariants": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["variantId", "currentAssemblySetSha256", "assemblies"],
+        "properties": {
+          "variantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "assemblies": { "type": "array", "minItems": 1 }
+        }
+      }
+    },
+    "baseRegistrySha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryEntryCount": { "type": ["integer", "null"], "minimum": 1 },
+    "baseRegistryAuditPath": { "type": ["string", "null"], "enum": ["audit/dhe-base-registry.json", null] },
+    "baseRegistryAuditSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "baseRegistryRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "baseRegistryParentSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryParentAuditPath": { "type": ["string", "null"], "enum": ["audit/dhe-base-registry-parent.json", null] },
+    "baseRegistryParentAuditSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryRetiredBaseCount": { "type": ["integer", "null"], "minimum": 0 },
+    "baseRegistryLineageValidated": { "type": "boolean" },
+    "playerUpdateRequired": { "const": false },
+    "guardCoverageValidated": { "const": true },
+    "runtimeComparison": { "const": "embedded-base-mv-vs-current-mv" },
+    "runtimePlan": { "const": "dhe-runtime-plan.json" },
+    "runtimePlanSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimeAssetRoot": { "type": "string", "minLength": 1 },
+    "baseMetaVersionAssetRoot": { "type": "string", "minLength": 1 },
+    "aotMetadataSets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["aotMetadataSetId", "assemblies"],
+        "properties": {
+          "aotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "assemblies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["assemblyName", "sourceKind", "sha256", "manifestSha256", "path"],
+              "properties": {
+                "assemblyName": { "type": "string", "minLength": 1 },
+                "sourceKind": { "const": "resource-update" },
+                "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+                "manifestSha256": { "const": "" },
+                "path": { "type": "string", "pattern": "^.+/payload/aot-metadata/[^/]+\\.bytes$" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "assemblies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "dll", "currentMetaVersion", "dllSha256", "currentMetaVersionSha256"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "dll": { "type": "string", "minLength": 1 },
+          "currentMetaVersion": { "type": "string", "minLength": 1 },
+          "dllSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "currentMetaVersionSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "supportedBases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+          "required": ["baseId", "target", "engineWorkflow", "il2cppCodeGeneration", "managedAssemblySetSha256", "aotAssemblySetSha256", "aotAssemblyNames", "aotSnapshotSha256", "baseMetaVersionSetSha256", "aotMetadataSetId", "nativeGuardSourceSha256", "nativeManifestSha256", "runtimeProtocol", "nativeRuntimeContract", "runtimeCapabilities", "requiredRuntimeCapabilities", "runtimeAssetRoot", "baseMetaVersionAssetRoot", "buildIdentitySha256", "compatibilityPolicy", "compatible", "guardCoverageValidated", "unsupportedChangeCount", "unsupportedChanges", "assemblies"],
+          "properties": {
+          "baseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+          "engineWorkflow": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] },
+          "il2cppCodeGeneration": { "enum": ["OptimizeSpeed", "OptimizeSize"] },
+          "payloadVariantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "frozenAotSources": { "type": "array", "items": { "$ref": "#/$defs/frozenAotSource" } },
+          "assemblyModes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["assemblyName", "executionMode"],
+              "properties": {
+                "assemblyName": { "type": "string", "minLength": 1 },
+                "executionMode": { "enum": ["dhe-differential", "interpreter-only"] },
+                "executionPlans": { "type": "array", "maxItems": 1, "items": { "allOf": [{ "$ref": "#/$defs/executionPlan" }, { "type": "object" }] } }
+              }
+            }
+          },
+          "managedAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "aotAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "aotAssemblyNames": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[^/\\\\]+$", "minLength": 1 }
+          },
+          "aotSnapshotSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "aotAnalysisSnapshotSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+          "baseMetaVersionSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "aotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "nativeGuardSourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "nativeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "runtimeProtocol": { "const": "dhe-runtime-protocol-v1" },
+          "nativeRuntimeContract": { "type": "string", "minLength": 1 },
+          "runtimeCapabilities": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "requiredRuntimeCapabilities": {
+            "type": "array", "minItems": 2, "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "runtimeAssetRoot": { "type": "string", "minLength": 1 },
+          "baseMetaVersionAssetRoot": { "type": "string", "minLength": 1 },
+          "buildIdentitySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "compatibilityPolicy": { "const": "dhe-proven-safe-subset-v1" },
+          "compatible": { "const": true },
+          "guardCoverageValidated": { "const": true },
+          "unsupportedChangeCount": { "const": 0 },
+          "unsupportedChanges": { "type": "array", "maxItems": 0 },
+          "assemblies": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["assemblyName", "executionMode", "baselineAssemblySha256", "baseMetaVersionSha256", "compatible", "compatibilityPolicy", "unchangedMethodCount", "changedMethodCount", "bodyOnlyChangedMethodCount", "dependencyChangedMethodCount", "removedMethodCount", "addedMethodCount", "removedFieldCount", "addedFieldCount", "changedExistingTypeCount", "removedTypeCount", "addedTypeCount", "guardRequiredMethodCount", "guardCoveredMethodCount", "uncoveredStableMethodIds", "unsupportedChangeCount", "unsupportedChanges"],
+                "properties": {
+                  "assemblyName": { "type": "string", "minLength": 1 },
+                "executionMode": { "enum": ["dhe-differential", "interpreter-only"] },
+                "baselineAssemblySha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+                "baseMetaVersionSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+                "compatible": { "const": true },
+                "compatibilityPolicy": { "const": "dhe-proven-safe-subset-v1" },
+                "unchangedMethodCount": { "type": "integer", "minimum": 0 },
+                "changedMethodCount": { "type": "integer", "minimum": 0 },
+                "bodyOnlyChangedMethodCount": { "type": "integer", "minimum": 0 },
+                "dependencyChangedMethodCount": { "type": "integer", "minimum": 0 },
+                "removedMethodCount": { "type": "integer", "minimum": 0 },
+                "addedMethodCount": { "type": "integer", "minimum": 0 },
+                "removedFieldCount": { "type": "integer", "minimum": 0 },
+                "addedFieldCount": { "type": "integer", "minimum": 0 },
+                "changedExistingTypeCount": { "type": "integer", "minimum": 0 },
+                "removedTypeCount": { "type": "integer", "minimum": 0 },
+                "addedTypeCount": { "type": "integer", "minimum": 0 },
+                "guardRequiredMethodCount": { "type": "integer", "minimum": 0 },
+                "guardCoveredMethodCount": { "type": "integer", "minimum": 0 },
+                "uncoveredStableMethodIds": {
+                  "type": "array",
+                  "maxItems": 0,
+                  "items": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+                },
+                "unsupportedChangeCount": { "const": 0 },
+                "unsupportedChanges": { "type": "array", "maxItems": 0 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

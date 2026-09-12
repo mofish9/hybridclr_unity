@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-evidence.schema.json",
+  "title": "HybridCLR DHE alternate resource evidence",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "policy", "target", "strategy", "pathSemantics"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-evidence.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "policy": { "enum": ["required", "skip"] },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "strategy": { "type": "string", "minLength": 1 },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "resourceBuild": { "type": "string", "minLength": 1 },
+    "yooAssetBuild": { "type": "string", "minLength": 1 },
+    "requiredAssetCount": { "type": "integer", "minimum": 0 },
+    "manifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimePlanSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "assetCount": { "type": "integer", "minimum": 0 },
+    "bundleCount": { "type": "integer", "minimum": 0 },
+    "details": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "policy": { "const": "required" } }, "required": ["policy"] },
+      "then": { "anyOf": [{ "required": ["resourceBuild"] }, { "required": ["yooAssetBuild"] }] }
+    }
+  ]
+}

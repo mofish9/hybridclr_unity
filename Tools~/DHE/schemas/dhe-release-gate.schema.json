@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-release-gate.schema.json",
+  "title": "HybridCLR DHE Release Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "target", "workflowMode", "sourcePreflight", "sourcePreflightValidated", "cleanCheckout", "cleanCheckoutValidated", "projectGitHead", "projectGitTree", "projectSourceBoundarySha256", "toolGitHead", "toolGitTree", "toolSourceBoundarySha256", "projectVcs", "projectRevision", "projectRevisionSpec", "projectRepository", "toolVcs", "toolRevision", "toolRevisionSpec", "toolRepository", "projectPlanValidation", "projectPlanRevalidation", "workflowReport", "artifactValidation", "batchReport", "runtimePlan", "artifactValidatorExitCode", "projectPlanValidatorExitCode", "errors", "warnings", "validatedAssemblyCount", "loadedDheAssemblyCount"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-release-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "workflowMode": { "enum": ["Release", "Exploratory", ""] },
+    "sourcePreflight": { "type": "string" },
+    "sourcePreflightValidated": { "type": "boolean" },
+    "cleanCheckout": { "type": "string" },
+    "cleanCheckoutValidated": { "type": "boolean" },
+    "projectGitHead": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{40,64})?$" },
+    "projectGitTree": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{40,64})?$" },
+    "projectSourceBoundarySha256": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{64})?$" },
+    "toolGitHead": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{40,64})?$" },
+    "toolGitTree": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{40,64})?$" },
+    "toolSourceBoundarySha256": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{64})?$" },
+    "projectVcs": { "enum": ["git", "svn", ""] },
+    "projectRevision": { "type": "string", "pattern": "^(?:[0-9]+)?$" },
+    "projectRevisionSpec": { "type": "string" },
+    "projectRepository": { "type": "string" },
+    "toolVcs": { "enum": ["git", "svn", ""] },
+    "toolRevision": { "type": "string", "pattern": "^(?:[0-9]+)?$" },
+    "toolRevisionSpec": { "type": "string" },
+    "toolRepository": { "type": "string" },
+    "projectPlanValidation": { "type": "string", "minLength": 1 },
+    "projectPlanRevalidation": { "type": "string", "minLength": 1 },
+    "workflowReport": { "type": "string", "minLength": 1 },
+    "artifactValidation": { "type": "string", "minLength": 1 },
+    "batchReport": { "type": "string" },
+    "runtimePlan": { "type": "string", "minLength": 1 },
+    "artifactValidatorExitCode": { "type": "integer" },
+    "projectPlanValidatorExitCode": { "type": "integer" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "validatedAssemblyCount": { "type": "integer", "minimum": 0 },
+    "loadedDheAssemblyCount": { "type": "integer", "minimum": 0 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "passed": { "const": true } }, "required": ["passed"] },
+      "then": {
+        "properties": {
+          "workflowMode": { "const": "Release" },
+          "sourcePreflight": { "minLength": 1 },
+          "sourcePreflightValidated": { "const": true },
+          "cleanCheckout": { "minLength": 1 },
+          "cleanCheckoutValidated": { "const": true },
+          "projectSourceBoundarySha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "toolGitHead": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "toolGitTree": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "toolSourceBoundarySha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "batchReport": { "minLength": 1 },
+          "artifactValidatorExitCode": { "const": 0 },
+          "projectPlanValidatorExitCode": { "const": 0 }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "projectVcs": { "const": "svn" } }, "required": ["projectVcs"] },
+            "then": {
+              "properties": {
+                "projectRevision": { "pattern": "^[0-9]+$" },
+                "projectRepository": { "minLength": 1 }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "projectVcs": { "const": "git" } }, "required": ["projectVcs"] },
+            "then": {
+              "properties": {
+                "projectGitHead": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+                "projectGitTree": { "pattern": "^[0-9a-fA-F]{40,64}$" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,464 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-toolchain-manifest.json",
+  "generatedAtUtc": "2026-09-12T12:19:06.6202696+00:00",
+  "toolchainVersion": "0.1.35",
+  "contractVersion": 1,
+  "mode": "Exploratory",
+  "releaseReady": false,
+  "pathSemantics": "package-relative-v1",
+  "packageIdAlgorithm": "sha256-canonical-manifest-v2",
+  "packageId": "713b0e7d2da71eeebfc5df21b6897861e89b571e3e2d781235cde0cb1bec9b65",
+  "entryPoint": "HybridCLR.DheTool.dll",
+  "commands": [
+    "version",
+    "mv",
+    "metaversion",
+    "batch",
+    "base-registry",
+    "resource-release-build",
+    "resource-release-plan",
+    "resource-release-qualify",
+    "resource-update",
+    "stage-resource-update",
+    "android-device-smoke",
+    "resource-player-evidence",
+    "resource-release-gate",
+    "channel-state",
+    "baseline-manifest",
+    "aot-metadata-manifest",
+    "preflight",
+    "workflow",
+    "release-gate",
+    "schema-validate",
+    "schema-gate",
+    "validate",
+    "archive",
+    "doctor",
+    "verify-package",
+    "new-adapter",
+    "new-config",
+    "tree-hash",
+    "file-hash"
+  ],
+  "layoutSha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983",
+  "sourceIdentity": {
+    "head": "ad93b9dbc5103b3c3141c1d2dd897c63218c9ea2",
+    "tree": "291c5a11227b17f54117d77fc8cb2bfb91bccfda",
+    "clean": true,
+    "tracked": true
+  },
+  "fileCount": 82,
+  "files": [
+    {
+      "path": "HybridCLR.DheTool.deps.json",
+      "size": 810,
+      "sha256": "9072be99c13a72e52ce6dd37cead3606b2c06cdeb7b675a681d9fb5ff0f430fa"
+    },
+    {
+      "path": "HybridCLR.DheTool.dll",
+      "size": 1551360,
+      "sha256": "e915a090c80ca421f31989eec01fac775af8317a3bfb1b6ad9dba0813e2be491"
+    },
+    {
+      "path": "HybridCLR.DheTool.runtimeconfig.json",
+      "size": 253,
+      "sha256": "ded3aeb5856a11db0b654a785574490cab55839ebfb17efe9e39b89618fc5b91"
+    },
+    {
+      "path": "build-provenance.json",
+      "size": 756,
+      "sha256": "d12d728a9ad173b16c9673bcac379d68835072e563b380fbde08ee3da8bf0337"
+    },
+    {
+      "path": "dhe-source-boundary.json",
+      "size": 488,
+      "sha256": "977e3eccc600b1b1e05b410e553a997d20dd428a3313fa10ef6dd7c6495e9987"
+    },
+    {
+      "path": "dnlib.dll",
+      "size": 1175040,
+      "sha256": "bb83dedc11d6ec41a4ae8f289cc1a35231be7e53e09fd7359c5c10dfbb9bfe5c"
+    },
+    {
+      "path": "docs/DHE-Tool-Binary-Notices.md",
+      "size": 1544,
+      "sha256": "149047f0a388fd3b301797d108297ef29e1e55a01cb1ffb2cafd02ba78c0696b"
+    },
+    {
+      "path": "docs/THIRD-PARTY-NOTICES.md",
+      "size": 1474,
+      "sha256": "c632d64fad48b6a2eeaed416fb4d8fedee91a0a9a4c5791b48a8cdffefad00ce"
+    },
+    {
+      "path": "manifests/dhe-toolchain-evidence-authorities.json",
+      "size": 4363,
+      "sha256": "c4ea54c13fadea127673cbe2196af8389a28e9efccd6469de9b67c3962ea28b3"
+    },
+    {
+      "path": "manifests/dhe-toolchain-layout.json",
+      "size": 1220,
+      "sha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983"
+    },
+    {
+      "path": "manifests/runtime-workflows.json",
+      "size": 1140,
+      "sha256": "77f11a93d68be82afc003fee43544e600bebcf638674024b09b03287df0c6034"
+    },
+    {
+      "path": "schemas/dhe-adapter-native-finalize.schema.json",
+      "size": 5139,
+      "sha256": "876309b5455682ce3a45088456a84c306c538eee93dba63e7fe72ae8581bdad1"
+    },
+    {
+      "path": "schemas/dhe-adapter-native-guards.schema.json",
+      "size": 1717,
+      "sha256": "53a30bd34e76eb6b9d73b8d7ad60e1db003608ab2b09772f6fff32943b9ffa79"
+    },
+    {
+      "path": "schemas/dhe-adapter-player-build.schema.json",
+      "size": 775,
+      "sha256": "a36b4da8eaa26221870a99571aba2b8d1bfc1c284aaf94c62c241167c8aef022"
+    },
+    {
+      "path": "schemas/dhe-adapter-stage.schema.json",
+      "size": 1017,
+      "sha256": "0a73521b1f761941e054a91b5584d2346195b222ec15f3bd87e4a599f42a224c"
+    },
+    {
+      "path": "schemas/dhe-aot-metadata-manifest.schema.json",
+      "size": 2781,
+      "sha256": "88b5113e6e62f63d4be7bc9b4c09fee786f6e934f54cb424797ce9150bbc13a9"
+    },
+    {
+      "path": "schemas/dhe-archive-gate.schema.json",
+      "size": 1078,
+      "sha256": "7e0155bcb6abf997d6170f007558936a37f9aa06078f1a409ae804686c4fd1c0"
+    },
+    {
+      "path": "schemas/dhe-archive-manifest.schema.json",
+      "size": 4445,
+      "sha256": "8e2aee35d57fb4c475e13d92f01e4a5efa315f0301f1be9505e2f80ba5cdf5ed"
+    },
+    {
+      "path": "schemas/dhe-artifact-validation.schema.json",
+      "size": 1628,
+      "sha256": "45caf678e5aeb6194c27d676e99cee3b259dd837c51d0c7fc581c80ffa6aadf1"
+    },
+    {
+      "path": "schemas/dhe-base-registry.schema.json",
+      "size": 2432,
+      "sha256": "ce2a715e41a7646b7c6d7ff09e96f22ff4172eaca5539e001c5707f2e6b001bd"
+    },
+    {
+      "path": "schemas/dhe-base-runner-catalog.schema.json",
+      "size": 2286,
+      "sha256": "2aa18201df825d7e1377f5e29779133abe305c3c6ea174f634af59d2d3e1364b"
+    },
+    {
+      "path": "schemas/dhe-baseline-manifest.schema.json",
+      "size": 2577,
+      "sha256": "cea61c5f0fb449af545b01b0a1125e5f5c6dd630df45a1cb2fc202fe3b8961e1"
+    },
+    {
+      "path": "schemas/dhe-batch-report.schema.json",
+      "size": 3184,
+      "sha256": "5a7ab481a8b2b36347d1e047bec772c900fda57d63b5be73e898b79bea87c4eb"
+    },
+    {
+      "path": "schemas/dhe-build-identity.schema.json",
+      "size": 4816,
+      "sha256": "0ffce44cd5b87ce1f3e71b89feca925e6faeea0248ac34e043e7a342e5e8206d"
+    },
+    {
+      "path": "schemas/dhe-channel-snapshot.schema.json",
+      "size": 4539,
+      "sha256": "e780f6f5e239b29680aca68beb58f3a72432bba67f2c9228ef9a621ace0ebc3b"
+    },
+    {
+      "path": "schemas/dhe-channel-state.schema.json",
+      "size": 4268,
+      "sha256": "41f639ed19514378d35dcd060a396eca0075cfbe0c4c8939bef0be0946979b3a"
+    },
+    {
+      "path": "schemas/dhe-clean-checkout-gate.schema.json",
+      "size": 4387,
+      "sha256": "1f150a14201cfc1876e29892902490dd3e9bfa6f5e6f4f411aae644d6a053c73"
+    },
+    {
+      "path": "schemas/dhe-cpp-resolver-regression.schema.json",
+      "size": 1981,
+      "sha256": "537d769ef008de266d59cc871d2e8a5987e369e4e6f7c7e3747f869418315e98"
+    },
+    {
+      "path": "schemas/dhe-device-player-run.schema.json",
+      "size": 4541,
+      "sha256": "919547961dd45f264e4e7a974f854414d61499a1c3d687c9a104af5a57a8688f"
+    },
+    {
+      "path": "schemas/dhe-metaversion.schema.json",
+      "size": 3589,
+      "sha256": "64e8a97cd587ceba68e9aa959ab450f4bba1fa0bcb5c080bbaf57fa7987d49da"
+    },
+    {
+      "path": "schemas/dhe-native-gate.schema.json",
+      "size": 1603,
+      "sha256": "1b55f2108d8295996f294a1a5e292618d0875953a81b5fc501864500dd68839e"
+    },
+    {
+      "path": "schemas/dhe-native-manifest.schema.json",
+      "size": 7037,
+      "sha256": "786ade87016c1627fe40d07641999fa283f2509d1e93ea612c029002528ba3cb"
+    },
+    {
+      "path": "schemas/dhe-package-lock.schema.json",
+      "size": 1584,
+      "sha256": "cb9576aa47e181af35942f83212afea740d8271fe2ffb4acfd7bb095ef08b1fb"
+    },
+    {
+      "path": "schemas/dhe-player-result.schema.json",
+      "size": 23005,
+      "sha256": "f54e153e759ca2e403ae686dd8a43ba3fae87b2626108238e7106759b38c1855"
+    },
+    {
+      "path": "schemas/dhe-project-adapter-prepare.schema.json",
+      "size": 1421,
+      "sha256": "d055ec0131a85bf72338534c4a43a183b08904124d0d681003535ed128f44868"
+    },
+    {
+      "path": "schemas/dhe-project-plan-validation.schema.json",
+      "size": 1049,
+      "sha256": "0ee3a29921e51b800203e9aa1d6118e7f7ace4245991e768857063185eb4da64"
+    },
+    {
+      "path": "schemas/dhe-project-plan.schema.json",
+      "size": 2669,
+      "sha256": "d4a2102bce27b03d011bc2e0cf66ba3985134e8d5eb4fffd9745ac2268c66508"
+    },
+    {
+      "path": "schemas/dhe-project-preflight-failure.schema.json",
+      "size": 1546,
+      "sha256": "13efeb69bd589bbee97464922d71b1425d0c0312a5ebb08a4b4c386d9480fca2"
+    },
+    {
+      "path": "schemas/dhe-project-preflight.schema.json",
+      "size": 2123,
+      "sha256": "b060c654a200af01f4cec61324497cde1cd930394fb60344ca4e4aae457d179e"
+    },
+    {
+      "path": "schemas/dhe-project-workflow-failure.schema.json",
+      "size": 1984,
+      "sha256": "ba74753ddd80e75899fbcaa074d85d5a323b24450e7673cf0f54f849484f63f2"
+    },
+    {
+      "path": "schemas/dhe-project-workflow.schema.json",
+      "size": 3183,
+      "sha256": "41ba400f17e4406c085494fff0dd09521c25d071fed8415a2c8196178a2c03da"
+    },
+    {
+      "path": "schemas/dhe-regression.schema.json",
+      "size": 4535,
+      "sha256": "f532b440f15068eb271d6d8f907243903768ff409ded0ac62667d968b1256660"
+    },
+    {
+      "path": "schemas/dhe-release-gate.schema.json",
+      "size": 4761,
+      "sha256": "f7981e8b70cc6493e3ce5cb2cdb71be37323d09e069482ec41099db472c1db4b"
+    },
+    {
+      "path": "schemas/dhe-release-ledger.schema.json",
+      "size": 2425,
+      "sha256": "97e26b98321eccaaf8b92dcca92b0c850e924ad50f0e5e40d503889c83dc8bb8"
+    },
+    {
+      "path": "schemas/dhe-resource-evidence.schema.json",
+      "size": 1575,
+      "sha256": "386ad27289f77da05fe7ab1591ad13b6369ea5f90b14eb66cf807742e6698cad"
+    },
+    {
+      "path": "schemas/dhe-resource-player-workflow.schema.json",
+      "size": 11400,
+      "sha256": "90d539a5eaf74a8c0af657f1138c7f483176cbf7a33b9a30476c8aa50bee09dd"
+    },
+    {
+      "path": "schemas/dhe-resource-release-build-config.schema.json",
+      "size": 3652,
+      "sha256": "ef1f1d20871277e80b5c7d29ddb3013b2b4f208c2baa3b11fc6992917c0b5522"
+    },
+    {
+      "path": "schemas/dhe-resource-release-build.schema.json",
+      "size": 6660,
+      "sha256": "2890342f7bc9230d2517cc551ee4a51be20215ce9ccf096fe4cc3880a8103f4d"
+    },
+    {
+      "path": "schemas/dhe-resource-release-gate.schema.json",
+      "size": 9967,
+      "sha256": "68ef986e0d6ac17fd782cf848bf0b20c99273d3ca250930e315bf5d6aab08fea"
+    },
+    {
+      "path": "schemas/dhe-resource-release-plan-config.schema.json",
+      "size": 1597,
+      "sha256": "1c4c19851c53fde6ba8f4a8214a494e937cace2046aa668fdc26324b7dc4c8c7"
+    },
+    {
+      "path": "schemas/dhe-resource-release-plan.schema.json",
+      "size": 5235,
+      "sha256": "f25faa71e84602a1b9527c12a3f0a9dba2b8fc6588ddf2e73eede28705aa1d6a"
+    },
+    {
+      "path": "schemas/dhe-resource-release-qualification-config.schema.json",
+      "size": 2926,
+      "sha256": "eaa2b475ad1d122321cc2b56781543314ea70b468d335d856544dea16822e2e7"
+    },
+    {
+      "path": "schemas/dhe-resource-release-qualification.schema.json",
+      "size": 5096,
+      "sha256": "8da1a2fb33e5582510356a5c5614ebd1f27442432e00a10aa8e442055291af68"
+    },
+    {
+      "path": "schemas/dhe-resource-stage.schema.json",
+      "size": 6347,
+      "sha256": "4876200cded42eb270e01108b5071d98155058d41d70a27b80837b68df96c844"
+    },
+    {
+      "path": "schemas/dhe-resource-update-validation.schema.json",
+      "size": 11805,
+      "sha256": "4bcf3ffb9a35fb058b93fe7a2d39203f0fed661b945c060bf5aab877b6f8ab94"
+    },
+    {
+      "path": "schemas/dhe-resource-update.schema.json",
+      "size": 16171,
+      "sha256": "85f036f9752d9405da4ce5c1497d0320a16d29d047f1f46a28ac49135347fbe1"
+    },
+    {
+      "path": "schemas/dhe-runtime-handoff-plan.schema.json",
+      "size": 2492,
+      "sha256": "4f9098400eed9255140e1c32e41f064b6ab7727dd4ba7d1e101e253523824c61"
+    },
+    {
+      "path": "schemas/dhe-runtime-lock.schema.json",
+      "size": 2257,
+      "sha256": "588a58546adc79365fe9409c60fb00be9c5a36c1059dad3b4790b964edea183a"
+    },
+    {
+      "path": "schemas/dhe-runtime-manifest.schema.json",
+      "size": 4239,
+      "sha256": "6f88bf9008ad09e32aefb16442b8551904c33c5f52faeeb33a94106d662393f6"
+    },
+    {
+      "path": "schemas/dhe-runtime-plan.schema.json",
+      "size": 10337,
+      "sha256": "a7c51b88471f9e921444a9246411cd85d3155b5ca0a969a5188c0dab2f86a308"
+    },
+    {
+      "path": "schemas/dhe-schema-gate.schema.json",
+      "size": 2619,
+      "sha256": "609df6e8e0b31cd02a6808ca3d049a3b59c61c0933aa7e5a9c38dbb5eced9256"
+    },
+    {
+      "path": "schemas/dhe-schema-validation.schema.json",
+      "size": 1007,
+      "sha256": "0a47c94e495a188f5b7356f4f3ee9be9b7ffc443c66663329713cf58c790fabc"
+    },
+    {
+      "path": "schemas/dhe-source-boundary.schema.json",
+      "size": 886,
+      "sha256": "37a056c3dbdbe37ca9bb9b47681b3b84ee6f6123f0e5f7b08bf7cb2af40f1523"
+    },
+    {
+      "path": "schemas/dhe-source-preflight.schema.json",
+      "size": 2334,
+      "sha256": "c3c685b1d250bd8a4d35e5614bb317639dc6dd49eefe1c4f69cf0eaa0323247e"
+    },
+    {
+      "path": "schemas/dhe-toolchain-doctor.schema.json",
+      "size": 1974,
+      "sha256": "fc2ca358ef21a11bf38a945de26b54869c096f6dd27aa77a392dd62907335a8b"
+    },
+    {
+      "path": "schemas/dhe-toolchain-evidence-authorities.schema.json",
+      "size": 1160,
+      "sha256": "9f8c7ad41d1280efd88f96705215d209a072c2530429dcfe0e58ae850589ac8e"
+    },
+    {
+      "path": "schemas/dhe-toolchain-gate.schema.json",
+      "size": 2219,
+      "sha256": "e23d8a827f0aa92b4de87452d0a33b2c26937608d078a31fe8bb739e90e228fd"
+    },
+    {
+      "path": "schemas/dhe-toolchain-install.schema.json",
+      "size": 1402,
+      "sha256": "63505d800770ebd90e55129cc42706e519ea86fa01f317fd9dd3ed612bedc8d1"
+    },
+    {
+      "path": "schemas/dhe-toolchain-layout.schema.json",
+      "size": 1149,
+      "sha256": "3ba6b8445395add4f2a49ae038015853f142414f72b1d57bf31fdb34a72b1c3d"
+    },
+    {
+      "path": "schemas/dhe-toolchain-manifest.schema.json",
+      "size": 2673,
+      "sha256": "74f03bef2299ff9d2e9dee504d49ab10bc6cdb6dd0f7a5a275bd592aa94b6f13"
+    },
+    {
+      "path": "schemas/dhe-toolchain-release-evidence.schema.json",
+      "size": 1538,
+      "sha256": "dde8e8121463c76f2fafb8cf314e73c5c0f166187e0bee2ae4296cafd425148f"
+    },
+    {
+      "path": "schemas/dhe-workflow-config.schema.json",
+      "size": 1894,
+      "sha256": "8ec470ae603a7ebc589f64388ecb6f47ffa7d6bb8b6945121307cb29fbce76bc"
+    },
+    {
+      "path": "schemas/dhe-workflow-failure.schema.json",
+      "size": 695,
+      "sha256": "1ced7de03a1f682cd31237edd4884b6825d90bc12cb4b35d911e0d141fcd7048"
+    },
+    {
+      "path": "schemas/dhe-workflow-report.schema.json",
+      "size": 6411,
+      "sha256": "61f7d501ceb285bc04990dda6b27d98cc05a965db431393f6944a359ebccf8ea"
+    },
+    {
+      "path": "schemas/dhe-yooasset-build.schema.json",
+      "size": 2072,
+      "sha256": "c00b4417fb077d21e7b36ab4640532b8f4d68fef15ed8c354d44805ce27c826a"
+    },
+    {
+      "path": "templates/DheBuildIdentity.cs",
+      "size": 3414,
+      "sha256": "4a7c00c11f82b515b29769ac85256995c30e1c3aa72a5b918a649f2ce5404bbb"
+    },
+    {
+      "path": "templates/DheWorkflowBuild.cs",
+      "size": 3445,
+      "sha256": "88e48cc9da8dea4429217572c9d4bf6abf56e40dfac7f7582c2a475b38da1fce"
+    },
+    {
+      "path": "templates/dhe-base-runner-catalog.json",
+      "size": 816,
+      "sha256": "17690a3e3cc0fa6f207574566947808ae9892cd0109c432a93f6c2c3fcc75990"
+    },
+    {
+      "path": "templates/dhe-resource-release-build-config.json",
+      "size": 941,
+      "sha256": "8e34a33b1bc9a7c7c580d7885898df59c88213e8c120b881b5d16fe198fd6189"
+    },
+    {
+      "path": "templates/dhe-resource-release-plan-config.json",
+      "size": 742,
+      "sha256": "ea149af2b57b20cec87c9e82d286e9cbca231407c772e9f80d2644a05e3831b7"
+    },
+    {
+      "path": "templates/dhe-resource-release-qualification-config.json",
+      "size": 1559,
+      "sha256": "bfbce1ed1830fbfb601ed408e2d64726eb23238de03fce7c88a798b6226a88f1"
+    },
+    {
+      "path": "templates/dhe-workflow-config.json",
+      "size": 978,
+      "sha256": "29231633d287026ad4309864013ac8fbe306dd8dcc9b2b4a4697e36f4636a974"
+    }
+  ]
+}

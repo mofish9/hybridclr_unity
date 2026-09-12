@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-source-preflight.schema.json",
+  "title": "HybridCLR DHE Source Preflight Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "runtimeRequired", "runtimeReady", "cleanRuntimeSourcesRequired", "hotUpdateAssemblies", "dheAotAssemblies", "dheAotConfigured", "externalHotUpdateAssemblyDirs", "externalHeadersRequired", "externalHeadersSurrogate", "settingsFile", "errors", "warnings", "checks"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-source-preflight.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "passed": { "type": "boolean" },
+    "runtimeRequired": { "type": "boolean" },
+    "runtimeReady": { "type": "boolean" },
+    "cleanRuntimeSourcesRequired": { "type": "boolean" },
+    "packageLockPath": { "type": ["string", "null"] },
+    "identityTemplatePath": { "type": ["string", "null"] },
+    "identityTemplateRequired": { "type": "boolean" },
+    "embeddedPackageRequired": { "type": "boolean" },
+    "embeddedPackagePresent": { "type": "boolean" },
+    "externalHeadersRequired": { "type": "boolean" },
+    "externalHeadersSurrogate": { "type": ["boolean", "null"] },
+    "labRoot": { "type": ["string", "null"] },
+    "projectPath": { "type": ["string", "null"] },
+    "runtimeSource": { "type": ["string", "null"] },
+    "hotUpdateAssemblies": { "type": "array", "items": { "type": "string" } },
+    "dheAotAssemblies": { "type": "array", "items": { "type": "string" } },
+    "dheAotConfigured": { "type": "boolean" },
+    "externalHotUpdateAssemblyDirs": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "passed", "details"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "passed": { "type": "boolean" },
+          "details": { "type": "string" }
+        }
+      }
+    }
+  }
+}

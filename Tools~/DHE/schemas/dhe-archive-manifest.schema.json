@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-archive-manifest.schema.json",
+  "title": "HybridCLR DHE Artifact Archive Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "format",
+    "workflowReport",
+    "artifactValidation",
+    "buildIdentity",
+    "nativeManifest",
+    "immutableNativeManifest",
+    "immutableNativeManifestSha256",
+    "runtimeManifest",
+    "runtimePlan",
+    "projectPlan",
+    "projectPlanValidation",
+    "generatedCppRoot",
+    "generatedCppPaths",
+    "assemblies",
+    "files",
+    "fileCount",
+    "fileSetSha256",
+    "pathSemantics",
+    "sourceIdentities",
+    "offlineReleaseRevalidated"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-archive-manifest.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "sourceWorkflowRoot": { "type": ["string", "null"] },
+    "pathSemantics": { "const": "archive-relative-v1" },
+    "sourceIdentities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectGit", "toolGit"],
+      "properties": {
+        "projectGit": { "anyOf": [{ "$ref": "#/$defs/sourceIdentity" }, { "type": "null" }] },
+        "toolGit": { "anyOf": [{ "$ref": "#/$defs/sourceIdentity" }, { "type": "null" }] }
+      }
+    },
+    "workflowReport": { "type": "string", "minLength": 1 },
+    "artifactValidation": { "type": "string", "minLength": 1 },
+    "buildIdentity": { "type": "string", "minLength": 1 },
+    "nativeManifest": { "type": "string", "minLength": 1 },
+    "immutableNativeManifest": { "type": "string", "minLength": 1 },
+    "immutableNativeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimeManifest": { "type": "string", "minLength": 1 },
+    "runtimePlan": { "type": "string", "minLength": 1 },
+    "projectPlan": { "type": "string", "minLength": 1 },
+    "projectPlanValidation": { "type": "string", "minLength": 1 },
+    "generatedCppRoot": { "type": "string", "minLength": 1 },
+    "generatedCppPaths": {
+      "type": "array",
+      "minItems": 0,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "assemblies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "status", "baseline", "current", "baseMetaVersionJson", "baseMetaVersionBytes", "currentMetaVersionJson", "currentMetaVersionBytes", "changedMethodCount"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["compatible", "incompatible", "missing", "error"] },
+          "baseline": { "type": "string", "minLength": 1 },
+          "current": { "type": "string", "minLength": 1 },
+          "baseMetaVersionJson": { "type": ["string", "null"] },
+          "baseMetaVersionBytes": { "type": ["string", "null"] },
+          "currentMetaVersionJson": { "type": ["string", "null"] },
+          "currentMetaVersionBytes": { "type": ["string", "null"] },
+          "changedMethodCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "size", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "size": { "type": "integer", "minimum": 0 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "fileCount": { "type": "integer", "minimum": 1 },
+    "fileSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "offlineReleaseRevalidated": { "type": "boolean" }
+  },
+  "$defs": {
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head", "tree", "sourceBoundarySha256"],
+      "properties": {
+        "vcs": { "enum": ["git", "svn"] },
+        "head": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{40,64}$" },
+        "tree": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{40,64}$" },
+        "revision": { "type": ["string", "null"], "pattern": "^(?:[0-9]+)?$" },
+        "revisionSpec": { "type": ["string", "null"] },
+        "repository": { "type": ["string", "null"] },
+        "sourceBoundarySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-release-ledger.schema.json",
+  "title": "HybridCLR DHE Resource Release Ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "format", "pathSemantics", "generatedAtUtc", "mode",
+    "releaseReady", "channelId", "revision", "parentLedgerSha256",
+    "baseRegistryId", "baseRegistryRevision", "baseRegistrySha256",
+    "activeBaseCount", "retiredBaseCount", "currentAssemblySetSha256",
+    "payloadVariantSetSha256", "resourceUpdateManifest",
+    "resourceUpdateManifestSha256", "resourceUpdateValidation",
+    "resourceUpdateValidationSha256"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-release-ledger.json" },
+    "pathSemantics": { "const": "release-relative-v1" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "mode": { "const": "Release" },
+    "releaseReady": { "const": true },
+    "channelId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "parentLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "baseRegistryRevision": { "type": "integer", "minimum": 1 },
+    "baseRegistrySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "activeBaseCount": { "type": "integer", "minimum": 1 },
+    "retiredBaseCount": { "type": "integer", "minimum": 0 },
+    "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "resourceUpdateManifest": { "const": "dhe-resource-update.json" },
+    "resourceUpdateManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "resourceUpdateValidation": { "const": "dhe-resource-update-validation.json" },
+    "resourceUpdateValidationSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "revision": { "const": 1 } }, "required": ["revision"] },
+      "then": { "properties": { "parentLedgerSha256": { "type": "null" } } },
+      "else": { "properties": { "parentLedgerSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" } } }
+    }
+  ]
+}

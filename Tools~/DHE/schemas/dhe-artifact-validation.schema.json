@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-artifact-validation.schema.json",
+  "title": "HybridCLR DHE Artifact Validation Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-artifact-validation.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "passed": { "type": "boolean" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "metaVersionJson": { "type": ["string", "null"] },
+    "metaVersionBytes": { "type": ["string", "null"] },
+    "metaVersionJsons": { "type": "array", "items": { "type": ["string", "null"] } },
+    "metaVersionByteFiles": { "type": "array", "items": { "type": ["string", "null"] } },
+    "baselineAssemblies": { "type": "array", "items": { "type": ["string", "null"] } },
+    "currentAssemblies": { "type": "array", "items": { "type": ["string", "null"] } },
+    "baselineAssembly": { "type": ["string", "null"] },
+    "currentAssembly": { "type": ["string", "null"] },
+    "nativeManifest": { "type": ["string", "null"] },
+    "buildIdentity": { "type": ["string", "null"] },
+    "workflowReport": { "type": ["string", "null"] },
+    "runtimePlan": { "type": ["string", "null"] },
+    "batchReport": { "type": ["string", "null"] }
+  }
+}

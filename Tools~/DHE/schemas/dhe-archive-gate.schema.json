@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-archive-gate.schema.json",
+  "title": "HybridCLR DHE Artifact Archive Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "inputRoot", "archiveRoot", "archiveManifest", "archiveFileCount", "copiedValidationPassed", "requireCompleteCoverage", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-archive-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "inputRoot": { "type": "string", "minLength": 1 },
+    "archiveRoot": { "type": "string", "minLength": 1 },
+    "archiveManifest": { "type": "string", "minLength": 1 },
+    "archiveFileCount": { "type": "integer", "minimum": 0 },
+    "copiedValidationPassed": { "type": "boolean" },
+    "requireCompleteCoverage": { "type": "boolean" },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

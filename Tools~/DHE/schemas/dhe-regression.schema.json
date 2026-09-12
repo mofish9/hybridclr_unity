@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-regression.schema.json",
+  "title": "HybridCLR DHE CSharp Regression Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "sourceHead", "sourceTree", "sourceClean", "passed", "realWorkflowOutputsValidated", "workflowOutputs", "validatedResourceRelease", "realResolverOutputsValidated", "resolverOutputs", "checks", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-regression.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "sourceHead": { "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" },
+    "sourceTree": { "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" },
+    "sourceClean": { "type": "boolean" },
+    "passed": { "type": "boolean" },
+    "realWorkflowOutputsValidated": { "type": "boolean" },
+    "workflowOutputs": {
+      "type": "array",
+      "maxItems": 1025,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "sha256"],
+        "properties": {
+          "role": { "enum": ["player-changed", "demo-noop"] },
+          "engineWorkflow": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] },
+          "baseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "validatedResourceRelease": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["resourceUpdateManifestSha256", "releaseLedgerSha256", "parentReleaseLedgerSha256", "releaseChannelId", "releaseRevision", "baseRegistrySha256", "activeBaseCount", "currentAssemblySetSha256", "payloadVariantSetSha256"],
+      "properties": {
+        "resourceUpdateManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "releaseLedgerSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "parentReleaseLedgerSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "releaseChannelId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+        "releaseRevision": { "type": "integer", "minimum": 2 },
+        "baseRegistrySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "activeBaseCount": { "type": "integer", "minimum": 2 },
+        "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+      }
+    },
+    "realResolverOutputsValidated": { "type": "boolean" },
+    "resolverOutputs": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "sha256"],
+        "properties": {
+          "role": { "enum": ["resolver-unity2021", "resolver-unity2022", "resolver-tuanjie2022"] },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 27,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "passed", "details"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "passed": { "type": "boolean" },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "realWorkflowOutputsValidated": { "const": true } }, "required": ["realWorkflowOutputsValidated"] },
+      "then": { "properties": { "workflowOutputs": { "minItems": 4, "maxItems": 1025 }, "validatedResourceRelease": { "type": "object" } } },
+      "else": { "properties": { "workflowOutputs": { "maxItems": 0 }, "validatedResourceRelease": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "realResolverOutputsValidated": { "const": true } }, "required": ["realResolverOutputsValidated"] },
+      "then": { "properties": { "resolverOutputs": { "minItems": 3, "maxItems": 3 } } },
+      "else": { "properties": { "resolverOutputs": { "maxItems": 0 } } }
+    }
+  ]
+}

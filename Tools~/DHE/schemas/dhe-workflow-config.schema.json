@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-workflow-config.schema.json",
+  "title": "HybridCLR DHE project workflow configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "format",
+    "projectPath",
+    "settingsFile",
+    "outputRoot",
+    "baselineAotRoot",
+    "target",
+    "adapterMethod"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-workflow-config.json" },
+    "projectPath": { "type": "string", "minLength": 1 },
+    "settingsFile": { "type": "string", "minLength": 1 },
+    "outputRoot": { "type": "string", "minLength": 1 },
+    "baselineAotRoot": { "type": "string", "minLength": 1 },
+    "baselineManifestPath": { "type": "string", "minLength": 1 },
+    "runtimeManifestPath": { "type": "string", "minLength": 1 },
+    "packageLockPath": { "type": "string", "minLength": 1 },
+    "sourceBoundaryPath": { "type": "string", "minLength": 1 },
+    "archiveRoot": { "type": "string", "minLength": 1 },
+    "toolchainRoot": { "type": "string", "minLength": 1 },
+    "expectedToolchainPackageId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "adapterMethod": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["Release", "Exploratory"] },
+    "runPlayer": { "type": "boolean" },
+    "stopAfterPreflight": { "type": "boolean" },
+    "bootstrap": { "type": "boolean" },
+    "unity": { "type": "string", "minLength": 1 },
+    "unityTimeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 3600 },
+    "dnlibPath": { "type": "string", "minLength": 1 },
+    "unityArguments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      }
+    }
+  }
+}

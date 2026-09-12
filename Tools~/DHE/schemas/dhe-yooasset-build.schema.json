@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-yooasset-build.schema.json",
+  "title": "HybridCLR DHE YooAsset Build Evidence",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "format",
+    "target",
+    "packageName",
+    "packageVersion",
+    "packageDirectory",
+    "buildReport",
+    "buildReportSha256",
+    "assetCount",
+    "bundleCount",
+    "requiredAssets",
+    "passed"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-yooasset-build.json" },
+    "target": { "type": "string", "minLength": 1 },
+    "packageName": { "type": "string", "minLength": 1 },
+    "packageVersion": { "type": "string", "minLength": 1 },
+    "packageDirectory": { "type": ["string", "null"] },
+    "buildReport": { "type": ["string", "null"] },
+    "buildReportSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "assetCount": { "type": "integer", "minimum": 0 },
+    "bundleCount": { "type": "integer", "minimum": 0 },
+    "requiredAssets": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["assetPath", "assetKind", "assemblyName", "present", "bundleName", "bundleFileName", "bundleFileHash", "bundleSha256", "bundleSize"],
+        "properties": {
+          "assetPath": { "type": "string", "minLength": 1 },
+          "assetKind": { "enum": ["control", "current", "mv", "snapshot", "aot-metadata"] },
+          "assemblyName": { "type": ["string", "null"] },
+          "present": { "const": true },
+          "bundleName": { "type": "string", "minLength": 1 },
+          "bundleFileName": { "type": "string", "minLength": 1 },
+          "bundleFileHash": { "type": "string", "minLength": 1 },
+          "bundleSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "bundleSize": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "passed": { "const": true }
+  }
+}

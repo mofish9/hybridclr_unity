@@ -1,0 +1,2 @@
+# Bundled tool hashes cover raw bytes, including JSON and templates.
+/Tools~/** -text

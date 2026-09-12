@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-release-qualification-config.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "pathSemantics", "resourceUpdateRoot", "outputRoot", "channelSnapshot", "expectedChannelSnapshotSha256", "expectedToolchainPackageId", "evidenceToolchainRoots", "requireEngineMatrix", "timeoutSeconds", "bases"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-release-qualification-config.json" },
+    "pathSemantics": { "const": "config-relative-v1" },
+    "resourceUpdateRoot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "outputRoot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "channelSnapshot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "expectedChannelSnapshotSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "expectedToolchainPackageId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "evidenceToolchainRoots": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+    },
+    "requireEngineMatrix": { "type": "boolean" },
+    "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+    "bases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["baseId", "runnerKind", "assetRoot", "buildIdentity", "baseWorkflowReport", "playerExecutable", "workingDirectory", "playerArguments", "immutableFiles", "playerWorkflowReport"],
+        "properties": {
+          "baseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "runnerKind": { "enum": ["process", "prequalified"] },
+          "assetRoot": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+          "buildIdentity": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+          "baseWorkflowReport": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+          "playerExecutable": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+          "workingDirectory": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 },
+          "playerArguments": {
+            "type": ["array", "null"],
+            "maxItems": 256,
+            "items": { "type": "string", "maxLength": 4096 }
+          },
+          "immutableFiles": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+          },
+          "playerWorkflowReport": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-stage.schema.json",
+  "title": "HybridCLR DHE Resource Stage",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "updateRoot", "assetRoot", "payloadModel", "currentAssemblySetSha256", "stagedPlanPath", "stagedPlanSha256", "stagedManifestPath", "stagedValidationPath", "embeddedBaseRoot", "selectedBaseId", "selectedAotMetadataSetId", "baseRegistrySha256", "baseRegistryId", "baseRegistryRevision", "baseRegistryLineageValidated", "baseBuildIdentityPath", "baseBuildIdentitySha256", "baseMetaVersionSetSha256", "baseMetaVersionTreeSha256Before", "baseMetaVersionTreeSha256After", "baseMetaVersionUnchanged", "stagedFiles", "immutableFiles"],
+  "allOf": [
+    {
+      "if": { "required": ["mode"] },
+      "then": { "required": ["mode", "releaseReady", "releaseChannelId", "releaseRevision", "parentReleaseLedgerSha256", "releaseLedgerSha256", "stagedReleaseLedgerPath", "baseRegistryEntryCount", "baseRegistryParentSha256", "baseRegistryRetiredBaseCount"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Release" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": true }, "releaseChannelId": { "type": "string" }, "releaseRevision": { "type": "integer", "minimum": 1 }, "releaseLedgerSha256": { "type": "string" }, "stagedReleaseLedgerPath": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Exploratory" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": false }, "releaseChannelId": { "type": "null" }, "releaseRevision": { "type": "null" }, "parentReleaseLedgerSha256": { "type": "null" }, "releaseLedgerSha256": { "type": "null" }, "stagedReleaseLedgerPath": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "embeddedBaseSourceKind": { "const": "android-apk" } }, "required": ["embeddedBaseSourceKind"] },
+      "then": {
+        "required": ["embeddedBaseArtifactPath", "embeddedBaseArtifactSha256", "embeddedBaseEntryRoot"],
+        "properties": {
+          "embeddedBaseArtifactPath": { "type": "string", "minLength": 1 },
+          "embeddedBaseArtifactSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "embeddedBaseEntryRoot": { "type": "string", "pattern": "^assets/.+BaseMetaVersion$" }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-stage.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "mode": { "enum": ["Exploratory", "Release"] },
+    "releaseReady": { "type": "boolean" },
+    "releaseChannelId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "releaseRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "parentReleaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "releaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "stagedReleaseLedgerPath": { "type": ["string", "null"] },
+    "updateRoot": { "type": "string", "minLength": 1 },
+    "assetRoot": { "type": "string", "minLength": 1 },
+    "payloadModel": { "enum": ["single-current-payload", "variant-current-payload"] },
+    "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "stagedPlanPath": { "type": "string", "minLength": 1 },
+    "stagedPlanSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "stagedManifestPath": { "type": "string", "minLength": 1 },
+    "stagedValidationPath": { "type": "string", "minLength": 1 },
+    "embeddedBaseRoot": { "type": "string", "minLength": 1 },
+    "embeddedBaseSourceKind": { "enum": ["directory", "android-apk"] },
+    "embeddedBaseArtifactPath": { "type": ["string", "null"] },
+    "embeddedBaseArtifactSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "embeddedBaseEntryRoot": { "type": ["string", "null"] },
+    "selectedBaseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "selectedAotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistrySha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryEntryCount": { "type": ["integer", "null"], "minimum": 1 },
+    "baseRegistryId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "baseRegistryRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "baseRegistryParentSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryRetiredBaseCount": { "type": ["integer", "null"], "minimum": 0 },
+    "baseRegistryLineageValidated": { "type": "boolean" },
+    "baseBuildIdentityPath": { "type": "string", "minLength": 1 },
+    "baseBuildIdentitySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseMetaVersionSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseMetaVersionTreeSha256Before": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseMetaVersionTreeSha256After": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseMetaVersionUnchanged": { "const": true },
+    "stagedFiles": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^payload/" },
+          "assetPath": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "immutableFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256Before", "sha256After"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "sha256Before": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "sha256After": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    }
+  }
+}

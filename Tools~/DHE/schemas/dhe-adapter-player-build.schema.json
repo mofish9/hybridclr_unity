@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-adapter-player-build.schema.json",
+  "title": "HybridCLR DHE Adapter Player Build Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "scriptsOnly", "target", "playerPath"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-adapter-player-build.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "scriptsOnly": { "type": "boolean" },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "playerPath": { "type": "string", "minLength": 1 }
+  }
+}

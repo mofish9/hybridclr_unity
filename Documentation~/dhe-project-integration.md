@@ -5,6 +5,10 @@ BuildIdentity staging, native guard finalization, runtime-plan validation, and
 runtime dispatch. A Unity project supplies only resource, signing, Player
 output, and device-smoke callbacks.
 
+The required portable CLI ships in this package under `Tools~/DHE`; call it
+through `DheToolCommand` as described in [Bundled build tool](dhe-bundled-tool.md).
+Do not copy a separate `tools/hybridclr-dhe` source distribution into the project.
+
 ## Project-owned files
 
 - `ProjectSettings/HybridCLRSettings.asset`: explicit, equal

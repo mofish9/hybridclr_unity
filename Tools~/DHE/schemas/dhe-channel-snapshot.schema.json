@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-channel-snapshot.schema.json",
+  "title": "HybridCLR DHE Channel Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "format", "generatedAtUtc", "passed", "storageContract",
+    "stateRoot", "channelId", "initialized", "channelHead", "channelHeadSha256",
+    "currentRevision", "nextRevision", "initializationRequired",
+    "previousReleaseLedger", "previousReleaseLedgerSha256", "artifactRoot",
+    "artifactTreeSha256", "baseRegistryId", "baseRegistryRevision",
+    "baseRegistrySha256", "activeBaseCount", "retiredBaseCount",
+    "currentAssemblySetSha256", "payloadVariantSetSha256", "errors", "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-channel-snapshot.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "storageContract": { "const": "filesystem-cas-v1" },
+    "stateRoot": { "type": "string", "minLength": 1 },
+    "channelId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "initialized": { "type": "boolean" },
+    "channelHead": { "type": ["string", "null"] },
+    "channelHeadSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "currentRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "nextRevision": { "type": "integer", "minimum": 1 },
+    "initializationRequired": { "type": "boolean" },
+    "previousReleaseLedger": { "type": ["string", "null"] },
+    "previousReleaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "artifactRoot": { "type": ["string", "null"] },
+    "artifactTreeSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "baseRegistryId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "baseRegistryRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "baseRegistrySha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "activeBaseCount": { "type": ["integer", "null"], "minimum": 1, "maximum": 1024 },
+    "retiredBaseCount": { "type": ["integer", "null"], "minimum": 0, "maximum": 1024 },
+    "currentAssemblySetSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantSetSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "errors": { "type": "array", "maxItems": 0 },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "initialized": { "const": false } }, "required": ["initialized"] },
+      "then": {
+        "properties": {
+          "channelHead": { "type": "null" },
+          "channelHeadSha256": { "type": "null" },
+          "currentRevision": { "type": "null" },
+          "nextRevision": { "const": 1 },
+          "initializationRequired": { "const": true },
+          "previousReleaseLedger": { "type": "null" },
+          "previousReleaseLedgerSha256": { "type": "null" },
+          "artifactRoot": { "type": "null" },
+          "artifactTreeSha256": { "type": "null" },
+          "baseRegistryId": { "type": "null" },
+          "baseRegistryRevision": { "type": "null" },
+          "baseRegistrySha256": { "type": "null" },
+          "activeBaseCount": { "type": "null" },
+          "retiredBaseCount": { "type": "null" },
+          "currentAssemblySetSha256": { "type": "null" },
+          "payloadVariantSetSha256": { "type": "null" }
+        }
+      },
+      "else": {
+        "properties": {
+          "channelHead": { "type": "string", "minLength": 1 },
+          "channelHeadSha256": { "type": "string" },
+          "currentRevision": { "type": "integer" },
+          "initializationRequired": { "const": false },
+          "previousReleaseLedger": { "type": "string", "minLength": 1 },
+          "previousReleaseLedgerSha256": { "type": "string" },
+          "artifactRoot": { "type": "string", "minLength": 1 },
+          "artifactTreeSha256": { "type": "string" },
+          "baseRegistryId": { "type": "string" },
+          "baseRegistryRevision": { "type": "integer" },
+          "baseRegistrySha256": { "type": "string" },
+          "activeBaseCount": { "type": "integer" },
+          "retiredBaseCount": { "type": "integer" },
+          "currentAssemblySetSha256": { "type": "string" },
+          "payloadVariantSetSha256": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

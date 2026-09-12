@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-runtime-plan.schema.json",
+  "title": "HybridCLR DHE Runtime Asset Plan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "selection", "currentAssemblySetSha256", "runtimeAssetRoot", "baseMetaVersionAssetRoot", "aotMetadataSetId", "aotMetadata", "assemblies"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-runtime-asset-plan.json" },
+    "selection": { "enum": ["embedded-base-metaversion", "embedded-base-metaversion-and-aot-metadata-set"] },
+    "mode": { "enum": ["Exploratory", "Release"] },
+    "releaseReady": { "type": "boolean" },
+    "releaseChannelId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "releaseRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "parentReleaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimeAssetRoot": { "type": "string", "minLength": 1 },
+    "baseMetaVersionAssetRoot": { "type": "string", "minLength": 1 },
+    "aotMetadataSetId": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+    "aotMetadataManifestSha256": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+    "aotMetadata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "sourceKind", "sha256", "manifestSha256", "path"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "sourceKind": { "enum": ["current-stripped", "fallback-root", "resource-update"] },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "manifestSha256": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+          "path": { "type": "string", "minLength": 1 }
+        }
+      },
+      "minItems": 0
+    },
+    "aotMetadataSets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["aotMetadataSetId", "assemblies"],
+        "properties": {
+          "aotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "assemblies": { "$ref": "#/$defs/aotMetadataRecords" }
+        }
+      }
+    },
+    "baseSelections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["baseId", "aotMetadataSetId"],
+          "properties": {
+            "baseId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+            "aotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+            "payloadVariantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+            "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+            "frozenAotSources": { "type": "array", "items": { "$ref": "#/$defs/frozenAotSource" } },
+            "assemblyModes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["assemblyName", "executionMode"],
+                "properties": {
+                  "assemblyName": { "type": "string", "minLength": 1 },
+                  "executionMode": { "enum": ["dhe-differential", "interpreter-only"] },
+                  "executionPlans": { "type": "array", "maxItems": 1, "items": { "allOf": [{ "$ref": "#/$defs/executionPlan" }, { "type": "object" }] } }
+                }
+              }
+            }
+        }
+      }
+    },
+    "payloadVariants": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["variantId", "currentAssemblySetSha256", "assemblies"],
+        "properties": {
+          "variantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "assemblies": { "type": "array", "minItems": 1 }
+        }
+      }
+    },
+    "assemblies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+          "properties": {
+            "assemblyName": { "type": "string", "minLength": 1 },
+          "executionMode": { "enum": ["dhe-differential", "interpreter-only"] },
+            "current": { "type": "string", "minLength": 1 },
+          "currentSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "currentMetaVersion": { "type": "string" },
+          "baseMetaVersion": { "type": ["string", "null"] },
+          "currentMetaVersionSha256": { "type": "string" }
+        },
+        "required": ["assemblyName", "current", "currentMetaVersion", "baseMetaVersion", "currentSha256", "currentMetaVersionSha256"]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["mode"] },
+      "then": { "required": ["mode", "releaseReady", "releaseChannelId", "releaseRevision", "parentReleaseLedgerSha256"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Release" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": true }, "releaseChannelId": { "type": "string" }, "releaseRevision": { "type": "integer", "minimum": 1 } } }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "Exploratory" } }, "required": ["mode"] },
+      "then": { "properties": { "releaseReady": { "const": false }, "releaseChannelId": { "type": "null" }, "releaseRevision": { "type": "null" }, "parentReleaseLedgerSha256": { "type": "null" } } }
+    },
+    {
+      "if": {
+        "properties": { "selection": { "const": "embedded-base-metaversion" } },
+        "required": ["selection"]
+      },
+      "then": {
+        "properties": {
+          "aotMetadataSetId": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "aotMetadataSets": { "maxItems": 0 },
+          "baseSelections": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection": { "const": "embedded-base-metaversion-and-aot-metadata-set" }
+        },
+        "required": ["selection"]
+      },
+      "then": {
+        "required": ["aotMetadataSets", "baseSelections"],
+        "properties": {
+          "aotMetadataSetId": { "const": "" },
+          "aotMetadata": { "maxItems": 0 },
+          "aotMetadataSets": { "minItems": 1 },
+          "baseSelections": { "minItems": 1 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "frozenAotSource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assemblyName", "source", "sourceSha256", "baseMetaVersion", "baseMetaVersionSha256", "currentStorageTypeTokens", "currentExecutionMethodTokens", "excludedBaseTypeTokens", "genericContextMethodTokens", "sourceKind"],
+      "properties": {
+        "assemblyName": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "baseMetaVersion": { "type": "string", "minLength": 1 },
+        "baseMetaVersionSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "currentStorageTypeTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 33554434, "maximum": 50331647 } },
+        "currentExecutionMethodTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 } },
+        "excludedBaseTypeTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 33554434, "maximum": 50331647 } },
+        "genericContextMethodTokens": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 } },
+        "sourceKind": { "const": "frozen-base-aot" }
+      }
+    },
+    "executionPlan": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "schemaVersion",
+        "assemblyName",
+        "baseMetaVersionSha256",
+        "currentMetaVersionSha256",
+        "currentStorageTypeTokens",
+        "currentExecutionMethodTokens",
+        "currentStorageTypeTokenCount",
+        "currentExecutionMethodTokenCount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "assemblyName": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n|/\\\\]+$"
+        },
+        "baseMetaVersionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "currentMetaVersionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "currentStorageTypeTokenCount": { "type": "integer", "minimum": 0 },
+        "currentExecutionMethodTokenCount": { "type": "integer", "minimum": 0 },
+        "currentGenericContextMethodTokenCount": { "type": "integer", "minimum": 0 },
+        "currentGenericContextMethodTokens": {
+          "type": ["array", "null"],
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 100663297, "maximum": 117440511 }
+        },
+        "currentStorageTypeTokens": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 33554434,
+            "maximum": 50331647
+          }
+        },
+        "currentExecutionMethodTokens": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 100663297,
+            "maximum": 117440511
+          }
+        }
+      }
+    },
+    "aotMetadataRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "sourceKind", "sha256", "manifestSha256", "path"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "sourceKind": { "enum": ["current-stripped", "fallback-root", "resource-update"] },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "manifestSha256": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+          "path": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

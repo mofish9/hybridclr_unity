@@ -1,0 +1,22 @@
+{
+  "sourceRepository": "https://github.com/mofish9/hybridclr-lab.git",
+  "sourceCommit": "ad93b9dbc5103b3c3141c1d2dd897c63218c9ea2",
+  "sourceTree": "291c5a11227b17f54117d77fc8cb2bfb91bccfda",
+  "project": "tool/HybridCLR.DheTool.csproj",
+  "projectSha256": "aa4b8e0890722c26ebf563baa0c0222dba1209491d34545d79d1bd2f14e97f8c",
+  "dnlibSha256": "bb83dedc11d6ec41a4ae8f289cc1a35231be7e53e09fd7359c5c10dfbb9bfe5c",
+  "arguments": [
+    "publish",
+    "tool/HybridCLR.DheTool.csproj",
+    "-c",
+    "Release",
+    "-o",
+    "-p:DefineConstants=DHE_PACKAGE_TOOL",
+    "-p:UseAppHost=false",
+    "-p:DebugType=None",
+    "-p:CheckEolTargetFramework=false",
+    "--nologo"
+  ],
+  "targetFramework": "net6.0",
+  "profile": "DHE_PACKAGE_TOOL"
+}
