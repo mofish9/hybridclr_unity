@@ -75,11 +75,6 @@ namespace HybridCLR.Editor.Installer
         class VersionDesc
         {
             public string branch;
-            public string commit;
-            
-            // A custom runtime tag must be resolved in the repository that
-            // publishes it, even in projects retaining the upstream defaults.
-            public string repository;
 
             //public string hash;
         }
@@ -247,17 +242,11 @@ namespace HybridCLR.Editor.Installer
 #endif
         }
 
-        void CloneBranch(string workDir, string repoUrl, VersionDesc version, string repoDir)
+        void CloneBranch(string workDir, string repoUrl, string branch, string repoDir)
         {
             BashUtil.RemoveDir(repoDir);
-            int cloneCode = BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", version.branch, "--depth", "1", repoUrl, repoDir});
-            if (cloneCode != 0) throw new Exception($"clone repository fail. url: {repoUrl}, branch: {version.branch}");
-            if (!string.IsNullOrWhiteSpace(version.commit))
-            {
-                var result = BashUtil.RunCommand2(repoDir, "git", new string[] {"rev-parse", "HEAD"}, false);
-                if (result.ExitCode != 0 || !string.Equals(result.StdOut.Trim(), version.commit, StringComparison.OrdinalIgnoreCase))
-                    throw new Exception($"repository commit mismatch. expected: {version.commit}, actual: {result.StdOut.Trim()}");
-            }
+            int cloneCode = BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", branch, "--depth", "1", repoUrl, repoDir});
+            if (cloneCode != 0) throw new Exception($"clone repository fail. url: {repoUrl}, branch: {branch}");
         }
 
         private string PrepareLibil2cppWithHybridclrFromGitRepo()
@@ -267,10 +256,9 @@ namespace HybridCLR.Editor.Installer
             //BashUtil.RecreateDir(workDir);
 
             // clone hybridclr
-            string hybridclrRepoURL = string.IsNullOrWhiteSpace(_curDefaultVersion.hybridclr.repository)
-                ? HybridCLRSettings.Instance.hybridclrRepoURL : _curDefaultVersion.hybridclr.repository;
+            string hybridclrRepoURL = HybridCLRSettings.Instance.hybridclrRepoURL;
             string hybridclrRepoDir = $"{workDir}/{hybridclr_repo_path}";
-            CloneBranch(workDir, hybridclrRepoURL, _curDefaultVersion.hybridclr, hybridclrRepoDir);
+            CloneBranch(workDir, hybridclrRepoURL, _curDefaultVersion.hybridclr.branch, hybridclrRepoDir);
 
             if (!Directory.Exists(hybridclrRepoDir))
             {
@@ -278,10 +266,9 @@ namespace HybridCLR.Editor.Installer
             }
 
             // clone il2cpp_plus
-            string il2cppPlusRepoURL = string.IsNullOrWhiteSpace(_curDefaultVersion.il2cpp_plus.repository)
-                ? HybridCLRSettings.Instance.il2cppPlusRepoURL : _curDefaultVersion.il2cpp_plus.repository;
+            string il2cppPlusRepoURL = HybridCLRSettings.Instance.il2cppPlusRepoURL;
             string il2cppPlusRepoDir = $"{workDir}/{il2cpp_plus_repo_path}";
-            CloneBranch(workDir, il2cppPlusRepoURL, _curDefaultVersion.il2cpp_plus, il2cppPlusRepoDir);
+            CloneBranch(workDir, il2cppPlusRepoURL, _curDefaultVersion.il2cpp_plus.branch, il2cppPlusRepoDir);
 
             if (!Directory.Exists(il2cppPlusRepoDir))
             {

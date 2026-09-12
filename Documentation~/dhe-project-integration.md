@@ -23,6 +23,21 @@ Do not copy a separate `tools/hybridclr-dhe` source distribution into the projec
 The package directory may retain a Unity version suffix such as
 `com.code-philosophy.hybridclr@8.13.0`; do not rename it.
 
+## Runtime repository configuration
+
+`Data~/hybridclr_version.json` selects the runtime branch/tag only, following
+the existing optimized Unity 2021 convention. Installer repository addresses
+come exclusively from this project's `HybridCLRSettings`:
+
+- `hybridclrRepoURL`: the project's HybridCLR fork or mirror.
+- `il2cppPlusRepoURL`: the project's IL2CPP fork or mirror.
+
+The configured repositories must contain the selected opt5 tags. Configure the
+project to use the appropriate forks before installing; Installer does not
+override project settings or silently fall back to another repository. Clone
+failures stop installation. Exact commits and source hashes remain in release
+locks/build provenance and are checked by the DHE build identity workflow.
+
 ## Base Player adapter
 
 Create a `DheProjectWorkflowAdapter` and delegate the generic entry points:
