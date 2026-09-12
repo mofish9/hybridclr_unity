@@ -392,6 +392,9 @@ namespace HybridCLR.Editor.Commands
                 nativeManifestSha256 = guard.NativeManifestSha256,
                 baseMetaVersionSetSha256 = baseMetaVersionSetHash,
                 aotMetadataSetId = runtimePlan.aotMetadataSetId,
+                aotMetadataAssemblyNames = (runtimePlan.aotMetadata ?? Array.Empty<BuildIdentityAotMetadata>())
+                    .Select(row => row.assemblyName).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(name => name, StringComparer.Ordinal).ToArray(),
                 runtimeProtocol = guard.RuntimeProtocol,
                 runtimeContract = guard.RuntimeContract,
                 runtimeCapabilities = runtimeCapabilities,
@@ -1160,6 +1163,7 @@ namespace HybridCLR.Editor.Commands
             public string baseMetaVersionSetSha256;
             public string aotMetadataSetId;
             public string runtimeProtocol;
+            public string[] aotMetadataAssemblyNames;
             public string runtimeContract;
             public string[] runtimeCapabilities;
             public string runtimeAssetRoot;

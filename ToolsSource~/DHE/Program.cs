@@ -1039,10 +1039,6 @@ internal static partial class Program
         }
         if (aotMetadataRoots.Length != 0 && aotMetadataRoots.Length != baselineRoots.Length)
             throw new DheException("AotMetadataRoots must contain one entry per BaseRoot.");
-        if (baseRegistry == null && aotMetadataRoots.Length == 0 && settings.Patch.Length != 0)
-            throw new DheException(
-                "AotMetadataRoots is required when patchAOTAssemblies is non-empty; " +
-                "pass one metadata root per BaseRoot.");
 
         string? baseRegistryAuditPath = null;
         string? baseRegistryAuditSha256 = null;
@@ -1086,11 +1082,15 @@ internal static partial class Program
             var setBytes = new List<(string name, byte[] bytes)>();
             var setAssemblies = new List<ResourceAotMetadataPayload>();
             string? metadataRoot = aotMetadataRoots.Length == 0 ? null : aotMetadataRoots[baseIndex];
-            if (metadataRoot != null)
+            JsonElement metadataIdentity = ReadJson<JsonElement>(buildIdentityPaths[baseIndex]);
+            string[] metadataNames = ReadBaseAotMetadataNames(metadataIdentity, settings.Patch);
+            if (metadataNames.Length != 0 && metadataRoot == null)
+                throw new DheException("AotMetadataRoots is required by Base " + GetString(metadataIdentity, "baseId") + ".");
+            if (metadataNames.Length != 0)
             {
-                foreach (var metadataName in settings.Patch.OrderBy(value => value, StringComparer.Ordinal))
+                foreach (var metadataName in metadataNames)
                 {
-                    var source = RequireFile(Path.Combine(metadataRoot, metadataName + ".dll"),
+                    var source = RequireFile(Path.Combine(metadataRoot!, metadataName + ".dll"),
                         metadataName + " AOT metadata");
                     byte[] bytes = File.ReadAllBytes(source);
                     string hash = Sha256Bytes(bytes);
