@@ -63,7 +63,10 @@ internal static class ResourceExecutionPlanner
         foreach (var field in impact.StaticValueFields)
         {
             if (field.OrdinaryAot) errors.Add("current-storage-ordinary-aot-static-field:" + field.Identity);
-            if (field.ThreadStatic) errors.Add("current-storage-thread-static-value-field:" + field.Identity);
+            // Hotfix TLS fields use the selected physical Current field and its
+            // interpreter-owned per-thread allocation, just like ordinary
+            // Current static values. Frozen native TLS remains an obligation.
+            if (field.ThreadStatic && field.OrdinaryAot) errors.Add("current-storage-thread-static-value-field:" + field.Identity);
             if (field.HasRva) errors.Add("current-storage-rva-static-value-field:" + field.Identity);
         }
         // A Base-native method which embeds or copies the changed value layout
