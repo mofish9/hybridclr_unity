@@ -67,6 +67,11 @@ internal static class FrozenAotAdaptation
             void Obligation(string kind, uint token, string identity) => obligations.Add(new(kind, source.AssemblyName, token, identity));
             void Select(MethodDef method, string reason)
             {
+                // Frozen IL is immutable. A parameterless instance void method
+                // containing only nop/ret, on a value owner without a cctor,
+                // neither observes storage nor transports a value across ABI.
+                // Its native entry remains valid even when its receiver grows.
+                if (IsStorageIndependentEmptyValueMethod(method)) return;
                 if (Excluded(method.DeclaringType.MDToken.Raw))
                 {
                     Obligation("excluded-base-identity", method.MDToken.Raw, MetaVersionSnapshot.MethodIdentity(method));
@@ -173,6 +178,15 @@ internal static class FrozenAotAdaptation
             }
         } while (changed);
     }
+
+    internal static bool IsStorageIndependentEmptyValueMethod(MethodDef method) =>
+        method.DeclaringType.IsValueType && !method.IsStatic && !method.IsConstructor &&
+        method.DeclaringType.FindStaticConstructor() == null && method.HasBody && method.IsIL &&
+        !method.IsUnmanaged && !method.IsPinvokeImpl && !method.IsInternalCall &&
+        method.MethodSig.Params.Count == 0 && method.ReturnType.ElementType == ElementType.Void &&
+        method.Body.ExceptionHandlers.Count == 0 && method.Body.Variables.Count == 0 &&
+        method.Body.Instructions.Count > 0 && method.Body.Instructions[^1].OpCode.Code == dnlib.DotNet.Emit.Code.Ret &&
+        method.Body.Instructions.Take(method.Body.Instructions.Count - 1).All(instruction => instruction.OpCode.Code == dnlib.DotNet.Emit.Code.Nop);
 
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 }
