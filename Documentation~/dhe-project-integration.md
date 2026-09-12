@@ -25,6 +25,13 @@ The package directory may retain a Unity version suffix such as
 
 ## Runtime repository configuration
 
+Approved Unity 2022 upstream baselines are package/HybridCLR 8.13.0 and
+IL2CPP `v2022-8.11.0`. An opt release does not authorize an upstream upgrade.
+Use `v8.13.0-opt5` and `v2022-8.11.0-opt5`; the earlier
+`v2022-8.14.0-opt5` included an unapproved upstream merge and is superseded.
+Repository URLs remain project settings. Baseline changes require an explicit
+decision and new source-bound validation, not merely a renamed tag.
+
 `Data~/hybridclr_version.json` selects the runtime branch/tag only, following
 the existing optimized Unity 2021 convention. Installer repository addresses
 come exclusively from this project's `HybridCLRSettings`:

@@ -1,7 +1,7 @@
 {
   "sourceRepository": "https://github.com/mofish9/hybridclr-lab.git",
-  "sourceCommit": "4d29155e6e3467a68a27d642fc71ec65509547b0",
-  "sourceTree": "b95918682df8588ac0457141f6d5a109bebe2e6d",
+  "sourceCommit": "74edbcfc6f2a968fce23c5f194cc3906a1905b75",
+  "sourceTree": "0d456c80413da36842a7ec330d67a72dd35cab11",
   "project": "tool/HybridCLR.DheTool.csproj",
   "projectSha256": "aa4b8e0890722c26ebf563baa0c0222dba1209491d34545d79d1bd2f14e97f8c",
   "dnlibSha256": "bb83dedc11d6ec41a4ae8f289cc1a35231be7e53e09fd7359c5c10dfbb9bfe5c",
