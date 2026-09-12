@@ -105,21 +105,23 @@ The opt5 tool is distributed as `Exploratory` for packaging trials. Its Release
 checks remain enabled and require separate qualification; an opt5 runtime tag
 alone does not qualify a project's Player, resources, or target device.
 
-The current package-delivery candidate has not passed its structural Player
-gate. Two Windows Bases accept the generated plan but fail while disposing a
-`List<T>.Enumerator` after the hotfix value layout changes, with "the old AOT ABI
-cannot be used". Generic caller closure fixes an earlier constructor boundary
-but does not resolve this remaining invocation boundary. Do not promote this
-candidate or infer structural readiness from method-only or managed-host tests.
+Structural updates are admitted per immutable Base. Existing hotfix thread-static
+value fields whose value layout evolves use physical Current fields and per-thread
+storage. The field and declaring type keep their identities. Changing a field
+between shared-static and thread-static storage remains rejected, as do native
+TLS/RVA obligations. This concerns resource loading at startup, not migration of
+live thread state after business code has executed.
 
-Structural updates are admitted per immutable Base. Full guards do not imply
-unrestricted storage migration: changing the layout of a value stored in an
-existing `[ThreadStatic]` field is rejected with
-`current-storage-thread-static-value-field`. A newly introduced owner is a
-different declaration and can be tested separately; it does not migrate the old
-thread slot. Never suppress this diagnostic or relabel a rejected package as
-compatible. Keep all supported Base archives and require the same Current to
-pass admission for each of them before distribution.
+Frozen ordinary AOT methods always use original archived IL. Layout-dependent
+generic callers are included in the adaptation closure. A narrow bytecode proof
+keeps empty parameterless instance void methods on their native entries when they
+cannot observe storage or cause implicit initialization/synchronization. Constructors,
+parameters, return values, other instructions, local variables, EH, varargs and
+declarative security are excluded from this proof. No ABI guard is disabled.
+
+Keep all supported Base archives and require the same Current to pass admission
+and real Player correctness on each Base before distribution. A planner or managed
+host success alone is not a structural runtime qualification.
 
 The current execution target is Unity 2022 on Windows. Android, macOS/iOS and
 Tuanjie require their own compilation, Player, memory and device checks. The
