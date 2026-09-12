@@ -70,6 +70,8 @@ internal static partial class Program
                 RedirectStandardOutput = true, RedirectStandardError = true
             };
             string[] buildArgs = { "publish", projectFile, "-c", "Release", "-o", temporary,
+                "-p:BaseOutputPath=" + Path.Combine(temporary, "build") + Path.DirectorySeparatorChar,
+                "-p:BaseIntermediateOutputPath=" + Path.Combine(temporary, "obj") + Path.DirectorySeparatorChar,
                 "-p:DefineConstants=DHE_PACKAGE_TOOL", "-p:UseAppHost=false", "-p:DebugType=None",
                 "-p:CheckEolTargetFramework=false", "--nologo" };
             foreach (string argument in buildArgs) start.ArgumentList.Add(argument);
@@ -105,7 +107,9 @@ internal static partial class Program
                 sourceRepository = "https://github.com/mofish9/hybridclr_unity.git", sourceCommit = head, sourceTree = tree,
                 project = "ToolsSource~/DHE/HybridCLR.DheTool.csproj", projectSha256 = Sha256File(projectFile),
                 dnlibSha256 = Sha256File(Path.Combine(temporary, "dnlib.dll")),
-                arguments = buildArgs.Where(a => a != temporary).Select(a => a == projectFile ? "ToolsSource~/DHE/HybridCLR.DheTool.csproj" : a).ToArray(),
+                arguments = buildArgs.Where(a => a != temporary).Select(a => a == projectFile ? "ToolsSource~/DHE/HybridCLR.DheTool.csproj" :
+                    a.StartsWith("-p:BaseOutputPath=", StringComparison.Ordinal) ? "-p:BaseOutputPath=<temporary>/build/" :
+                    a.StartsWith("-p:BaseIntermediateOutputPath=", StringComparison.Ordinal) ? "-p:BaseIntermediateOutputPath=<temporary>/obj/" : a).ToArray(),
                 targetFramework = "net6.0", profile = "DHE_PACKAGE_TOOL",
                 publicationMode = publication.Mode, releaseEvidenceSha256 = publication.EvidenceSha256
             });

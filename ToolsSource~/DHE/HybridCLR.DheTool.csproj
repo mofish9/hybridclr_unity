@@ -7,6 +7,7 @@
     <LangVersion>10.0</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
     <AssemblyName>HybridCLR.DheTool</AssemblyName>
     <RootNamespace>HybridCLR.DheTool</RootNamespace>
   </PropertyGroup>
