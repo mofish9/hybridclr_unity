@@ -1,2 +1,2 @@
 # Bundled tool hashes cover raw bytes, including JSON and templates.
-/Tools~/** -text
+/Tools~/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

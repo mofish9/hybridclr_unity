@@ -55,10 +55,29 @@ serve different purposes. Package/repository locks and device evidence for a
 particular qualified build remain build inputs, not baked-in references to an
 older package commit. Pass the matching `ValidationSourceRoot` when running
 Release qualification. Missing evidence continues to fail the existing gates.
-The current distribution is Exploratory, not mobile production-qualified;
-`verify-package -RequireRelease` must fail until that qualification is available.
+The current distribution is Exploratory, not mobile production-qualified.
+Maintainers can now publish a Release binary distribution with:
+
+```text
+dotnet <Lab-host>/HybridCLR.DheTool.dll publish-unity-tool -LabRoot <clean committed Lab> -OutputRoot <new external directory> -Mode Release -ReleaseEvidence <evidence.json>
+```
+
+This uses the same source HEAD/tree and complete evidence validation as Lab
+source publication, rechecks the evidence after compilation, and records its
+SHA-256 in build provenance. Missing, failed, incomplete or foreign-source
+evidence cannot produce a Release bundle. `ValidationSourceRoot` alone does
+not certify an Exploratory bundle. Until real evidence passes and that Release
+bundle is distributed, `verify-package -RequireRelease` must continue to fail.
 
 Maintainers rebuild with the Lab C# `publish-unity-tool -LabRoot <clean source>
 -OutputRoot <new external directory>` command, copy that verified output into
 `Tools~/DHE`, and commit it with the Editor/package change. No runtime tag change
 is needed for tooling-only packaging. Never edit bundled files individually.
+
+Workflow arguments resolve in this order: explicit CLI argument, JSON config,
+package default. Defaults do not override a configured `toolchainRoot`.
+Output files and directories cannot overlap the executing bundle or its parent
+directories, including paths reached through existing symbolic links/junctions.
+These checks apply regardless of `-Root` overrides; keep build artifacts outside
+the package. This guards configuration mistakes, not concurrent hostile changes
+to the filesystem during a build.
