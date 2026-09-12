@@ -98,6 +98,7 @@
     "schemas/dhe-regression.schema.json",
     "schemas/dhe-release-gate.schema.json",
     "schemas/dhe-runtime-lock.schema.json",
+    "schemas/dhe-runtime-release.schema.json",
     "schemas/dhe-runtime-manifest.schema.json",
     "schemas/dhe-runtime-handoff-plan.schema.json",
     "schemas/dhe-runtime-plan.schema.json",

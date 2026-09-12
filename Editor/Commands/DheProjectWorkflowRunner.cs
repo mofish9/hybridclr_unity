@@ -19,7 +19,20 @@ namespace HybridCLR.Editor.Commands
         /// <summary>Complete Base lifecycle; projects supply build/resource callbacks.</summary>
         public static DheProjectBaseResult BuildBase(DheProjectWorkflowAdapter adapter, DheProjectWorkflowOptions options)
         {
+            RequireAdapter(adapter);
             var context = DheProjectWorkflowContext.Create(options);
+            try
+            {
+                return BuildBaseCore(adapter, context);
+            }
+            finally
+            {
+                DheProjectBuildSupport.RestoreBuildIdentityTemplate(CreateIdentityOptions(adapter, context));
+            }
+        }
+
+        private static DheProjectBaseResult BuildBaseCore(DheProjectWorkflowAdapter adapter, DheProjectWorkflowContext context)
+        {
             Prepare(adapter, context);
             DheToolCommand.RunWithTimeout("preflight", new[]
             {
@@ -29,6 +42,13 @@ namespace HybridCLR.Editor.Commands
                 "-OutputRoot", Path.GetDirectoryName(context.ProjectPlanPath),
                 "-RequireDheEqualsHotUpdate", "-RequireCompleteCoverage"
             }, 900000);
+            string generatedPlan = Path.Combine(Path.GetDirectoryName(context.ProjectPlanPath), "dhe-project-plan.json");
+            if (!string.Equals(generatedPlan, context.ProjectPlanPath, StringComparison.Ordinal))
+            {
+                if (!File.Exists(context.ProjectPlanPath)) File.Copy(generatedPlan, context.ProjectPlanPath);
+                else if (!File.ReadAllBytes(generatedPlan).SequenceEqual(File.ReadAllBytes(context.ProjectPlanPath)))
+                    throw new BuildFailedException("DHE requested project-plan path contains a different plan.");
+            }
             StageRuntimePlan(adapter, context);
             BuildScriptsOnly(adapter, context);
             BuildFinalPlayer(adapter, context);
@@ -173,10 +193,10 @@ namespace HybridCLR.Editor.Commands
             RequireAdapter(adapter);
             RequireContext(context, true);
             context.EnsureTarget();
-            DheProjectBuildSupport.ValidateStagedBuildIdentity(
-                CreateIdentityOptions(adapter, context));
             try
             {
+                DheProjectBuildSupport.ValidateStagedBuildIdentity(
+                    CreateIdentityOptions(adapter, context));
                 DheNativeFinalizeResult result = BuildPlayer(adapter, context, BuildOptions.None);
                 bool nativeMatches = DheProjectBuildSupport.FinalNativeIdentityMatches(context.OutputRoot, result,
                     out string identityError);

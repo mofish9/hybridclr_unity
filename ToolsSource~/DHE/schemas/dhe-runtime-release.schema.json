@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr_unity/schemas/dhe-runtime-release.schema.json",
+  "title": "Package-approved native runtime release",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "engineWorkflow", "packageUpstream", "runtimeContract", "nativeSourceCanonicalSha256", "nativeSourceFileCount", "repositories"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-runtime-release.json" },
+    "engineWorkflow": { "const": "Unity2022Fgs" },
+    "packageUpstream": { "const": "8.13.0" },
+    "runtimeContract": { "type": "string", "minLength": 1 },
+    "nativeSourceCanonicalSha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
+    "nativeSourceFileCount": { "type": "integer", "minimum": 1 },
+    "repositories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hybridclr", "il2cpp_plus"],
+      "properties": {
+        "hybridclr": { "$ref": "#/$defs/repository" },
+        "il2cpp_plus": { "$ref": "#/$defs/repository" }
+      }
+    }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "commit"],
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    }
+  }
+}
