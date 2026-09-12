@@ -109,6 +109,12 @@ internal static class FrozenAotAdaptation
                 foreach (var cctor in types[field.DeclaringTypeToken].Methods.Where(method => method.IsStaticConstructor))
                     Select(cctor, "static-storage-initializer");
             }
+            // An unchanged generic caller can construct/copy a selected nested
+            // value (List<T>.GetEnumerator -> Enumerator<T>..ctor). Its open
+            // signature does not contain a concrete changed hotfix type, so
+            // layout analysis alone misses it. Keep that call chain in Current
+            // frames, conditional on the actual closed generic arguments.
+            ExpandGenericCallers(module, selected, method => Select(method, "generic-argument-storage"));
             if (physical.Count == 0 && selected.Count == 0 && statics.Length == 0) continue;
             var mv = MetaVersionSnapshot.Create(source.Path);
             source.ReadVerifiedBytes();
@@ -134,6 +140,38 @@ internal static class FrozenAotAdaptation
         return new(plans.OrderBy(plan => plan.AssemblyName, StringComparer.Ordinal).ToArray(),
             obligations.Distinct().OrderBy(item => item.AssemblyName, StringComparer.Ordinal).ThenBy(item => item.Kind, StringComparer.Ordinal)
                 .ThenBy(item => item.Token).ToArray(), impact);
+    }
+
+    internal static void ExpandGenericCallers(ModuleDef module, Dictionary<uint, HashSet<string>> selected, Action<MethodDef> select)
+    {
+        var types = module.GetTypes().ToDictionary(type => type.FullName, StringComparer.Ordinal);
+        var comparer = new SigComparer();
+        MethodDef? LocalTarget(IMethod operand)
+        {
+            IMethod reference = operand is MethodSpec spec ? spec.Method : operand;
+            if (reference is MethodDef definition) return definition.Module == module ? definition : null;
+            if (reference is not MemberRef member || member.DeclaringType.DefinitionAssembly?.FullName != module.Assembly.FullName) return null;
+            var signature = member.DeclaringType.ToTypeSig().RemovePinnedAndModifiers();
+            string name = signature is GenericInstSig generic ? generic.GenericType.TypeDefOrRef.FullName : member.DeclaringType.FullName;
+            if (!types.TryGetValue(name, out var owner)) return null;
+            return owner.Methods.FirstOrDefault(method => method.Name == member.Name && comparer.Equals(method.MethodSig, member.MethodSig));
+        }
+        var callers = types.Values.SelectMany(type => type.Methods)
+            .Where(method => method.HasBody && (method.HasGenericParameters || method.DeclaringType.HasGenericParameters))
+            .Select(method => (Method: method, Targets: method.Body.Instructions.Select(instruction => instruction.Operand)
+                .OfType<IMethod>().Select(LocalTarget).Where(target => target != null).Select(target => target!.MDToken.Raw).Distinct().ToArray()))
+            .ToArray();
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var caller in callers)
+            {
+                if (selected.ContainsKey(caller.Method.MDToken.Raw) || !caller.Targets.Any(selected.ContainsKey)) continue;
+                select(caller.Method);
+                changed |= selected.ContainsKey(caller.Method.MDToken.Raw);
+            }
+        } while (changed);
     }
 
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
