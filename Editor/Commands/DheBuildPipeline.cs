@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HybridCLR.Editor.Il2CppDef;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -26,28 +27,11 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-		private const string NativeRuntimeContract = "dhe-runtime-v2";
+        private const string NativeRuntimeContract = "dhe-runtime-v33";
+        // The identity must describe the same inventory that the Player
+        // validates. A second literal list can make a clean build unloadable.
         private static readonly string[] NativeRuntimeCapabilities =
-        {
-            "aot-guard-v1",
-            "stable-method-identity-v1",
-            "single-current-multibase-v1",
-            "resource-update-plan-integrity-v1",
-            "resource-update-aot-metadata-path-v1",
-            "resource-update-aot-metadata-set-selection-v1",
-            "atomic-multi-assembly-registration-v1",
-			"supplemental-existing-type-instance-fields-v1",
-            "supplemental-existing-type-static-fields-v1",
-			"supplemental-existing-type-methods-v1",
-			"removed-existing-type-methods-v1",
-			"existing-type-method-signature-replacement-v1",
-			"removed-existing-type-fields-v1",
-			"removed-types-v1",
-			"logical-existing-type-properties-events-v1",
-			"logical-existing-member-custom-attributes-v1",
-            "supplemental-nested-types-v1",
-            "supplemental-top-level-types-v1",
-        };
+            DheRuntime.GetSupportedRuntimeCapabilities();
         private const string NativeGuardBeginPrefix = "HYBRIDCLR_DHE_GUARD_BEGIN_V1:";
         private const string NativeGuardEndPrefix = "HYBRIDCLR_DHE_GUARD_END_V1:";
         internal const string CurrentGenerationBuildPhase = "current-generation";
@@ -217,6 +201,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             EnsureActiveBuildTarget(target);
+            using var compiler = DheAotCompiler.Enter();
             // Unity 2021's Bee profiler writes Library/Bee/buildreport.json
             // before guaranteeing that the parent directory exists.
             Directory.CreateDirectory(Path.GetFullPath(Path.Combine(
@@ -537,6 +522,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             BuildTargetGroup group = EnsureActiveBuildTarget(options.Target);
+            using var compiler = DheAotCompiler.Enter();
             if (options.CleanBuild)
             {
                 ClearPlayerOutput(outputPath, options.Target);
@@ -582,6 +568,7 @@ namespace HybridCLR.Editor.Commands
                 {
                     throw new BuildFailedException("DHE Player build failed: " + report.summary.result);
                 }
+                compiler.RecordGeneration(FindGeneratedCppRoot(SettingsUtil.ProjectDir, GetDheAotAssemblyNames()));
                 if (options.NativeFinalizeOptions != null)
                 {
                     options.NativeFinalizeOptions.RebuildPlayer = true;
@@ -633,7 +620,30 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException(
                     "DHE Base Players require universal guards for resource-only updates.");
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
+            DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
+                Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_TRACKED_LOAD_PHASE 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE public recovery requires the matching native load-phase API.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_INITIALIZATION 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE module initialization requires the matching runtime source capability.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_TOKEN_RESOLUTION 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE AOT module evolution requires physical Base token resolution.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_PUBLIC_ASSEMBLY_IMAGE 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE serialized asset delivery requires public assembly image resolution.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_LENGTH_PRESERVED_CONSTANT_STRINGS 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE metadata constants require length-preserving string conversion.");
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/vm/GlobalMetadata.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_CURRENT_LITERAL_VALUES 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE literal values require the matching IL2CPP metadata reader.");
+            var primaryMvPaths = new HashSet<string>((options.MvJsonPaths ?? Array.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
             string[] mvPaths = (options.MvJsonPaths ?? Array.Empty<string>())
+                .Concat(options.AdditionalMvJsonPaths ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (mvPaths.Length == 0) throw new BuildFailedException("DHE guard injection requires at least one MV JSON.");
@@ -674,6 +684,7 @@ namespace HybridCLR.Editor.Commands
                         GenericParameterCount = checked((uint)method.genericParameterCount),
                         DeclaringTypeGenericParameterCount = checked((uint)method.declaringTypeGenericParameterCount),
                         IsChanged = false,
+                        DeferModuleInitializer = primaryMvPaths.Contains(mvPath) && method.declaringType == "<Module>" && method.name == ".cctor",
                     });
                 }
             }
@@ -737,6 +748,18 @@ namespace HybridCLR.Editor.Commands
                 if (!generic && matches.Count != 1)
                     throw new BuildFailedException("Expected one generated definition for '" +
                         method.DeclaringType + "::" + method.MethodName + "', found " + matches.Count + ".");
+                foreach (DheCppDefinition primary in matches.ToArray())
+                {
+                    if (!definitions.TryGetValue(primary.FunctionName + "_inline", out var inlineCopies)) continue;
+                    foreach (DheCppDefinition copy in inlineCopies)
+                    {
+                        DheInlineGuardPolicy.ValidateCopy(primary.FunctionName, primary.Signature,
+                            copy.FunctionName, copy.Signature);
+                        if (!string.IsNullOrWhiteSpace(copy.ManagedSignature) && !ManagedSignatureMatches(method, copy.ManagedSignature))
+                            throw new BuildFailedException("DHE inline definition conflicts with its managed signature: " + copy.FunctionName);
+                        matches.Add(copy);
+                    }
+                }
                 if (matches.Count > 4096)
                     throw new BuildFailedException("DHE generated definition fan-out is unexpectedly large for '" +
                         method.DeclaringType + "::" + method.MethodName + "': " + matches.Count + ".");
@@ -823,6 +846,8 @@ namespace HybridCLR.Editor.Commands
 				runtimeProtocol = NativeRuntimeProtocol,
                 runtimeContract = NativeRuntimeContract,
                 runtimeCapabilities = NativeRuntimeCapabilities,
+                compilerIdentity = options.CompilerIdentity,
+                runtimeSourceIdentity = runtimeSourceIdentity,
                 generatedCppRoot = generatedRoot,
                 guardMode = "universal",
                 changedMethodCount = changedRequested,
@@ -873,6 +898,7 @@ namespace HybridCLR.Editor.Commands
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
             string projectRoot = RequireDirectory(options.ProjectRoot, "DHE project root");
+            using var compiler = DheAotCompiler.Enter();
             string planPath = RequireFile(options.ProjectPlanPath, "DHE project plan");
             DheProjectPlan plan = JsonUtility.FromJson<DheProjectPlan>(File.ReadAllText(planPath));
             if (plan == null || plan.schemaVersion != 1 || !plan.complete ||
@@ -900,14 +926,30 @@ namespace HybridCLR.Editor.Commands
             string manifestPath = string.IsNullOrWhiteSpace(options.OutputManifestPath)
                 ? Path.Combine(projectRoot, "Library", "DHE", "dhe-native-manifest.json")
                 : Path.GetFullPath(options.OutputManifestPath);
-            Func<DheNativeGuardResult> injectGuards = () => InjectGeneratedGuards(new DheNativeGuardOptions
+            compiler.RequireGeneration(generatedCppRoot);
+            Func<DheNativeGuardResult> injectGuards = () =>
             {
+                string[] additional = options.AdditionalMvJsonPaths;
+                if (!string.IsNullOrWhiteSpace(options.OrdinaryAotRoot))
+                {
+                    if ((additional?.Length ?? 0) != 0)
+                        throw new BuildFailedException("Complete ordinary guards cannot be combined with a partial MV override.");
+                    additional = DheOrdinaryGuardInventory.Generate(options.OrdinaryAotRoot,
+                        assemblyNames, options.OrdinaryGuardIdentityType,
+                        Path.Combine(Path.GetDirectoryName(manifestPath), "ordinary-guards"),
+                        value => JsonUtility.ToJson(value, true)).MvJsonPaths;
+                }
+                return InjectGeneratedGuards(new DheNativeGuardOptions
+                {
                 MvJsonPaths = mvPaths,
+                AdditionalMvJsonPaths = additional,
                 GeneratedCppRoot = generatedCppRoot,
                 OutputManifestPath = manifestPath,
                 RequireCompleteCoverage = options.RequireCompleteCoverage,
                 GuardAllMethods = options.GuardAllMethods,
-            });
+                CompilerIdentity = compiler.Identity,
+                });
+            };
             DheNativeGuardResult guard = injectGuards();
             DheBeeRebuildResult rebuild = null;
             if (options.RebuildPlayer)
@@ -931,6 +973,10 @@ namespace HybridCLR.Editor.Commands
                     },
                 });
             }
+            DheNativeSourceIdentity.RequireUnchanged(
+                JsonUtility.FromJson<DheNativeManifestDocument>(File.ReadAllText(manifestPath)).runtimeSourceIdentity,
+                DheNativeSourceIdentity.Capture(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp")));
+            compiler.RecordGeneration(generatedCppRoot);
             return new DheNativeFinalizeResult
             {
                 ProjectPlanPath = planPath,
@@ -2484,6 +2530,7 @@ namespace HybridCLR.Editor.Commands
                 isStatic = method.IsStatic,
                 hasThis = hasThis,
                 managedParameterCount = Math.Max(0, parameters.Count - (hasThis ? 1 : 0) - (usesHiddenReturn ? 1 : 0)),
+                deferModuleInitializer = method.DeferModuleInitializer,
             };
         }
 
@@ -2596,13 +2643,27 @@ namespace HybridCLR.Editor.Commands
                 else
                     throw new BuildFailedException("Unsupported DHE native shape: " + shape);
             }
-            return "    // " + beginMarker + "\r\n" +
+            string deferredModuleGuard = string.Empty;
+            if (method.deferModuleInitializer)
+            {
+                if (method.declaringType != "<Module>" || method.methodName != ".cctor" || !method.isStatic || hasThis || count != 0 || method.returnType != "void")
+                    throw new BuildFailedException("Only a hotfix module cctor can defer initialization.");
+                deferredModuleGuard = "    if (!hybridclr::dhe::IsDheModuleInitializationReady(\"" +
+                    method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\")) return;\r\n";
+            }
+            // Native callers may retain their AOT frame while passing a Current
+            // reference receiver. Resolve only after proving the actual object
+            // ancestry and every physical parameter/return type in the runtime.
+            string receiverSelection = hasThis && !method.declaringTypeIsValueType
+                ? "    dheMethod = hybridclr::dhe::ResolveNativeReferenceInvokeMethod(dheMethod, reinterpret_cast<void*>(__this));\r\n"
+                : string.Empty;
+            return "    // " + beginMarker + "\r\n" + deferredModuleGuard +
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
-                "        dheMethod = hybridclr::dhe::ResolveMethodByToken(\"" +
+                "        dheMethod = hybridclr::dhe::ResolveAotGuardMethodByToken(\"" +
                 method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) +
-                "\", " + method.methodToken + ");\r\n    }\r\n" +
+                "\", " + method.methodToken + ");\r\n    }\r\n" + receiverSelection +
                 "    if (hybridclr::dhe::ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
                 "        dheMethod = hybridclr::dhe::ResolveInterpreterMethod(dheMethod);\r\n" +
                 "        " + helper.Replace("\r\n", "\r\n        ", StringComparison.Ordinal) + "\r\n    }\r\n" +
@@ -3149,6 +3210,7 @@ namespace HybridCLR.Editor.Commands
             public uint GenericParameterCount;
             public uint DeclaringTypeGenericParameterCount;
             public bool IsChanged;
+            public bool DeferModuleInitializer;
         }
 
         private sealed class DheCppDefinition
@@ -3207,6 +3269,7 @@ namespace HybridCLR.Editor.Commands
             public bool isStatic;
             public bool hasThis;
             public int managedParameterCount;
+            public bool deferModuleInitializer;
         }
 
         [Serializable]
@@ -3233,6 +3296,8 @@ namespace HybridCLR.Editor.Commands
 			public string runtimeProtocol;
             public string runtimeContract;
             public string[] runtimeCapabilities;
+            public DheAotCompilerIdentity compilerIdentity;
+            public DheNativeSourceIdentity runtimeSourceIdentity;
             public string generatedCppRoot;
             public int changedMethodCount;
             public int supportedChangedMethodCount;
@@ -3406,7 +3471,14 @@ namespace HybridCLR.Editor.Commands
 
     public sealed class DheNativeGuardOptions
     {
+        public DheAotCompilerIdentity CompilerIdentity;
         public string[] MvJsonPaths;
+        /// <summary>
+        /// Optional authenticated MV JSON inputs for ordinary AOT assemblies.
+        /// They are guard-only inputs and must never be added to
+        /// HybridCLR hotUpdateAssemblies.
+        /// </summary>
+        public string[] AdditionalMvJsonPaths;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
         public bool RequireCompleteCoverage = true;
@@ -3443,6 +3515,11 @@ namespace HybridCLR.Editor.Commands
     {
         public string ProjectRoot;
         public string ProjectPlanPath;
+        /// <summary>Guard-only MV JSONs for ordinary frozen AOT assemblies.</summary>
+        public string[] AdditionalMvJsonPaths;
+        /// <summary>Regenerated after each build/strip pass; never a Prepare-stage snapshot.</summary>
+        public string OrdinaryAotRoot;
+        public string OrdinaryGuardIdentityType;
         public string GeneratedCppRoot;
         public string OutputManifestPath;
         public string BeeLogPath;

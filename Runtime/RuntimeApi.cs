@@ -27,6 +27,76 @@ namespace HybridCLR
         }
 #endif
 
+        /// <summary>Loads immutable Base ordinary AOT source projections.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlanAndSources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens);
+#endif
+
+        /// <summary>Atomically loads source plans with conditional frozen generic methods.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblySources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblySources(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens);
+#endif
+
+        /// <summary>Loads differential/frozen sources and new interpreter assemblies as one metadata graph.</summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyBatch(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens, byte[][] interpreterDlls)
+        { return LoadImageErrorCode.NOT_IMPLEMENT; }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyBatch(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens, byte[][] interpreterDlls);
+#endif
+
+        /// <summary>
+        /// Loads one complete graph and reports the synchronous native phase even
+        /// when an initializer throws: 0 not started, 1 preparing, 2 prepared,
+        /// 3 committed, 4 initialized. Phase 3 cannot be rolled back in-process.
+        /// </summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssemblyBatchWithPhase(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens,
+            byte[][] interpreterDlls, out int phase)
+        { phase = 0; return LoadImageErrorCode.NOT_IMPLEMENT; }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssemblyBatchWithPhase(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens,
+            int[] sourceKinds, uint[][] excludedBaseTypeTokens, uint[][] genericContextMethodTokens,
+            byte[][] interpreterDlls, out int phase);
+#endif
+
         /// <summary>
         /// load supplementary metadata assembly
         /// </summary>
@@ -74,6 +144,28 @@ namespace HybridCLR
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersion(
             byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions);
+#endif
+
+        /// <summary>
+        /// Loads a complete DHE set with compiler-selected Current storage types
+        /// and execution methods. Each token is relative to that assembly's
+        /// Current MV; the runtime binds it to the corresponding Base member.
+        /// Arrays must have one non-null entry per DLL, including empty selections.
+        /// The compiler must validate layout dependencies and native ABI coverage
+        /// before calling this API. Register once at startup, before hotfix use.
+        /// </summary>
+#if UNITY_EDITOR
+        public static LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlan(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens)
+        {
+            return LoadImageErrorCode.NOT_IMPLEMENT;
+        }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern LoadImageErrorCode LoadDifferentialHybridAssembliesWithMetaVersionAndExecutionPlan(
+            byte[][] dllBytes, byte[][] baseMetaVersions, byte[][] currentMetaVersions,
+            uint[][] currentStorageTypeTokens, uint[][] currentExecutionMethodTokens);
 #endif
 
         /// <summary>Returns whether a loaded DHE MV marks this method as changed.</summary>

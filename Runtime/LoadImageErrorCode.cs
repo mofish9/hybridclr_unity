@@ -21,5 +21,9 @@ namespace HybridCLR
 		DHE_MV_BASELINE_HASH_MISMATCH,
 		DHE_MV_BAD_SNAPSHOT_HASH,
 		DHE_MV_DLL_ASSEMBLY_MISMATCH,
+        // Public managed workflow outcomes; existing native error values stay fixed.
+        DHE_INITIALIZATION_FAILED,
+        DHE_RESTART_REQUIRED,
+        DHE_LOAD_IN_PROGRESS,
 	};
 }

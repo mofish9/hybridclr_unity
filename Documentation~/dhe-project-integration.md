@@ -90,8 +90,11 @@ from that DAG's input data, invokes the Editor-owned Java/Gradle distribution,
 and rebuilds the requested APK/AAB. `adapter/native-finalize.json` records the
 DAG, Gradle root, artifact SHA-256, and aligned Bee source/archive-entry hashes
 for every `libil2cpp.so`; the external C# host must revalidate this evidence.
-The iOS path uses the same C# Bee state machine but still requires macOS/Xcode,
-signing, and device gates.
+The iOS path uses the same C# Bee state machine. The final export is recorded as
+an `ios-xcode-project` artifact and is accepted only when it contains exactly one
+`.xcodeproj` with `project.pbxproj`, plus `Classes`, `Libraries`, and `Data`; the
+host binds a canonical directory hash to that export. macOS/Xcode compilation,
+linking, signing, IPA packaging, and device gates remain separate prerequisites.
 
 ## Resource-only update
 
@@ -205,3 +208,23 @@ Every Player reads Base MetaVersion from its immutable built-in asset root and c
 it with the current MetaVersion from its selected payload variant. Project code must
 not select a per-Base remote delta or reimplement MV parsing, Base identity matching,
 transaction retry, changed-method dispatch, or native identity checks.
+# DHE linker preservation
+
+When DHE is enabled, the package's UnityLinker callback preserves the complete
+configured DHE assembly set. External types referenced by those assemblies are
+resolved against the target Player's actual pre-link assemblies, including facade
+type forwarding, and their members are preserved in the defining assembly.
+Missing roots or unresolved types fail the build before emitting the extra
+linker descriptor. Ordinary non-DHE builds keep their existing linker behavior.
+
+`dhePreserveAotAssemblies` retains selected non-DHE AOT assemblies in full, even
+when the Base hotfix code does not yet use their types. Its default is `mscorlib`,
+`System`, and `System.Core`. Add other future-facing AOT libraries before freezing
+the Base. This is a size/build-time tradeoff, not a claim that those assemblies
+become hot-updatable. An explicitly empty set disables this extra preservation.
+
+This prevents a `netstandard` facade entry from silently losing members of the
+actual `mscorlib` or `System` implementation. It does not restore APIs already
+stripped from an archived Base, nor does it preserve every previously unreferenced
+external type. Additional future-facing AOT API surface still needs a Base-time
+linker policy and validation against that Base's archived AOT inventory.

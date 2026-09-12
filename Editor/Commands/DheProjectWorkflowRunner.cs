@@ -20,6 +20,9 @@ namespace HybridCLR.Editor.Commands
             RequireAdapter(adapter);
             DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(false);
             context.EnsureTarget();
+            // Keep the generated type shape stable between the initial AOT
+            // snapshot and the final Player that embeds its snapshot hash.
+            DheProjectBuildSupport.RestoreBuildIdentityTemplate(CreateIdentityOptions(adapter, context));
             string baselineSource = Environment.GetEnvironmentVariable("DHE_BASELINE_ROOT");
             DheProjectPrepareResult prepared = DheBuildPipeline.PrepareProjectArtifacts(
                 new DheProjectPrepareOptions
@@ -33,8 +36,8 @@ namespace HybridCLR.Editor.Commands
                     Bootstrap = context.GetBooleanArgument("-dheBootstrap"),
                     RequireDheEqualsHotUpdate = true,
                 });
-            EnsureAssemblyRoot(SettingsUtil.GetHotUpdateDllsOutputDirByTarget(context.Target),
-                prepared.HotUpdateAssemblyNames, "hot-update output");
+            EnsureAssemblyRoot(prepared.CurrentOutputRoot,
+                prepared.HotUpdateAssemblyNames, "prepared Current output");
             WriteJson(Path.Combine(context.OutputRoot, "adapter", "prepare.json"),
                 new PrepareEvidence
                 {
@@ -72,6 +75,7 @@ namespace HybridCLR.Editor.Commands
                 DheProjectBuildSupport.CreateNativeFinalizeOptions(nativeOptions, false));
             DheProjectBuildSupport.WriteNativeEvidence(nativeOptions, result, false);
             DheProjectBuildSupport.StageBuildIdentity(CreateIdentityOptions(adapter, context), result);
+            WritePlayerBuildEvidence(adapter, context, true);
         }
 
         public static void StageRuntimePlan(DheProjectWorkflowAdapter adapter)
@@ -81,8 +85,9 @@ namespace HybridCLR.Editor.Commands
             context.EnsureTarget();
             string runtimeAssetRoot = ResolveProjectPath(adapter.ProjectRoot,
                 adapter.RuntimeAssetRoot);
-            string currentAssemblyRoot = Path.GetFullPath(
-                SettingsUtil.GetHotUpdateDllsOutputDirByTarget(context.Target));
+            // Dependency callbacks must inspect the same frozen DLLs used by
+            // the project plan, including externally compiled hotfix inputs.
+            string currentAssemblyRoot = Path.GetFullPath(context.CurrentRoot);
             string fallbackRoot = context.GetArgument("-dheAotMetadataFallbackRoot");
             string fallbackManifest = context.GetArgument("-dheAotMetadataFallbackManifest");
             DheRuntimePlanResult result = DheBuildPipeline.StageRuntimePlan(
@@ -133,11 +138,14 @@ namespace HybridCLR.Editor.Commands
             try
             {
                 DheNativeFinalizeResult result = BuildPlayer(adapter, context, BuildOptions.None);
-                if (!DheProjectBuildSupport.FinalNativeIdentityMatches(context.OutputRoot, result,
-                    out string identityError))
+                bool nativeMatches = DheProjectBuildSupport.FinalNativeIdentityMatches(context.OutputRoot, result,
+                    out string identityError);
+                bool aotMatches = DheProjectBuildSupport.FinalAotAnalysisSnapshotMatches(
+                    CreateIdentityOptions(adapter, context), out string aotError);
+                if (!nativeMatches || !aotMatches)
                 {
-                    Debug.LogWarning("DHE native identity changed during the final Player pass; " +
-                        "settling the embedded identity and rebuilding once. " + identityError);
+                    Debug.LogWarning("DHE native identity or AOT inputs changed during the final Player pass; " +
+                        "settling the embedded identity and rebuilding once. " + identityError + " " + aotError);
                     DheProjectBuildSupport.StageBuildIdentity(CreateIdentityOptions(adapter, context),
                         result);
                     result = BuildPlayer(adapter, context, BuildOptions.None);
@@ -147,6 +155,7 @@ namespace HybridCLR.Editor.Commands
                     CreateIdentityOptions(adapter, context));
                 DheProjectBuildSupport.WriteNativeEvidence(CreateNativeOptions(adapter, context),
                     result, true);
+                WritePlayerBuildEvidence(adapter, context, false);
                 adapter.RunPlayerSmoke?.Invoke(new DheProjectPlayerSmokeContext
                 {
                     PlayerPath = ResolvePlayerOutput(adapter, context),
@@ -207,12 +216,17 @@ namespace HybridCLR.Editor.Commands
                 ProjectPlanPath = context.ProjectPlanPath,
                 OutputRoot = context.OutputRoot,
                 Target = context.TargetName,
+                PlayerOutputPath = ResolvePlayerOutput(adapter, context),
                 // Every DHE Base must remain consumable by later
                 // resource-only updates.  The native finalizer therefore
                 // requires universal guards for both bootstrap and
                 // subsequent Base rebuilds; bootstrap only controls the
                 // baseline creation policy.
                 GuardAllMethods = true,
+                AdditionalGuardMvJsonPaths = adapter.AdditionalGuardMvJsonPaths,
+                OrdinaryAotRoot = adapter.GuardOrdinaryAotMethods ? Path.GetFullPath(
+                    SettingsUtil.GetAssembliesPostIl2CppStripDir(context.Target)) : null,
+                OrdinaryGuardIdentityType = adapter.IdentityNamespace + "." + adapter.IdentityClassName,
             };
         }
 
@@ -288,6 +302,27 @@ namespace HybridCLR.Editor.Commands
             return relative;
         }
 
+        private static void WritePlayerBuildEvidence(DheProjectWorkflowAdapter adapter,
+            DheProjectWorkflowContext context, bool scriptsOnly)
+        {
+            WriteJson(Path.Combine(context.OutputRoot, "adapter", scriptsOnly ?
+                "build-scripts-only.json" : "build-final-player.json"), new PlayerBuildEvidence
+            {
+                schemaVersion = 1, format = "hybridclr.dhe-adapter-player-build.json",
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"), passed = true,
+                scriptsOnly = scriptsOnly, target = context.TargetName,
+                playerPath = ResolvePlayerOutput(adapter, context),
+            });
+        }
+
+        [Serializable]
+        private sealed class PlayerBuildEvidence
+        {
+            public int schemaVersion;
+            public string format, generatedAtUtc, target, playerPath;
+            public bool passed, scriptsOnly;
+        }
+
         private static void WriteJson(string path, object value)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -334,6 +369,13 @@ namespace HybridCLR.Editor.Commands
         public Func<string, string[], string[]> HotfixLoadOrderResolver;
         public Action<string, string> DependencyMapWriter;
         public Action<string> StageAdditionalRuntimeAssets;
+        /// <summary>
+        /// Optional authenticated MV JSONs for ordinary AOT guard coverage.
+        /// These inputs affect native guards only and never hotfix loading.
+        /// </summary>
+        public string[] AdditionalGuardMvJsonPaths;
+        /// <summary>Derive complete ordinary guards from the current final-build stripped input.</summary>
+        public bool GuardOrdinaryAotMethods;
     }
 
     public sealed class DheProjectPlayerSmokeContext

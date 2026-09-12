@@ -78,6 +78,9 @@ namespace HybridCLR.Editor.Commands
             {
                 ProjectRoot = Path.GetFullPath(options.ProjectRoot),
                 ProjectPlanPath = Path.GetFullPath(options.ProjectPlanPath),
+                AdditionalMvJsonPaths = options.AdditionalGuardMvJsonPaths,
+                OrdinaryAotRoot = options.OrdinaryAotRoot,
+                OrdinaryGuardIdentityType = options.OrdinaryGuardIdentityType,
                 OutputManifestPath = Path.Combine(outputRoot, "native", "dhe-native-manifest.json"),
                 BeeLogPath = Path.Combine(outputRoot, "native", "bee-rebuild.log"),
                 RequireCompleteCoverage = true,
@@ -129,17 +132,38 @@ namespace HybridCLR.Editor.Commands
 
             DheBeeRebuildResult rebuild = nativeResult.BeeRebuildResult;
             DhePlayerArtifactFinalizeResult artifact = nativeResult.PlayerArtifactResult;
+            if (artifact == null && string.Equals(options.Target, BuildTarget.iOS.ToString(),
+                    StringComparison.OrdinalIgnoreCase))
+                artifact = ValidateIosXcodeExport(options.PlayerOutputPath);
             bool artifactRequired = string.Equals(options.Target, BuildTarget.Android.ToString(),
+                StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(options.Target, BuildTarget.iOS.ToString(),
+                    StringComparison.OrdinalIgnoreCase);
+            bool androidArtifact = string.Equals(options.Target, BuildTarget.Android.ToString(),
+                StringComparison.OrdinalIgnoreCase);
+            bool iosArtifact = string.Equals(options.Target, BuildTarget.iOS.ToString(),
                 StringComparison.OrdinalIgnoreCase);
             bool artifactPassed = !artifactRequired || artifact != null && artifact.Passed &&
-                artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
-                !string.IsNullOrWhiteSpace(artifact.GradleRoot) &&
-                artifact.NativeLibraryEntries != null &&
-                artifact.NativeLibrarySourcePaths != null &&
-                artifact.NativeLibrarySha256 != null &&
-                artifact.NativeLibraryEntries.Length > 0 &&
-                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySourcePaths.Length &&
-                artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySha256.Length;
+                artifact.ExitCode == 0 && !string.IsNullOrWhiteSpace(artifact.OutputPath) &&
+                !string.IsNullOrWhiteSpace(artifact.OutputSha256) &&
+                (string.IsNullOrWhiteSpace(options.PlayerOutputPath) ||
+                    string.Equals(Path.GetFullPath(artifact.OutputPath),
+                        Path.GetFullPath(options.PlayerOutputPath),
+                        StringComparison.OrdinalIgnoreCase)) &&
+                (androidArtifact && !string.IsNullOrWhiteSpace(artifact.GradleRoot) &&
+                    artifact.NativeLibraryEntries != null &&
+                    artifact.NativeLibrarySourcePaths != null &&
+                    artifact.NativeLibrarySha256 != null &&
+                    artifact.NativeLibraryEntries.Length > 0 &&
+                    artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySourcePaths.Length &&
+                    artifact.NativeLibraryEntries.Length == artifact.NativeLibrarySha256.Length ||
+                 iosArtifact && string.Equals(artifact.Kind, "ios-xcode-project",
+                     StringComparison.Ordinal) && string.Equals(artifact.BuildTask, "xcode-export",
+                         StringComparison.Ordinal) && artifact.NativeLibraryEntries != null &&
+                    artifact.NativeLibrarySourcePaths != null && artifact.NativeLibrarySha256 != null &&
+                    artifact.NativeLibraryEntries.Length == 0 &&
+                    artifact.NativeLibrarySourcePaths.Length == 0 &&
+                    artifact.NativeLibrarySha256.Length == 0);
             bool rebuildPassed = rebuild != null && rebuild.ExitCode == 0 && artifactPassed;
             WriteJson(Path.Combine(adapterRoot, "native-finalize.json"), new NativeFinalizeEvidence
             {
@@ -320,13 +344,16 @@ namespace HybridCLR.Editor.Commands
                     StringComparison.Ordinal))
                 throw new BuildFailedException("DHE Player IL2CPP code generation is " +
                     actualCodeGeneration + ", expected " + il2cppCodeGeneration + ".");
+            DheAotAnalysisSnapshot.CaptureResult analysis = DheAotAnalysisSnapshot.Capture(
+                aotAssemblyRoot, options.OutputRoot, options.IdentityNamespace + "." + options.IdentityClassName,
+                assemblyNames, value => JsonUtility.ToJson(value, true));
             string baseId = ComputeBaseId(options.Target, engineWorkflow,
                 il2cppCodeGeneration, baselineSetHash, aotAssemblySetHash,
                 snapshotSetHash,
                 baseMetaVersionSetHash, runtimePlan.aotMetadataSetId,
                 guard.NativeGuardSourceSha256,
                 guard.NativeManifestSha256, guard.RuntimeProtocol, guard.RuntimeContract,
-                runtimeCapabilities, runtimeAssetRoot, baseMetaVersionAssetRoot);
+                runtimeCapabilities, runtimeAssetRoot, baseMetaVersionAssetRoot, analysis.ManifestSha256);
             string sourcePath = ResolveProjectAsset(options.ProjectRoot,
                 options.BuildIdentityAssetPath);
             string source = BuildIdentitySource(options, baseId, baselineSetHash,
@@ -334,7 +361,7 @@ namespace HybridCLR.Editor.Commands
                 snapshotSetHash, baseMetaVersionSetHash, runtimePlan.aotMetadataSetId,
                 guard, runtimeCapabilities,
                 runtimeAssetRoot, baseMetaVersionAssetRoot, assemblyNames,
-                baseMetaVersionHashes.ToArray());
+                baseMetaVersionHashes.ToArray(), analysis.ManifestSha256);
             File.WriteAllText(sourcePath, source, new UTF8Encoding(false));
             string stagedSourceSha256 = ToHex(Sha256(new UTF8Encoding(false).GetBytes(source)));
 
@@ -358,6 +385,8 @@ namespace HybridCLR.Editor.Commands
                 aotAssemblySetSha256 = aotAssemblySetHash,
                 aotAssemblyNames = aotAssemblyNames,
                 aotSnapshotSha256 = snapshotSetHash,
+                aotAnalysisSnapshot = Path.GetRelativePath(Path.GetFullPath(options.OutputRoot), analysis.ManifestPath).Replace('\\', '/'),
+                aotAnalysisSnapshotSha256 = analysis.ManifestSha256,
                 aotSnapshotKind = AotSnapshotKind,
                 nativeGuardSourceSha256 = guard.NativeGuardSourceSha256,
                 nativeManifestSha256 = guard.NativeManifestSha256,
@@ -375,6 +404,90 @@ namespace HybridCLR.Editor.Commands
             });
             AssetDatabase.ImportAsset(options.BuildIdentityAssetPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        private static DhePlayerArtifactFinalizeResult ValidateIosXcodeExport(string outputPath)
+        {
+            string exportRoot = RequireDirectory(outputPath,
+                "Unity iOS Xcode export root");
+            string[] xcodeProjects = Directory.GetDirectories(exportRoot, "*.xcodeproj",
+                SearchOption.TopDirectoryOnly);
+            if (xcodeProjects.Length != 1)
+                throw new BuildFailedException("Unity iOS export must contain exactly one .xcodeproj; found " +
+                    xcodeProjects.Length + ".");
+            RequireFile(Path.Combine(xcodeProjects[0], "project.pbxproj"),
+                "Unity iOS Xcode project.pbxproj");
+            foreach (string directory in new[] { "Classes", "Libraries", "Data" })
+                RequireDirectory(Path.Combine(exportRoot, directory),
+                    "Unity iOS Xcode export " + directory + " directory");
+            return new DhePlayerArtifactFinalizeResult
+            {
+                Kind = "ios-xcode-project",
+                OutputPath = Path.GetFullPath(exportRoot),
+                OutputSha256 = Sha256Directory(exportRoot),
+                BuildTask = "xcode-export",
+                ExitCode = 0,
+                NativeLibraryEntries = new string[0],
+                NativeLibrarySourcePaths = new string[0],
+                NativeLibrarySha256 = new string[0],
+                Passed = true,
+            };
+        }
+
+        private static string Sha256Directory(string root)
+        {
+            string fullRoot = RequireDirectory(root, "Directory to hash").TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            using (SHA256 sha = SHA256.Create())
+            {
+                foreach (string path in Directory.GetFiles(fullRoot, "*",
+                    SearchOption.AllDirectories).OrderBy(path =>
+                        Path.GetRelativePath(fullRoot, path).Replace('\\', '/'),
+                        StringComparer.Ordinal))
+                {
+                    string relative = Path.GetRelativePath(fullRoot, path).Replace('\\', '/');
+                    byte[] name = Encoding.UTF8.GetBytes(relative + "\n");
+                    sha.TransformBlock(name, 0, name.Length, name, 0);
+                    using (FileStream input = File.OpenRead(path))
+                    {
+                        byte[] buffer = new byte[1024 * 1024];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            sha.TransformBlock(buffer, 0, read, buffer, 0);
+                    }
+                    byte[] separator = { (byte)'\n' };
+                    sha.TransformBlock(separator, 0, separator.Length, separator, 0);
+                }
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return BitConverter.ToString(sha.Hash).Replace("-", string.Empty).ToLowerInvariant();
+            }
+        }
+
+        public static bool FinalAotAnalysisSnapshotMatches(DheProjectIdentityOptions options, out string error)
+        {
+            string identityPath = RequireFile(Path.Combine(Path.GetFullPath(options.OutputRoot),
+                "build-identity.json"), "DHE staged build identity");
+            var identity = JsonUtility.FromJson<BuildIdentityEvidence>(File.ReadAllText(identityPath));
+            string manifest = Path.Combine(Path.GetFullPath(options.OutputRoot), identity.aotAnalysisSnapshot);
+            string[] names = identity.assemblies.Select(assembly => assembly.assemblyName).ToArray();
+            // A corrupted capture must fail; only a legitimate final-build
+            // input change can trigger the bounded identity settling pass.
+            DheAotAnalysisSnapshot.Validate(manifest, identity.aotAnalysisSnapshotSha256,
+                Path.Combine(Path.GetDirectoryName(manifest), "assemblies"), names,
+                value => JsonUtility.FromJson<DheAotAnalysisSnapshot.Manifest>(value));
+            try
+            {
+                DheAotAnalysisSnapshot.Validate(manifest, identity.aotAnalysisSnapshotSha256,
+                    options.AotAssemblyRoot, names,
+                    value => JsonUtility.FromJson<DheAotAnalysisSnapshot.Manifest>(value));
+                error = null;
+                return true;
+            }
+            catch (InvalidDataException exception)
+            {
+                error = exception.Message;
+                return false;
+            }
         }
 
         public static void ValidateStagedBuildIdentity(DheProjectIdentityOptions options)
@@ -417,12 +530,19 @@ namespace HybridCLR.Editor.Commands
                     identity.nativeGuardSourceSha256,
                     identity.nativeManifestSha256, identity.runtimeProtocol,
                     identity.runtimeContract, identity.runtimeCapabilities,
-                    identity.runtimeAssetRoot, identity.baseMetaVersionAssetRoot),
+                    identity.runtimeAssetRoot, identity.baseMetaVersionAssetRoot, identity.aotAnalysisSnapshotSha256),
                     StringComparison.OrdinalIgnoreCase))
                 throw new BuildFailedException("DHE final Player has no valid staged BuildIdentity. " +
                     "Run the scripts-only DHE build stage again before BuildFinalPlayer.");
 
             string[] currentAotAssemblyNames = ReadAotAssemblyInventory(options.AotAssemblyRoot);
+            if (!IsSha256(identity.aotAnalysisSnapshotSha256) ||
+                identity.aotAnalysisSnapshot != "aot-analysis/" + identity.aotAnalysisSnapshotSha256.ToLowerInvariant() + "/manifest.json")
+                throw new BuildFailedException("DHE Base AOT analysis snapshot is missing or has an invalid path.");
+            DheAotAnalysisSnapshot.Validate(Path.Combine(Path.GetFullPath(options.OutputRoot), identity.aotAnalysisSnapshot),
+                identity.aotAnalysisSnapshotSha256, options.AotAssemblyRoot,
+                identity.assemblies.Select(assembly => assembly.assemblyName),
+                value => JsonUtility.FromJson<DheAotAnalysisSnapshot.Manifest>(value));
             if (!string.Equals(Sha256AssemblyNameSet(currentAotAssemblyNames),
                     identity.aotAssemblySetSha256, StringComparison.OrdinalIgnoreCase) ||
                 !new HashSet<string>(currentAotAssemblyNames, StringComparer.OrdinalIgnoreCase)
@@ -507,7 +627,7 @@ namespace HybridCLR.Editor.Commands
             string baseMetaVersionSetHash, string aotMetadataSetId, DheNativeGuardResult guard,
             string[] runtimeCapabilities, string runtimeAssetRoot,
             string baseMetaVersionAssetRoot, string[] assemblyNames,
-            string[] baseMetaVersionHashes)
+            string[] baseMetaVersionHashes, string aotAnalysisSnapshotHash)
         {
             string assemblyValues = string.Join(",\n",
                 assemblyNames.Select(name => "            " + Quote(name)));
@@ -532,6 +652,7 @@ namespace HybridCLR.Editor.Commands
                 "        public const string AotAssemblySetSha256 = \"" +
                 aotAssemblySetHash + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + snapshotHash + "\";\n" +
+                "        public const string AotAnalysisSnapshotSha256 = \"" + aotAnalysisSnapshotHash + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" +
                 guard.NativeGuardSourceSha256 + "\";\n" +
                 "        public const string NativeManifestSha256 = \"" +
@@ -571,6 +692,7 @@ namespace HybridCLR.Editor.Commands
                 "        public const string ManagedAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string AotAssemblySetSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string AotSnapshotSha256 = \"" + ZeroSha256 + "\";\n" +
+                "        public const string AotAnalysisSnapshotSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeGuardSourceSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string NativeManifestSha256 = \"" + ZeroSha256 + "\";\n" +
                 "        public const string BaseMetaVersionSetSha256 = \"" + ZeroSha256 + "\";\n" +
@@ -602,6 +724,7 @@ namespace HybridCLR.Editor.Commands
                 "                ManagedAssemblySetSha256 = ManagedAssemblySetSha256,\n" +
                 "                AotAssemblySetSha256 = AotAssemblySetSha256,\n" +
                 "                AotSnapshotSha256 = AotSnapshotSha256,\n" +
+                "                AotAnalysisSnapshotSha256 = AotAnalysisSnapshotSha256,\n" +
                 "                NativeGuardSourceSha256 = NativeGuardSourceSha256,\n" +
                 "                NativeManifestSha256 = NativeManifestSha256,\n" +
                 "                BaseMetaVersionSetSha256 = BaseMetaVersionSetSha256,\n" +
@@ -872,7 +995,7 @@ namespace HybridCLR.Editor.Commands
             string aotMetadataSetId,
             string nativeGuardSourceSha256, string nativeManifestSha256,
             string runtimeProtocol, string runtimeContract, IEnumerable<string> runtimeCapabilities,
-            string runtimeAssetRoot, string baseMetaVersionAssetRoot)
+            string runtimeAssetRoot, string baseMetaVersionAssetRoot, string aotAnalysisSnapshotSha256 = null)
         {
             string[] capabilities = (runtimeCapabilities ?? Array.Empty<string>())
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -901,6 +1024,8 @@ namespace HybridCLR.Editor.Commands
                 "runtimeCapabilities=" + string.Join(",", capabilities) + "\n" +
                 "runtimeAssetRoot=" + (runtimeAssetRoot ?? string.Empty) + "\n" +
                 "baseMetaVersionAssetRoot=" + (baseMetaVersionAssetRoot ?? string.Empty) + "\n";
+            if (!string.IsNullOrWhiteSpace(aotAnalysisSnapshotSha256))
+                canonical += "aotAnalysisSnapshotSha256=" + aotAnalysisSnapshotSha256.ToLowerInvariant() + "\n";
             return ToHex(Sha256(Encoding.UTF8.GetBytes(canonical)));
         }
 
@@ -926,6 +1051,13 @@ namespace HybridCLR.Editor.Commands
             string trimmed = (name ?? string.Empty).Trim();
             return trimmed.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                 ? Path.GetFileNameWithoutExtension(trimmed) : trimmed;
+        }
+
+        private static string RequireDirectory(string path, string description)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                throw new BuildFailedException(description + " is missing: " + path);
+            return Path.GetFullPath(path);
         }
 
         private static string RequireFile(string path, string description)
@@ -1020,6 +1152,8 @@ namespace HybridCLR.Editor.Commands
             public string aotAssemblySetSha256;
             public string[] aotAssemblyNames;
             public string aotSnapshotSha256;
+            public string aotAnalysisSnapshot;
+            public string aotAnalysisSnapshotSha256;
             public string aotSnapshotKind;
             public string nativeGuardSourceSha256;
             public string nativeManifestSha256;
@@ -1103,11 +1237,19 @@ namespace HybridCLR.Editor.Commands
     {
         public string ProjectRoot;
         public string ProjectPlanPath;
+        /// <summary>
+        /// Authenticated MV JSONs for ordinary AOT guard coverage. These
+        /// assemblies remain outside HybridCLR hotUpdateAssemblies.
+        /// </summary>
+        public string[] AdditionalGuardMvJsonPaths;
+        public string OrdinaryAotRoot;
+        public string OrdinaryGuardIdentityType;
         public string OutputRoot;
         public string Target;
         public int BeeMaxAttempts = 8;
         public int BeeTimeoutSeconds = 600;
         public bool GuardAllMethods;
+        public string PlayerOutputPath;
     }
 
     public sealed class DheProjectIdentityOptions
