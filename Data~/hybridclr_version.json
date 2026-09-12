@@ -17,8 +17,8 @@
     },
     {
         "unity_version":"2022",
-        "hybridclr" : { "branch":"v8.13.0-opt4.2"},
-        "il2cpp_plus": { "branch":"v2022-8.11.0-opt4.1"}
+        "hybridclr" : { "branch":"v8.13.0-opt5", "commit":"b0fe826f071332d109d2bde87c0aa2cc18b9f3c7", "repository":"https://github.com/mofish9/hybridclr.git"},
+        "il2cpp_plus": { "branch":"v2022-8.14.0-opt5", "commit":"658aa64923e568a497e11640b340f316704d02f9", "repository":"https://github.com/mofish9/il2cpp_plus.git"}
     },
     {
         "unity_version":"2022-tuanjie",
