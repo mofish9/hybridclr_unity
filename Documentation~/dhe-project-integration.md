@@ -86,6 +86,39 @@ repaired by a later resource update and is not the supported project-trial profi
 The adapter exposes `BeforeCurrentGeneration` / `AfterCurrentGeneration`; the
 latter runs in finally so project-specific precompiled inputs can be restored.
 
+`DheProjectWorkflowOptions.AotMetadataAssemblyNames` defaults to an empty set.
+Set it explicitly when a Base needs supplemental metadata. The archived Base
+records that selection; later resource updates use each Base's selection and
+verify the original metadata hashes, regardless of the current project settings.
+Do not discard those DLLs when archiving a Base that uses them.
+
+The generated adapter is a starting point for project configuration. Its default
+identity path belongs to Assembly-CSharp unless an asmdef changes ownership. If
+Assembly-CSharp is hotfix, put the identity and the bootstrap which calls its
+internal `Create()` method in an ordinary AOT assembly, then configure
+`BuildIdentityAssetPath` and the namespace accordingly. Import this setup before
+building; the package must not silently change the project's assembly ownership.
+
+## Current trial qualification
+
+The opt5 tool is distributed as `Exploratory` for packaging trials. Its Release
+checks remain enabled and require separate qualification; an opt5 runtime tag
+alone does not qualify a project's Player, resources, or target device.
+
+Structural updates are admitted per immutable Base. Full guards do not imply
+unrestricted storage migration: changing the layout of a value stored in an
+existing `[ThreadStatic]` field is rejected with
+`current-storage-thread-static-value-field`. A newly introduced owner is a
+different declaration and can be tested separately; it does not migrate the old
+thread slot. Never suppress this diagnostic or relabel a rejected package as
+compatible. Keep all supported Base archives and require the same Current to
+pass admission for each of them before distribution.
+
+The current execution target is Unity 2022 on Windows. Android, macOS/iOS and
+Tuanjie require their own compilation, Player, memory and device checks. The
+workflow uses C# and the Editor's .NET host, but Windows results alone do not
+establish cross-platform correctness or performance gains.
+
 Create a `DheProjectWorkflowAdapter` and delegate the generic entry points:
 
 ```csharp
