@@ -22,8 +22,6 @@ namespace HybridCLR.Editor.Installer
 
         private const string il2cpp_plus_repo_path = "il2cpp_plus_repo";
 
-        public int MajorVersion => _curVersion.major;
-
         private readonly UnityVersion _curVersion;
 
         private readonly HybridclrVersionManifest _versionManifest;
@@ -37,10 +35,12 @@ namespace HybridCLR.Editor.Installer
         {
             _curVersion = ParseUnityVersion(Application.unityVersion);
             _versionManifest = GetHybridCLRVersionManifest();
-            _curDefaultVersion = _versionManifest.versions.FirstOrDefault(v => {
+                _curDefaultVersion = _versionManifest.versions.FirstOrDefault(v => {
                 return _curVersion.isTuanjieEngine? v.unity_version == $"{_curVersion.major}-tuanjie"
-#if UNITY_6000_3_OR_NEWER
+#if UNITY_6000_3_OR_NEWER && !UNITY_6000_5_OR_NEWER
                     : v.unity_version == "6000.3.x"
+#elif UNITY_6000_5_OR_NEWER
+                    : v.unity_version == "6000.5.x"
 #else
                     : v.unity_version == _curVersion.major.ToString()
 #endif
@@ -75,6 +75,11 @@ namespace HybridCLR.Editor.Installer
         class VersionDesc
         {
             public string branch;
+            public string commit;
+            
+            // A custom runtime tag must be resolved in the repository that
+            // publishes it, even in projects retaining the upstream defaults.
+            public string repository;
 
             //public string hash;
         }
@@ -127,23 +132,33 @@ namespace HybridCLR.Editor.Installer
 
         public string GetCurrentUnityVersionMinCompatibleVersionStr()
         {
-            return GetMinCompatibleVersion(MajorVersion);
+            return GetMinCompatibleVersion(_curVersion.major, _curVersion.minor1);
         }
 
-        public string GetMinCompatibleVersion(int majorVersion)
+        private string GetMinCompatibleVersion(int majorVersion, int minorVersion)
         {
             switch(majorVersion)
             {
-                case 2019: return "2019.4.0";
-                case 2020: return "2020.3.0";
-                case 2021: return "2021.3.0";
-                case 2022: return "2022.3.0";
-                case 2023: return "2023.2.0";
-                #if UNITY_6000_3_OR_NEWER
-                case 6000: return "6000.3.0";
-                #else
-                case 6000: return "6000.0.0";
-                #endif
+            case 2019: return "2019.4.0";
+            case 2020: return "2020.3.0";
+            case 2021: return "2021.3.0";
+            case 2022: return "2022.3.0";
+            case 2023: return "2023.2.0";
+            case 6000:
+            {
+                if (minorVersion < 3)
+                {
+                    return "6000.0.0";
+                }
+                else if (minorVersion < 5)
+                {
+                    return "6000.3.0";
+                }
+                else
+                {
+                    return "6000.5.0";
+                }
+            }
                 default: return $"2020.3.0";
             }
         }
@@ -242,10 +257,17 @@ namespace HybridCLR.Editor.Installer
 #endif
         }
 
-        void CloneBranch(string workDir, string repoUrl, string branch, string repoDir)
+        void CloneBranch(string workDir, string repoUrl, VersionDesc version, string repoDir)
         {
             BashUtil.RemoveDir(repoDir);
-            BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", branch, "--depth", "1", repoUrl, repoDir});
+            int cloneCode = BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", version.branch, "--depth", "1", repoUrl, repoDir});
+            if (cloneCode != 0) throw new Exception($"clone repository fail. url: {repoUrl}, branch: {version.branch}");
+            if (!string.IsNullOrWhiteSpace(version.commit))
+            {
+                var result = BashUtil.RunCommand2(repoDir, "git", new string[] {"rev-parse", "HEAD"}, false);
+                if (result.ExitCode != 0 || !string.Equals(result.StdOut.Trim(), version.commit, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception($"repository commit mismatch. expected: {version.commit}, actual: {result.StdOut.Trim()}");
+            }
         }
 
         private string PrepareLibil2cppWithHybridclrFromGitRepo()
@@ -255,9 +277,10 @@ namespace HybridCLR.Editor.Installer
             //BashUtil.RecreateDir(workDir);
 
             // clone hybridclr
-            string hybridclrRepoURL = HybridCLRSettings.Instance.hybridclrRepoURL;
+            string hybridclrRepoURL = string.IsNullOrWhiteSpace(_curDefaultVersion.hybridclr.repository)
+                ? HybridCLRSettings.Instance.hybridclrRepoURL : _curDefaultVersion.hybridclr.repository;
             string hybridclrRepoDir = $"{workDir}/{hybridclr_repo_path}";
-            CloneBranch(workDir, hybridclrRepoURL, _curDefaultVersion.hybridclr.branch, hybridclrRepoDir);
+            CloneBranch(workDir, hybridclrRepoURL, _curDefaultVersion.hybridclr, hybridclrRepoDir);
 
             if (!Directory.Exists(hybridclrRepoDir))
             {
@@ -265,9 +288,10 @@ namespace HybridCLR.Editor.Installer
             }
 
             // clone il2cpp_plus
-            string il2cppPlusRepoURL = HybridCLRSettings.Instance.il2cppPlusRepoURL;
+            string il2cppPlusRepoURL = string.IsNullOrWhiteSpace(_curDefaultVersion.il2cpp_plus.repository)
+                ? HybridCLRSettings.Instance.il2cppPlusRepoURL : _curDefaultVersion.il2cpp_plus.repository;
             string il2cppPlusRepoDir = $"{workDir}/{il2cpp_plus_repo_path}";
-            CloneBranch(workDir, il2cppPlusRepoURL, _curDefaultVersion.il2cpp_plus.branch, il2cppPlusRepoDir);
+            CloneBranch(workDir, il2cppPlusRepoURL, _curDefaultVersion.il2cpp_plus, il2cppPlusRepoDir);
 
             if (!Directory.Exists(il2cppPlusRepoDir))
             {
