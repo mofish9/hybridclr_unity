@@ -58,7 +58,8 @@ internal static class FrozenAotAdmission
             plan.ExecutionPlan.CanonicalBinding();
             bool Selected(MethodDef method) => method.IsAbstract || method.HasBody && method.IsIL && !method.IsUnmanaged &&
                 !method.IsPinvokeImpl && !method.IsInternalCall && !source.ExcludedTypeTokens.Contains(method.DeclaringType.MDToken.Raw) &&
-                plan.ExecutionPlan.CurrentExecutionMethodTokens.Contains(method.MDToken.Raw) && Covered(method);
+                (plan.ExecutionPlan.CurrentExecutionMethodTokens.Contains(method.MDToken.Raw) ||
+                    FrozenAotAdaptation.IsStorageIndependentEmptyValueMethod(method)) && Covered(method);
             // Current storage needs both its original initializer and every
             // concrete affected native accessor. Keeping only a field record
             // would still let old AOT code read/write the smaller Base slot.
