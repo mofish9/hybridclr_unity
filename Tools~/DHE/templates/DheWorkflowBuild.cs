@@ -29,6 +29,10 @@ namespace __DHE_NAMESPACE__
         public static void BuildFinalPlayer() =>
             DheProjectWorkflowRunner.BuildFinalPlayer(CreateAdapter());
 
+        // Parameterized entry for the project's existing C# build script.
+        public static DheProjectBaseResult BuildBase(DheProjectWorkflowOptions options) =>
+            DheProjectWorkflowRunner.BuildBase(CreateAdapter(), options);
+
         public static void BuildDheYooAsset()
         {
             throw new BuildFailedException(
@@ -41,11 +45,12 @@ namespace __DHE_NAMESPACE__
             return new DheProjectWorkflowAdapter
             {
                 ProjectRoot = ProjectRoot(),
-                Workflow = "dhe-opt4",
+                Workflow = "dhe-opt5",
                 BuildIdentityAssetPath = "Assets/HybridCLRGenerated/DheBuildIdentity.cs",
                 IdentityNamespace = "__DHE_IDENTITY_NAMESPACE__",
                 IdentityClassName = "DheBuildIdentity",
                 RuntimeAssetRoot = RuntimeAssetRoot,
+                GuardOrdinaryAotMethods = true,
                 GetScenes = () => EditorBuildSettings.scenes.Where(scene => scene.enabled)
                     .Select(scene => scene.path).ToArray(),
                 BuildPlayer = options => BuildPipeline.BuildPlayer(options),

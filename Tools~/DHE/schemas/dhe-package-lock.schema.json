@@ -18,6 +18,8 @@
       "pattern": "^Packages/com\\.code-philosophy\\.hybridclr(?:@[A-Za-z0-9._-]+)?$"
     },
     "treeSha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
+    "treeHashKind": { "const": "canonical-source-v1" },
+    "commitKind": { "const": "package-build-source" },
     "resolverSourceSha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
     "treeHashIgnoredPaths": {
       "type": "array",

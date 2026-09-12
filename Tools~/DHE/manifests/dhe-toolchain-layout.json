@@ -50,6 +50,8 @@
     "new-adapter",
     "new-config",
     "tree-hash",
-    "file-hash"
+    "file-hash",
+    "capture-installation",
+    "verify-installation"
   ]
 }

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-09-12T14:38:04.7685275+00:00",
+  "generatedAtUtc": "2026-09-12T16:20:17.8553482+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "b00e802bf163f7029b3675b9491b0dac62a03be11444b7a76dad79e8b3bb4c09",
+  "packageId": "aa0b4c155473caf34e1f9d870f96238ca3f3e22b563d4d91b8adb967af14aa6d",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -39,16 +39,18 @@
     "new-adapter",
     "new-config",
     "tree-hash",
-    "file-hash"
+    "file-hash",
+    "capture-installation",
+    "verify-installation"
   ],
-  "layoutSha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983",
+  "layoutSha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318",
   "sourceIdentity": {
-    "head": "74edbcfc6f2a968fce23c5f194cc3906a1905b75",
-    "tree": "0d456c80413da36842a7ec330d67a72dd35cab11",
+    "head": "db81530854b69c0dd1ec0a1ebe40044464423074",
+    "tree": "4c7ca4fbb45ad5506e5a0a53debc363bbfe72226",
     "clean": true,
     "tracked": true
   },
-  "fileCount": 82,
+  "fileCount": 83,
   "files": [
     {
       "path": "HybridCLR.DheTool.deps.json",
@@ -57,8 +59,8 @@
     },
     {
       "path": "HybridCLR.DheTool.dll",
-      "size": 1607680,
-      "sha256": "fcbaa01a566a2036a7b21ce8741dcd44a9a61c1b1739b3be550ff89641563e69"
+      "size": 1638400,
+      "sha256": "fd1fd6fbd87e2172c658afd17fc1d32bb45e7f820f374c763da13130d0b49731"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -67,8 +69,8 @@
     },
     {
       "path": "build-provenance.json",
-      "size": 827,
-      "sha256": "aa0efda101bd7eed64e8ed4d640d968974ba6823d30e128f405621a8b45edbcd"
+      "size": 973,
+      "sha256": "7e20a62b297dcfef29e8845140f533ca0a08448d468e82a63fc2cd8982fc76fb"
     },
     {
       "path": "dhe-source-boundary.json",
@@ -82,13 +84,18 @@
     },
     {
       "path": "docs/DHE-Tool-Binary-Notices.md",
-      "size": 1544,
-      "sha256": "149047f0a388fd3b301797d108297ef29e1e55a01cb1ffb2cafd02ba78c0696b"
+      "size": 1559,
+      "sha256": "ab82a53d02d0991d0b4e6cc26b7edabdf08c7b73b44a4e790beb8a66d6f59029"
     },
     {
       "path": "docs/THIRD-PARTY-NOTICES.md",
       "size": 1474,
       "sha256": "c632d64fad48b6a2eeaed416fb4d8fedee91a0a9a4c5791b48a8cdffefad00ce"
+    },
+    {
+      "path": "manifests/dhe-runtime-lock.json",
+      "size": 574,
+      "sha256": "104da19703774aa806fcdcce8e51ed93dae30f15dd7e32ad1a30d07394f7b68f"
     },
     {
       "path": "manifests/dhe-toolchain-evidence-authorities.json",
@@ -97,8 +104,8 @@
     },
     {
       "path": "manifests/dhe-toolchain-layout.json",
-      "size": 1220,
-      "sha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983"
+      "size": 1277,
+      "sha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318"
     },
     {
       "path": "manifests/runtime-workflows.json",
@@ -212,8 +219,8 @@
     },
     {
       "path": "schemas/dhe-package-lock.schema.json",
-      "size": 1584,
-      "sha256": "cb9576aa47e181af35942f83212afea740d8271fe2ffb4acfd7bb095ef08b1fb"
+      "size": 1695,
+      "sha256": "67dc318431d509aa81b8ccc896d50745f9bc21a4ae7af2dea643d58f071119f3"
     },
     {
       "path": "schemas/dhe-player-result.schema.json",
@@ -432,8 +439,8 @@
     },
     {
       "path": "templates/DheWorkflowBuild.cs",
-      "size": 3445,
-      "sha256": "88e48cc9da8dea4429217572c9d4bf6abf56e40dfac7f7582c2a475b38da1fce"
+      "size": 3734,
+      "sha256": "b7293d151076071a36564a8835e22b998ec09d0a74a3dfbb25c5846fdf83ebc0"
     },
     {
       "path": "templates/dhe-base-runner-catalog.json",
@@ -457,8 +464,8 @@
     },
     {
       "path": "templates/dhe-workflow-config.json",
-      "size": 978,
-      "sha256": "29231633d287026ad4309864013ac8fbe306dd8dcc9b2b4a4697e36f4636a974"
+      "size": 832,
+      "sha256": "c49ddb8b0c81955995f635010f4f2194295c8594e15b8c48432690de1d6f856a"
     }
   ]
 }

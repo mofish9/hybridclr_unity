@@ -1,6 +1,6 @@
 # DHE portable tool dependencies
 
-`HybridCLR.DheTool.dll` is built from the Lab source commit recorded in
+`HybridCLR.DheTool.dll` is built from the package repository source commit recorded in
 `build-provenance.json`. It uses the existing HybridCLR package's dnlib build
 (its exact SHA-256 is recorded in that file). No .NET runtime is redistributed;
 the caller uses Unity's installed runtime or a compatible .NET 6 runtime.
