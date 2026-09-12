@@ -17,8 +17,8 @@ Do not copy a separate `tools/hybridclr-dhe` source distribution into the projec
 - An `IDheRuntimeAssetProvider` for the project's resource framework.
 - The generated zero BuildIdentity template under `Assets`.
 - One runtime bootstrap call at the existing hot-update load point.
-- Package lock, source boundary, and release policy under
-  `ProjectSettings/DHE`.
+- Project source boundary and release policy under `ProjectSettings/DHE`.
+  Installer owns the generated package/runtime identity under `HybridCLRData/DHE`.
 
 The package directory may retain a Unity version suffix such as
 `com.code-philosophy.hybridclr@8.13.0`; do not rename it.
@@ -46,6 +46,45 @@ failures stop installation. Exact commits and source hashes remain in release
 locks/build provenance and are checked by the DHE build identity workflow.
 
 ## Base Player adapter
+
+After updating the complete package, run ordinary Installer. It creates
+`HybridCLRData/DHE/runtime-manifest.json` and `package-lock.json` using the actual
+installed native files and the running Editor. `verify-installation` validates
+the package, opt5 runtime release, compiler and headers. All Base stages call
+this check; a stale/mixed installation requires reinstalling before a new build.
+These are generated local records, not substitutes for the immutable Base archive
+or the project's package migration commit.
+
+Existing project C# build scripts can use explicit inputs without `-dhe*`
+command-line arguments:
+
+```csharp
+var result = DheProjectWorkflowRunner.BuildBase(CreateAdapter(),
+    new DheProjectWorkflowOptions {
+        Target = target,
+        OutputRoot = outputRoot,
+        BaselineRoot = System.IO.Path.Combine(outputRoot, "baseline"),
+        Bootstrap = true,
+        EngineWorkflow = "Unity2022Fgs",
+        Il2CppCodeGeneration = "OptimizeSize",
+    });
+```
+
+The complete entry includes preflight/plan generation and the four stages below.
+For pipelines spanning Editor invocations, create a context with
+`DheProjectWorkflowContext.Create(options)` and call the stage overloads with that
+context. The CLI entries parse arguments once and delegate to these same APIs.
+Import the generated identity template before entering the build. Keep its owner
+in an ordinary AOT assembly, outside `dheAotAssemblies`, including projects whose
+hotfix set contains Assembly-CSharp.
+
+New adapters default `GuardOrdinaryAotMethods` to true. This preserves the ordinary
+AOT call boundaries required when hotfix type layouts evolve; it does not make
+ordinary AOT assemblies hot-updatable. Complete guard coverage is checked during
+native finalization. Turning it off is a diagnostic restriction that cannot be
+repaired by a later resource update and is not the supported project-trial profile.
+The adapter exposes `BeforeCurrentGeneration` / `AfterCurrentGeneration`; the
+latter runs in finally so project-specific precompiled inputs can be restored.
 
 Create a `DheProjectWorkflowAdapter` and delegate the generic entry points:
 

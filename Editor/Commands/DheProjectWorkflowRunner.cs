@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -15,15 +16,43 @@ namespace HybridCLR.Editor.Commands
     /// </summary>
     public static class DheProjectWorkflowRunner
     {
+        /// <summary>Complete Base lifecycle; projects supply build/resource callbacks.</summary>
+        public static DheProjectBaseResult BuildBase(DheProjectWorkflowAdapter adapter, DheProjectWorkflowOptions options)
+        {
+            var context = DheProjectWorkflowContext.Create(options);
+            Prepare(adapter, context);
+            DheToolCommand.RunWithTimeout("preflight", new[]
+            {
+                "-SettingsFile", Path.Combine(adapter.ProjectRoot, "ProjectSettings/HybridCLRSettings.asset"),
+                "-BaselineRoot", context.BaselineRoot, "-CurrentRoot", context.CurrentRoot,
+                "-ProjectRoot", adapter.ProjectRoot,
+                "-OutputRoot", Path.GetDirectoryName(context.ProjectPlanPath),
+                "-RequireDheEqualsHotUpdate", "-RequireCompleteCoverage"
+            }, 900000);
+            StageRuntimePlan(adapter, context);
+            BuildScriptsOnly(adapter, context);
+            BuildFinalPlayer(adapter, context);
+            return new DheProjectBaseResult
+            {
+                OutputRoot = context.OutputRoot,
+                BuildIdentityPath = Path.Combine(context.OutputRoot, "build-identity.json"),
+                NativeManifestPath = Path.Combine(context.OutputRoot, "native/dhe-native-manifest.json"),
+                PlayerPath = ResolvePlayerOutput(adapter, context)
+            };
+        }
+
         public static void Prepare(DheProjectWorkflowAdapter adapter)
+            => Prepare(adapter, DheProjectWorkflowContext.FromCommandLine(false));
+
+        public static void Prepare(DheProjectWorkflowAdapter adapter, DheProjectWorkflowContext context)
         {
             RequireAdapter(adapter);
-            DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(false);
+            RequireContext(context, false);
             context.EnsureTarget();
             // Keep the generated type shape stable between the initial AOT
             // snapshot and the final Player that embeds its snapshot hash.
             DheProjectBuildSupport.RestoreBuildIdentityTemplate(CreateIdentityOptions(adapter, context));
-            string baselineSource = Environment.GetEnvironmentVariable("DHE_BASELINE_ROOT");
+            string baselineSource = context.BaselineSourceRoot;
             DheProjectPrepareResult prepared = DheBuildPipeline.PrepareProjectArtifacts(
                 new DheProjectPrepareOptions
                 {
@@ -33,8 +62,10 @@ namespace HybridCLR.Editor.Commands
                         Path.GetFullPath(baselineSource),
                     BaselineOutputRoot = context.BaselineRoot,
                     CurrentOutputRoot = context.CurrentRoot,
-                    Bootstrap = context.GetBooleanArgument("-dheBootstrap"),
+                    Bootstrap = context.Bootstrap,
                     RequireDheEqualsHotUpdate = true,
+                    BeforeCurrentGeneration = adapter.BeforeCurrentGeneration,
+                    AfterCurrentGeneration = adapter.AfterCurrentGeneration,
                 });
             EnsureAssemblyRoot(prepared.CurrentOutputRoot,
                 prepared.HotUpdateAssemblyNames, "prepared Current output");
@@ -65,9 +96,12 @@ namespace HybridCLR.Editor.Commands
         }
 
         public static void BuildScriptsOnly(DheProjectWorkflowAdapter adapter)
+            => BuildScriptsOnly(adapter, DheProjectWorkflowContext.FromCommandLine(true));
+
+        public static void BuildScriptsOnly(DheProjectWorkflowAdapter adapter, DheProjectWorkflowContext context)
         {
             RequireAdapter(adapter);
-            DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(true);
+            RequireContext(context, true);
             context.EnsureTarget();
             BuildPlayer(adapter, context, BuildOptions.BuildScriptsOnly);
             DheProjectNativeOptions nativeOptions = CreateNativeOptions(adapter, context);
@@ -79,9 +113,12 @@ namespace HybridCLR.Editor.Commands
         }
 
         public static void StageRuntimePlan(DheProjectWorkflowAdapter adapter)
+            => StageRuntimePlan(adapter, DheProjectWorkflowContext.FromCommandLine(true));
+
+        public static void StageRuntimePlan(DheProjectWorkflowAdapter adapter, DheProjectWorkflowContext context)
         {
             RequireAdapter(adapter);
-            DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(true);
+            RequireContext(context, true);
             context.EnsureTarget();
             string runtimeAssetRoot = ResolveProjectPath(adapter.ProjectRoot,
                 adapter.RuntimeAssetRoot);
@@ -112,7 +149,7 @@ namespace HybridCLR.Editor.Commands
                         context.GetArgument("-dheAotMetadataExpectedRuntimeManifestSha256"),
                     AotMetadataFallbackExpectedPackageTreeSha256 =
                         context.GetArgument("-dheAotMetadataExpectedPackageTreeSha256"),
-                    AotMetadataAssemblyNames = SettingsUtil.AOTAssemblyNames.ToArray(),
+                    AotMetadataAssemblyNames = context.AotMetadataAssemblyNames,
                     HotfixAssemblyNames = SettingsUtil.HotUpdateAssemblyNamesExcludePreserved.ToArray(),
                     RuntimeAssetPathResolver = path => ToProjectAssetPath(adapter.ProjectRoot, path),
                     CurrentAssemblyTransform = adapter.CurrentAssemblyTransform,
@@ -129,9 +166,12 @@ namespace HybridCLR.Editor.Commands
         }
 
         public static void BuildFinalPlayer(DheProjectWorkflowAdapter adapter)
+            => BuildFinalPlayer(adapter, DheProjectWorkflowContext.FromCommandLine(true));
+
+        public static void BuildFinalPlayer(DheProjectWorkflowAdapter adapter, DheProjectWorkflowContext context)
         {
             RequireAdapter(adapter);
-            DheProjectWorkflowContext context = DheProjectWorkflowContext.FromCommandLine(true);
+            RequireContext(context, true);
             context.EnsureTarget();
             DheProjectBuildSupport.ValidateStagedBuildIdentity(
                 CreateIdentityOptions(adapter, context));
@@ -265,6 +305,15 @@ namespace HybridCLR.Editor.Commands
                 string.IsNullOrWhiteSpace(adapter.IdentityNamespace) ||
                 string.IsNullOrWhiteSpace(adapter.IdentityClassName))
                 throw new BuildFailedException("DHE project workflow adapter is incomplete.");
+            DheToolCommand.Run("verify-installation", "-ProjectPath", adapter.ProjectRoot);
+        }
+
+        private static void RequireContext(DheProjectWorkflowContext context, bool requirePlan)
+        {
+            if (context == null) throw new ArgumentNullException(nameof(context));
+            if (requirePlan && string.IsNullOrWhiteSpace(context.ProjectPlanPath))
+                throw new BuildFailedException("DHE stage requires the preflight project plan.");
+            if (context.Mode == "Release") DheToolCommand.Run("verify-package", "-RequireRelease");
         }
 
         private static void EnsureAssemblyRoot(string root, string[] names, string description)
@@ -356,7 +405,7 @@ namespace HybridCLR.Editor.Commands
     public sealed class DheProjectWorkflowAdapter
     {
         public string ProjectRoot;
-        public string Workflow = "dhe-opt4";
+        public string Workflow = "dhe-opt5";
         public string BuildIdentityAssetPath;
         public string IdentityNamespace;
         public string IdentityClassName = "DheBuildIdentity";
@@ -369,13 +418,15 @@ namespace HybridCLR.Editor.Commands
         public Func<string, string[], string[]> HotfixLoadOrderResolver;
         public Action<string, string> DependencyMapWriter;
         public Action<string> StageAdditionalRuntimeAssets;
+        public Action<string[]> BeforeCurrentGeneration;
+        public Action<string[]> AfterCurrentGeneration;
         /// <summary>
         /// Optional authenticated MV JSONs for ordinary AOT guard coverage.
         /// These inputs affect native guards only and never hotfix loading.
         /// </summary>
         public string[] AdditionalGuardMvJsonPaths;
         /// <summary>Derive complete ordinary guards from the current final-build stripped input.</summary>
-        public bool GuardOrdinaryAotMethods;
+        public bool GuardOrdinaryAotMethods = true;
     }
 
     public sealed class DheProjectPlayerSmokeContext
@@ -385,6 +436,30 @@ namespace HybridCLR.Editor.Commands
         public BuildTarget Target;
         public string TargetName;
         public DheNativeFinalizeResult NativeResult;
+    }
+
+    public sealed class DheProjectBaseResult
+    {
+        public string OutputRoot, BuildIdentityPath, NativeManifestPath, PlayerPath;
+    }
+
+    /// <summary>Explicit build inputs. Does not read command-line or environment state.</summary>
+    public sealed class DheProjectWorkflowOptions
+    {
+        public BuildTarget Target;
+        public string OutputRoot;
+        public string BaselineRoot;
+        public string CurrentRoot;
+        public string BaselineSourceRoot;
+        public string ProjectPlanPath;
+        public string Mode = "Exploratory";
+        public string EngineWorkflow = "Unity2022Fgs";
+        public string Il2CppCodeGeneration = "OptimizeSize";
+        public bool Bootstrap;
+        public string PlayerOutputPath;
+        public string[] AotMetadataAssemblyNames = Array.Empty<string>();
+        /// <summary>Optional staging metadata arguments; copied when creating the context.</summary>
+        public IDictionary<string, string> StageArguments;
     }
 
     public sealed class DheProjectWorkflowContext
@@ -398,12 +473,45 @@ namespace HybridCLR.Editor.Commands
         public string Mode { get; private set; }
         public string EngineWorkflow { get; private set; }
         public string Il2CppCodeGeneration { get; private set; }
+        public string BaselineSourceRoot { get; private set; }
+        public bool Bootstrap { get; private set; }
+        public string[] AotMetadataAssemblyNames { get; private set; }
+        private Dictionary<string, string> arguments;
+
+        public static DheProjectWorkflowContext Create(DheProjectWorkflowOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (options.Target == BuildTarget.NoTarget || !Enum.IsDefined(typeof(BuildTarget), options.Target))
+                throw new BuildFailedException("DHE build target must be explicit.");
+            if (string.IsNullOrWhiteSpace(options.OutputRoot) || string.IsNullOrWhiteSpace(options.BaselineRoot))
+                throw new BuildFailedException("DHE OutputRoot and BaselineRoot are required.");
+            if (options.Mode != "Exploratory" && options.Mode != "Release")
+                throw new BuildFailedException("DHE mode must be Exploratory or Release.");
+            DheProjectBuildSupport.ValidateBuildConfiguration(options.EngineWorkflow, options.Il2CppCodeGeneration);
+            var context = new DheProjectWorkflowContext
+            {
+                Target = options.Target, TargetName = options.Target.ToString(),
+                OutputRoot = Path.GetFullPath(options.OutputRoot),
+                BaselineRoot = Path.GetFullPath(options.BaselineRoot),
+                CurrentRoot = Path.GetFullPath(options.CurrentRoot ?? Path.Combine(options.OutputRoot, "current")),
+                ProjectPlanPath = Path.GetFullPath(options.ProjectPlanPath ?? Path.Combine(options.OutputRoot, "project-preflight/dhe-project-plan.json")),
+                BaselineSourceRoot = string.IsNullOrWhiteSpace(options.BaselineSourceRoot) ? null : Path.GetFullPath(options.BaselineSourceRoot),
+                Mode = options.Mode, EngineWorkflow = options.EngineWorkflow,
+                Il2CppCodeGeneration = options.Il2CppCodeGeneration, Bootstrap = options.Bootstrap,
+                AotMetadataAssemblyNames = (options.AotMetadataAssemblyNames ?? Array.Empty<string>()).ToArray(),
+                arguments = options.StageArguments == null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) :
+                    new Dictionary<string, string>(options.StageArguments, StringComparer.OrdinalIgnoreCase),
+            };
+            if (!string.IsNullOrWhiteSpace(options.PlayerOutputPath))
+                context.arguments["-dhePlayerOutput"] = Path.GetFullPath(options.PlayerOutputPath);
+            return context;
+        }
 
         public static DheProjectWorkflowContext FromCommandLine(bool requireProjectPlan)
         {
-            var context = new DheProjectWorkflowContext
+            var context = Create(new DheProjectWorkflowOptions
             {
-                TargetName = RequireArgument("-dheTarget"),
+                Target = ParseTarget(RequireArgument("-dheTarget")),
                 OutputRoot = Path.GetFullPath(RequireArgument("-dheOutputRoot")),
                 BaselineRoot = Path.GetFullPath(RequireArgument("-dheBaselineRoot")),
                 CurrentRoot = Path.GetFullPath(GetArgumentValue("-dheCurrentRoot") ??
@@ -411,10 +519,15 @@ namespace HybridCLR.Editor.Commands
                 Mode = GetArgumentValue("-dheMode") ?? "Exploratory",
                 EngineWorkflow = RequireArgument("-dheEngineWorkflow"),
                 Il2CppCodeGeneration = RequireArgument("-dheIl2CppCodeGeneration"),
-            };
-            context.Target = ParseTarget(context.TargetName);
-            DheProjectBuildSupport.ValidateBuildConfiguration(context.EngineWorkflow,
-                context.Il2CppCodeGeneration);
+                BaselineSourceRoot = Environment.GetEnvironmentVariable("DHE_BASELINE_ROOT"),
+                Bootstrap = IsTrue(GetArgumentValue("-dheBootstrap")),
+                PlayerOutputPath = GetArgumentValue("-dhePlayerOutput"),
+                AotMetadataAssemblyNames = ReadAotMetadataArgument(),
+            });
+            foreach (string name in new[] { "-dheAotMetadataFallbackRoot", "-dheAotMetadataFallbackManifest",
+                "-dheAotMetadataExpectedTarget", "-dheAotMetadataExpectedStagedRuntimeSha256",
+                "-dheAotMetadataExpectedRuntimeManifestSha256", "-dheAotMetadataExpectedPackageTreeSha256" })
+                if (GetArgumentValue(name) is string value) context.arguments[name] = value;
             string projectPlan = GetArgumentValue("-dheProjectPlan");
             if (requireProjectPlan && string.IsNullOrWhiteSpace(projectPlan))
                 throw new BuildFailedException("Missing required Unity argument: -dheProjectPlan");
@@ -425,12 +538,16 @@ namespace HybridCLR.Editor.Commands
 
         public string GetArgument(string name)
         {
-            return GetArgumentValue(name) ?? string.Empty;
+            return arguments.TryGetValue(name, out string value) ? value ?? string.Empty : string.Empty;
         }
 
         public bool GetBooleanArgument(string name)
         {
-            string value = GetArgument(name);
+            return IsTrue(GetArgument(name));
+        }
+
+        private static bool IsTrue(string value)
+        {
             return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
@@ -463,6 +580,14 @@ namespace HybridCLR.Editor.Commands
             if (Enum.TryParse(value, true, out BuildTarget target) && target != BuildTarget.NoTarget)
                 return target;
             throw new BuildFailedException("Unsupported DHE build target: " + value);
+        }
+
+        private static string[] ReadAotMetadataArgument()
+        {
+            string value = GetArgumentValue("-dheAotMetadataAssemblies");
+            if (value == null) return SettingsUtil.AOTAssemblyNames.ToArray();
+            return string.Equals(value, "none", StringComparison.OrdinalIgnoreCase) ? Array.Empty<string>() :
+                value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(name => name.Trim()).ToArray();
         }
 
         private static string RequireArgument(string name)

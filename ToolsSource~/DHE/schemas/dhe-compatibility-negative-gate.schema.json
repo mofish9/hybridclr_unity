@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-compatibility-negative-gate.schema.json",
+  "title": "HybridCLR DHE Compatibility Negative Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "scenarios"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-compatibility-negative-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "scenarios": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["name", "variant", "strictRejected", "strictReport", "analysisReport", "jsonOverwriteRejected", "binaryOverwriteRejected", "compatibility", "summary"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "variant": { "type": "string", "minLength": 1 },
+          "strictRejected": { "const": true },
+          "strictReport": { "type": "string", "minLength": 1 },
+          "analysisReport": { "type": "string", "minLength": 1 },
+          "jsonOverwriteRejected": { "const": true },
+          "binaryOverwriteRejected": { "const": true },
+          "compatibility": { "type": "object" },
+          "summary": { "type": "object" }
+        }
+      }
+    }
+  }
+}

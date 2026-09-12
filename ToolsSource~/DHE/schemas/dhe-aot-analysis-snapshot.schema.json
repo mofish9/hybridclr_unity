@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-aot-analysis-snapshot.schema.json",
+  "title": "HybridCLR DHE Base AOT analysis snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "normalization", "identityType", "identityAssembly", "assemblies"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-aot-analysis-snapshot.json" },
+    "normalization": { "const": "dhe-aot-analysis-normalization-v1" },
+    "identityType": { "type": "string", "minLength": 1 },
+    "identityAssembly": { "type": "string", "minLength": 1 },
+    "assemblies": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["assemblyName", "file", "sha256", "normalizedSha256", "dhe"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "file": { "type": "string", "pattern": "^assemblies/[^/\\\\]+[.]dll$" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "normalizedSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "dhe": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

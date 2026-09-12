@@ -49,7 +49,7 @@ It does not turn the project's ordinary build/loader into DHE: configure the
 DHE assembly set and implement the project adapter/provider as described in
 `dhe-project-integration.md`.
 
-The tool manifest records its Lab build source and exact payload hashes; the
+The tool manifest records its package-repository build source and exact payload hashes; the
 project source lock records the containing package commit. These identities
 serve different purposes. Package/repository locks and device evidence for a
 particular qualified build remain build inputs, not baked-in references to an
@@ -59,19 +59,21 @@ The current distribution is Exploratory, not mobile production-qualified.
 Maintainers can now publish a Release binary distribution with:
 
 ```text
-dotnet <Lab-host>/HybridCLR.DheTool.dll publish-unity-tool -LabRoot <clean committed Lab> -OutputRoot <new external directory> -Mode Release -ReleaseEvidence <evidence.json>
+dotnet <source-host>/HybridCLR.DheTool.dll publish-unity-tool -PackageSourceRoot <clean committed package> -OutputRoot <new external directory> -Mode Release -ReleaseEvidence <evidence.json>
 ```
 
-This uses the same source HEAD/tree and complete evidence validation as Lab
-source publication, rechecks the evidence after compilation, and records its
+This uses the same complete evidence validation policy, rechecks the package
+source HEAD/tree and evidence after compilation, and records the evidence
 SHA-256 in build provenance. Missing, failed, incomplete or foreign-source
 evidence cannot produce a Release bundle. `ValidationSourceRoot` alone does
 not certify an Exploratory bundle. Until real evidence passes and that Release
 bundle is distributed, `verify-package -RequireRelease` must continue to fail.
 
-Maintainers rebuild with the Lab C# `publish-unity-tool -LabRoot <clean source>
+Maintainers first build `ToolsSource~/DHE/HybridCLR.DheTool.csproj` with a .NET 6 SDK.
+Then run its `publish-unity-tool -PackageSourceRoot <clean package checkout>
 -OutputRoot <new external directory>` command, copy that verified output into
-`Tools~/DHE`, and commit it with the Editor/package change. No runtime tag change
+`Tools~/DHE`, and commit the distribution. Test fixtures remain in Lab and are not
+copied into the package. No runtime tag change
 is needed for tooling-only packaging. Never edit bundled files individually.
 
 Workflow arguments resolve in this order: explicit CLI argument, JSON config,

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-static-gate.schema.json",
+  "title": "HybridCLR DHE Static Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "checks", "sourceBoundaryReport", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-static-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "passed", "detail"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "sourceBoundaryReport": { "type": ["string", "null"] },
+    "fixtureReport": { "type": ["string", "null"] },
+    "toolchainFixtureReport": { "type": ["string", "null"] },
+    "schemaGateReport": { "type": ["string", "null"] },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

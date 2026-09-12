@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-base-runner-catalog.json",
+  "pathSemantics": "config-relative-v1",
+  "baseRegistryId": "production-channel-bases",
+  "baseRegistryRevision": 1,
+  "baseRegistrySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "bases": [
+    {
+      "baseId": "0000000000000000000000000000000000000000000000000000000000000000",
+      "runnerKind": "prequalified",
+      "assetRoot": null,
+      "buildIdentity": null,
+      "baseWorkflowReport": null,
+      "playerExecutable": null,
+      "workingDirectory": null,
+      "playerArguments": null,
+      "immutableFiles": [],
+      "playerWorkflowReportTemplate": "../../device-results/{releaseChannelId}/{releaseRevision}/{releaseLedgerSha256}/{baseId}/resource-player-workflow-report.json"
+    }
+  ]
+}

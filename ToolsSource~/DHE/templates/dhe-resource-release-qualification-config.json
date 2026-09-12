@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-resource-release-qualification-config.json",
+  "pathSemantics": "config-relative-v1",
+  "resourceUpdateRoot": "../../artifacts/dhe-resource-release/resource",
+  "outputRoot": "../../artifacts/dhe-resource-qualification",
+  "channelSnapshot": "../../artifacts/channel-snapshot.json",
+  "expectedChannelSnapshotSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedToolchainPackageId": "0000000000000000000000000000000000000000000000000000000000000000",
+  "evidenceToolchainRoots": [],
+  "requireEngineMatrix": true,
+  "timeoutSeconds": 300,
+  "bases": [
+    {
+      "baseId": "0000000000000000000000000000000000000000000000000000000000000000",
+      "runnerKind": "process",
+      "assetRoot": "../../players/base-1/HybridCLRLab_Data/StreamingAssets/HybridCLRLab/DheDemo",
+      "buildIdentity": "../../base-archives/base-1/build-identity.json",
+      "baseWorkflowReport": "../../base-archives/base-1/player-workflow-report.json",
+      "playerExecutable": "../../players/base-1/HybridCLRLab.exe",
+      "workingDirectory": "../../players/base-1",
+      "playerArguments": [
+        "-batchmode",
+        "-nographics",
+        "-logFile",
+        "{log}",
+        "-labMode",
+        "dhe",
+        "-labTarget",
+        "StandaloneWindows64",
+        "-labResult",
+        "{result}"
+      ],
+      "immutableFiles": [
+        "../../players/base-1/HybridCLRLab.exe",
+        "../../players/base-1/GameAssembly.dll"
+      ],
+      "playerWorkflowReport": null
+    }
+  ]
+}

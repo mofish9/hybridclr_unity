@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-toolchain-release.schema.json",
+  "title": "HybridCLR DHE Toolchain Transport Release",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "pathSemantics", "toolchainVersion", "contractVersion", "packageId", "source", "runtime", "package", "installedConsumer"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-toolchain-release.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "pathSemantics": { "const": "release-sibling-v1" },
+    "toolchainVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "contractVersion": { "const": 1 },
+    "packageId": { "$ref": "#/$defs/sha256" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head", "tree", "bundleVerified", "bundle"],
+      "properties": {
+        "head": { "$ref": "#/$defs/gitObject" },
+        "tree": { "$ref": "#/$defs/gitObject" },
+        "bundleVerified": { "const": true },
+        "bundle": { "$ref": "#/$defs/file" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["treeSha256", "engineWorkflow", "manifest"],
+      "properties": {
+        "treeSha256": { "$ref": "#/$defs/sha256" },
+        "engineWorkflow": { "type": "string", "minLength": 1 },
+        "manifest": { "$ref": "#/$defs/file" }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "manifest", "archiveVerified", "archive", "gate", "archiveGate"],
+      "properties": {
+        "directory": { "$ref": "#/$defs/relativePath" },
+        "manifest": { "$ref": "#/$defs/relativePath" },
+        "archiveVerified": { "const": true },
+        "archive": { "$ref": "#/$defs/file" },
+        "gate": { "$ref": "#/$defs/file" },
+        "archiveGate": { "$ref": "#/$defs/file" }
+      }
+    },
+    "installedConsumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceHead", "sourceTree", "consumerHead", "consumerTree", "report"],
+      "properties": {
+        "sourceHead": { "$ref": "#/$defs/gitObject" },
+        "sourceTree": { "$ref": "#/$defs/gitObject" },
+        "consumerHead": { "$ref": "#/$defs/gitObject" },
+        "consumerTree": { "$ref": "#/$defs/gitObject" },
+        "report": { "$ref": "#/$defs/file" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "size": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

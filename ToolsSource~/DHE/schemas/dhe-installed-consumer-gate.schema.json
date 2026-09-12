@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-installed-consumer-gate.schema.json",
+  "title": "HybridCLR DHE Installed Consumer Gate Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "target", "sourceRoot", "sourceHead", "sourceTree", "consumerHead", "consumerTree", "packageRoot", "packageId", "runtimeSource", "runtimeTreeSha256", "consumerRetained", "consumerRoot", "archiveRoot", "archiveGate", "evidence", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-installed-consumer-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "sourceRoot": { "type": "string", "minLength": 1 },
+    "sourceHead": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{40,64}$" },
+    "sourceTree": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{40,64}$" },
+    "consumerHead": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{40,64}$" },
+    "consumerTree": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{40,64}$" },
+    "packageRoot": { "type": "string", "minLength": 1 },
+    "packageId": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+    "runtimeSource": { "type": "string", "minLength": 1 },
+    "runtimeTreeSha256": { "type": "string", "pattern": "^$|^[0-9a-fA-F]{64}$" },
+    "consumerRetained": { "type": "boolean" },
+    "consumerRoot": { "type": ["string", "null"] },
+    "archiveRoot": { "type": ["string", "null"] },
+    "archiveGate": { "type": ["string", "null"] },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "size", "sha256"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^evidence/[A-Za-z0-9._-]+$" },
+          "size": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "passed": { "const": true } }, "required": ["passed"] },
+      "then": {
+        "properties": {
+          "sourceHead": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "sourceTree": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "consumerHead": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "consumerTree": { "pattern": "^[0-9a-fA-F]{40,64}$" },
+          "packageId": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "runtimeTreeSha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "archiveRoot": { "type": "string", "minLength": 1 },
+          "archiveGate": { "type": "string", "minLength": 1 },
+          "evidence": { "minItems": 5 },
+          "errors": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
+}

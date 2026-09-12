@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/build-manifest.schema.json",
+  "title": "HybridCLR Lab Runtime Build Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profile",
+    "createdAtUtc",
+    "engine",
+    "repositories",
+    "target",
+    "configuration"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profile": {
+      "enum": ["Baseline-Clean", "Baseline-Instrumented", "Candidate"]
+    },
+    "createdAtUtc": { "type": "string", "format": "date-time" },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "version", "compatibilityVersion", "editorPath"],
+      "properties": {
+        "family": { "const": "Tuanjie" },
+        "version": { "type": "string" },
+        "compatibilityVersion": { "type": "string" },
+        "editorPath": { "type": "string" }
+      }
+    },
+    "repositories": {
+      "type": "object",
+      "required": ["hybridclr_unity", "hybridclr", "il2cpp_plus"],
+      "additionalProperties": false,
+      "properties": {
+        "hybridclr_unity": { "$ref": "#/$defs/repository" },
+        "hybridclr": { "$ref": "#/$defs/repository" },
+        "il2cpp_plus": { "$ref": "#/$defs/repository" }
+      }
+    },
+    "target": { "type": "string", "minLength": 1 },
+    "configuration": { "enum": ["Release", "Development"] },
+    "stagedRuntimeSha256": { "$ref": "#/$defs/sha256" },
+    "generatedCppSha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "commit", "dirty"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-F0-9]{64}$"
+    }
+  }
+}
+

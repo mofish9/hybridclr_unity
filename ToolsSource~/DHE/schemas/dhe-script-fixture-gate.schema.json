@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-script-fixture-gate.schema.json",
+  "title": "HybridCLR DHE Script Fixture Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "guardRequested", "guardTransformed", "guardSecondPassTransformed", "abiChangedMethodCount", "abiSupportedChangedMethodCount", "abiUnsupportedChangedMethodCount", "genericChangedMethodCount", "genericSupportedChangedMethodCount", "genericGuardedMethodCount", "genericNativeEntryCount", "multiAssemblyChangedMethodCount", "multiAssemblySupportedChangedMethodCount", "multiAssemblyUnsupportedChangedMethodCount", "malformedNativeTokenRejected", "duplicateMappingRejected", "probeTransactionRollbackPassed", "outputCollisionRejected", "exploratoryReleaseRejected", "releaseDerivedOutputsIsolated", "unsafeSourceOutputRejected", "singleTrackedOutputRejected", "foreignGitRootRejected", "separateGitIdentitiesValidated", "gitApplyRootIsolated", "prePrepareGateTested", "invalidRuntimeRejectedBeforeAdapter", "adapterTargetParameterValidated", "malformedWorkflowPackageLockReported", "adapterContractMismatchRejected", "schemaDuplicatePropertyRejected", "customSchemaUnregisteredRejected", "additionalSchemaRegistered", "externalDnlibFallbackRejected", "externalEmbeddedPackageLockValidated", "legacyLabRelativePackageLockRejected", "absolutePackageLockRejected", "workflowLockTested", "workflowLockRejected", "workflowLockReusable", "projectPreflightFailureReported"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-script-fixture-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "guardRequested": { "type": "integer", "minimum": 0 },
+    "guardTransformed": { "type": "integer", "minimum": 0 },
+    "guardSecondPassTransformed": { "type": "integer", "minimum": 0 },
+    "abiChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "abiSupportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "abiUnsupportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "genericChangedMethodCount": { "const": 3 },
+    "genericSupportedChangedMethodCount": { "const": 3 },
+    "genericGuardedMethodCount": { "const": 3 },
+    "genericNativeEntryCount": { "const": 10 },
+    "multiAssemblyChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "multiAssemblySupportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "multiAssemblyUnsupportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "malformedNativeTokenRejected": { "const": true },
+    "duplicateMappingRejected": { "type": "boolean" },
+    "probeTransactionRollbackPassed": { "type": "boolean" },
+    "outputCollisionRejected": { "type": "boolean" },
+    "exploratoryReleaseRejected": { "const": true },
+    "releaseDerivedOutputsIsolated": { "const": true },
+    "unsafeSourceOutputRejected": { "const": true },
+    "singleTrackedOutputRejected": { "const": true },
+    "foreignGitRootRejected": { "const": true },
+    "separateGitIdentitiesValidated": { "const": true },
+    "gitApplyRootIsolated": { "const": true },
+    "prePrepareGateTested": { "type": "boolean" },
+    "invalidRuntimeRejectedBeforeAdapter": { "type": ["boolean", "null"] },
+    "adapterTargetParameterValidated": { "type": ["boolean", "null"] },
+    "malformedWorkflowPackageLockReported": { "type": ["boolean", "null"] },
+    "adapterContractMismatchRejected": { "const": true },
+    "schemaDuplicatePropertyRejected": { "const": true },
+    "customSchemaUnregisteredRejected": { "const": true },
+    "additionalSchemaRegistered": { "const": true },
+    "externalDnlibFallbackRejected": { "const": true },
+    "externalEmbeddedPackageLockValidated": { "const": true },
+    "legacyLabRelativePackageLockRejected": { "const": true },
+    "absolutePackageLockRejected": { "const": true },
+    "workflowLockTested": { "type": "boolean" },
+    "workflowLockRejected": { "type": ["boolean", "null"] },
+    "workflowLockReusable": { "type": ["boolean", "null"] },
+    "projectPreflightFailureReported": { "const": true },
+    "multiAssemblyManifest": { "type": "string", "minLength": 1 },
+    "multiFileHashForward": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "multiFileHashReverse": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "multiFileHashMutated": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "prePrepareGateTested": { "const": true } },
+        "required": ["prePrepareGateTested"]
+      },
+      "then": {
+        "properties": {
+          "invalidRuntimeRejectedBeforeAdapter": { "const": true },
+          "adapterTargetParameterValidated": { "const": true },
+          "malformedWorkflowPackageLockReported": { "const": true }
+        }
+      },
+      "else": {
+        "properties": {
+          "invalidRuntimeRejectedBeforeAdapter": { "type": "null" },
+          "adapterTargetParameterValidated": { "type": "null" },
+          "malformedWorkflowPackageLockReported": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "workflowLockTested": { "const": true } },
+        "required": ["workflowLockTested"]
+      },
+      "then": {
+        "properties": {
+          "workflowLockRejected": { "const": true },
+          "workflowLockReusable": { "const": true }
+        }
+      },
+      "else": {
+        "properties": {
+          "workflowLockRejected": { "type": "null" },
+          "workflowLockReusable": { "type": "null" }
+        }
+      }
+    }
+  ]
+}

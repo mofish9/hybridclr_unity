@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "workflows": [
+    {
+      "id": "Unity2022Fgs",
+      "nativeTestProfile": "Compatibility-Unity2022-Fgs",
+      "engine": {
+        "family": "Unity",
+        "version": "2022.3.62f3",
+        "unityVersion": "2022.3.62f3",
+        "unityVersionNumber": 20220362,
+        "tuanjieVersionNumber": 0,
+        "executablePath": "C:/Program Files/Unity/Hub/Editor/2022.3.62f3/Editor/Unity.exe",
+        "externalHeadersTreeSha256": "D0037168A9A28B05FD8DF11EDA27812DAEAA458DC0CDFAD7765F3BE75E83EE99"
+      },
+      "il2cppPlus": {
+        "tag": "v2022-8.11.0-opt5",
+        "commit": "ecad8a09d1eb9b91a57c59fcdc69b268377bad59",
+        "path": "../repos/il2cpp_plus"
+      },
+      "fullGenericSharing": "required",
+      "productionWorkflow": {
+        "il2cppCodeGeneration": "OptimizeSize",
+        "aotMetadataPackaging": "exclude",
+        "aotMetadataMode": "none"
+      },
+      "mergeGate": [
+        "OptimizeSize/include/supplemental",
+        "OptimizeSize/include/none",
+        "OptimizeSize/exclude/none"
+      ],
+      "diagnosticGate": "Unity2022-Fgs-Diagnostic/OptimizeSize/exclude/none"
+    }
+  ]
+}

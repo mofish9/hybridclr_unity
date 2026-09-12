@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-resource-release-plan-config.json",
+  "pathSemantics": "config-relative-v1",
+  "resourceUpdateRoot": "../../artifacts/dhe-resource-release/resource",
+  "runnerCatalog": "dhe-base-runner-catalog.json",
+  "outputRoot": "../../artifacts/dhe-resource-release-plan",
+  "qualificationOutputRoot": "../../artifacts/dhe-resource-qualification",
+  "channelSnapshot": "../../artifacts/channel-snapshot.json",
+  "expectedChannelSnapshotSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedToolchainPackageId": "0000000000000000000000000000000000000000000000000000000000000000",
+  "evidenceToolchainRoots": [],
+  "requireEngineMatrix": true,
+  "timeoutSeconds": 300
+}

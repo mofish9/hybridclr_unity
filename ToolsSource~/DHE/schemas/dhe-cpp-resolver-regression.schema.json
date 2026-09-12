@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-cpp-resolver-regression.schema.json",
+  "title": "HybridCLR DHE Generated C++ Resolver Regression",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "engineWorkflow", "unityVersion", "resolverSourceSha256", "passed", "checks", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-cpp-resolver-regression.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "engineWorkflow": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] },
+    "unityVersion": { "type": "string", "minLength": 1 },
+    "resolverSourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "passed": { "type": "boolean" },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "passed", "error"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "passed": { "type": "boolean" },
+          "error": { "type": "string" }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "engineWorkflow": { "const": "Unity2021Standard" } }, "required": ["engineWorkflow"] },
+      "then": { "properties": { "unityVersion": { "const": "2021.3.45f2" } } }
+    },
+    {
+      "if": { "properties": { "engineWorkflow": { "const": "Unity2022Fgs" } }, "required": ["engineWorkflow"] },
+      "then": { "properties": { "unityVersion": { "const": "2022.3.62f3" } } }
+    },
+    {
+      "if": { "properties": { "engineWorkflow": { "const": "Tuanjie2022Fgs" } }, "required": ["engineWorkflow"] },
+      "then": { "properties": { "unityVersion": { "const": "2022.3.62t12" } } }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-toolchain-doctor.schema.json",
+  "title": "HybridCLR DHE Toolchain Doctor Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "requireRelease", "toolchainVersion", "contractVersion", "packageId", "expectedPackageId", "packageGatePassed", "dotnetVersion", "dotnetAvailable", "gitAvailable", "projectTested", "projectReady", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-toolchain-doctor.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "requireRelease": { "type": "boolean" },
+    "toolchainVersion": { "type": ["string", "null"] },
+    "contractVersion": { "type": ["integer", "null"] },
+    "packageId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "expectedPackageId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "packageGatePassed": { "type": "boolean" },
+    "dotnetVersion": { "type": "string" },
+    "dotnetAvailable": { "const": true },
+    "gitAvailable": { "type": "boolean" },
+    "projectTested": { "type": "boolean" },
+    "projectReady": { "type": ["boolean", "null"] },
+    "projectPath": { "type": ["string", "null"] },
+    "projectGitRoot": { "type": ["string", "null"] },
+    "dnlibPath": { "type": ["string", "null"] },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "passed": { "const": true }, "requireRelease": { "const": true } },
+        "required": ["passed", "requireRelease"]
+      },
+      "then": { "properties": { "expectedPackageId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" } } }
+    }
+  ]
+}

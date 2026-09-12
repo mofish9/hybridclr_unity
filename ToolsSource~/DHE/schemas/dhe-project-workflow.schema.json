@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-project-workflow.schema.json",
+  "title": "HybridCLR DHE Project Workflow Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "mode", "toolchainContractVersion", "target", "adapterScript", "projectPath", "settingsFile", "toolchainGate", "expectedToolchainPackageId", "sourcePreflight", "cleanCheckout", "projectPreflight", "workflowReport", "archiveGate", "releaseGate", "stages"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-project-workflow.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "mode": { "enum": ["Release", "Exploratory", "Preflight"] },
+    "toolchainContractVersion": { "const": 1 },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "adapterScript": { "type": "string", "minLength": 1 },
+    "projectPath": { "type": "string", "minLength": 1 },
+    "settingsFile": { "type": "string", "minLength": 1 },
+    "toolchainGate": { "type": ["string", "null"] },
+    "expectedToolchainPackageId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "sourcePreflight": { "type": ["string", "null"] },
+    "cleanCheckout": { "type": ["string", "null"] },
+    "projectPreflight": { "type": ["string", "null"] },
+    "workflowReport": { "type": ["string", "null"] },
+    "aotMetadataRoot": { "type": ["string", "null"] },
+    "aotMetadataSetId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "archiveGate": { "type": ["string", "null"] },
+    "releaseGate": { "type": ["string", "null"] },
+    "stages": {
+      "type": "object",
+      "required": ["toolchain", "prepare", "cleanCheckout", "sourcePreflight", "projectPreflight", "player", "archive", "release"],
+      "properties": {
+        "toolchain": { "$ref": "#/$defs/stage" },
+        "prepare": { "$ref": "#/$defs/stage" },
+        "cleanCheckout": { "$ref": "#/$defs/stage" },
+        "sourcePreflight": { "$ref": "#/$defs/stage" },
+        "projectPreflight": { "$ref": "#/$defs/stage" },
+        "player": { "$ref": "#/$defs/stage" },
+        "archive": { "$ref": "#/$defs/stage" },
+        "release": { "$ref": "#/$defs/stage" }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "passed": { "const": true },
+          "mode": { "const": "Release" },
+          "toolchainGate": { "type": "string" }
+        },
+        "required": ["passed", "mode", "toolchainGate"]
+      },
+      "then": {
+        "properties": {
+          "expectedToolchainPackageId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "required": ["passed", "report"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "report": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-metaversion.schema.json",
+  "title": "HybridCLR DHE MetaVersion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "algorithm", "assemblyName", "assemblyMetadataVersion", "assembly", "types", "methods", "summary"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-metaversion.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+	"algorithm": { "const": "sha256-canonical-managed-metadata" },
+    "assemblyName": { "type": "string", "minLength": 1 },
+    "assemblyMetadataVersion": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "assembly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["identity", "stableId", "version", "token", "flags"],
+        "properties": {
+          "identity": { "type": "string", "minLength": 1 },
+          "stableId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "version": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "token": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+          "flags": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+        }
+      }
+    },
+    "methods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["identity", "stableId", "version", "declaringTypeStableId", "token", "flags", "name", "declaringType", "returnType", "parameterTypes", "isStatic", "hasThis", "isAbstract", "isPInvoke", "declaringTypeIsValueType", "genericParameterCount", "declaringTypeGenericParameterCount"],
+        "properties": {
+          "identity": { "type": "string", "minLength": 1 },
+          "stableId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "version": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "declaringTypeStableId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "token": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+          "flags": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+          "name": { "type": "string", "minLength": 1 },
+          "declaringType": { "type": "string", "minLength": 1 },
+          "returnType": { "type": "string", "minLength": 1 },
+          "parameterTypes": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "isStatic": { "type": "boolean" },
+          "hasThis": { "type": "boolean" },
+          "isAbstract": { "type": "boolean" },
+          "isPInvoke": { "type": "boolean" },
+          "declaringTypeIsValueType": { "type": "boolean" },
+          "genericParameterCount": { "type": "integer", "minimum": 0 },
+          "declaringTypeGenericParameterCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["typeCount", "methodCount"],
+      "properties": {
+        "typeCount": { "type": "integer", "minimum": 0 },
+        "methodCount": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-aot-metadata-manifest.schema.json",
+  "title": "HybridCLR DHE AOT metadata manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "format",
+    "generatedAtUtc",
+    "pathSemantics",
+    "kind",
+    "target",
+    "sourceRoot",
+    "engineWorkflow",
+    "engine",
+    "runtime",
+    "assemblies"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-aot-metadata-manifest.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "kind": { "const": "patch-aot-metadata" },
+    "releaseId": { "type": ["string", "null"] },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "sourceRoot": { "type": "string", "minLength": 1 },
+    "engineWorkflow": { "type": "string", "minLength": 1 },
+    "engine": {
+      "type": "object",
+      "required": ["family", "version", "unityVersion", "unityVersionNumber", "tuanjieVersionNumber"],
+      "properties": {
+        "family": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "unityVersion": { "type": "string", "minLength": 1 },
+        "unityVersionNumber": { "type": "integer", "minimum": 0 },
+        "tuanjieVersionNumber": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["profile", "stagedRuntimeSha256", "runtimeManifestSha256", "packageTreeSha256"],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "stagedRuntimeSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "runtimeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+        "packageTreeSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" }
+      }
+    },
+    "package": {
+      "type": ["object", "null"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "baseCommit": { "type": "string", "minLength": 1 },
+        "integratedCommit": { "type": "string", "minLength": 1 },
+        "treeSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+      }
+    },
+    "assemblies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "sha256"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "path": { "type": ["string", "null"], "minLength": 1 }
+        }
+      }
+    }
+  }
+}

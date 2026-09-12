@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-resource-release-build.schema.json",
+  "title": "HybridCLR DHE resource release build report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "format", "generatedAtUtc", "passed", "pathSemantics",
+    "mode", "releaseReady", "configuration", "configurationSha256",
+    "settingsSha256", "registryDisposition", "registry", "registryId",
+    "registryRevision", "registrySha256", "parentRegistrySha256",
+    "activeBaseCount", "retiredBaseCount", "addedBaseCount",
+    "retiredThisBuildCount", "activeBaseIds", "addedBaseIds", "retiredBaseIds",
+    "primaryVariantId", "payloadVariantIds", "currentAssemblySetSha256",
+    "payloadVariantSetSha256", "channelSnapshot", "channelSnapshotSha256",
+    "releaseChannelId", "releaseRevision", "parentReleaseLedgerSha256",
+    "resourceRoot", "resourceUpdateManifest", "resourceUpdateManifestSha256",
+    "resourceUpdateValidation", "resourceUpdateValidationSha256", "runtimePlan",
+    "runtimePlanSha256", "releaseLedger", "releaseLedgerSha256", "schemaGate",
+    "exactActiveBaseCoverage", "unsupportedChangeCount", "playerEvidenceRequired",
+    "resourceReleaseGateRequired", "channelPromotionRequired", "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-resource-release-build.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "const": true },
+    "pathSemantics": { "const": "release-build-relative-v1" },
+    "mode": { "enum": ["Release", "Exploratory"] },
+    "releaseReady": { "type": "boolean" },
+    "configuration": { "const": "audit/dhe-resource-release-build-config.json" },
+    "configurationSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "settingsSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "registryDisposition": { "enum": ["reused", "created-initial", "created-successor"] },
+    "registry": { "type": ["string", "null"], "enum": ["registry/dhe-base-registry.json", null] },
+    "registryId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "registryRevision": { "type": "integer", "minimum": 1 },
+    "registrySha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "parentRegistrySha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "activeBaseCount": { "type": "integer", "minimum": 1, "maximum": 1024 },
+    "retiredBaseCount": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "addedBaseCount": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "retiredThisBuildCount": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "activeBaseIds": { "$ref": "#/$defs/baseIds" },
+    "addedBaseIds": { "$ref": "#/$defs/baseIds" },
+    "retiredBaseIds": { "$ref": "#/$defs/baseIds" },
+    "primaryVariantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "payloadVariantIds": {
+      "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" }
+    },
+    "currentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "payloadVariantSetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "channelSnapshot": { "type": ["string", "null"], "enum": ["audit/dhe-channel-snapshot.json", null] },
+    "channelSnapshotSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "releaseChannelId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "releaseRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "parentReleaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "resourceRoot": { "const": "resource" },
+    "resourceUpdateManifest": { "const": "resource/dhe-resource-update.json" },
+    "resourceUpdateManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "resourceUpdateValidation": { "const": "resource/dhe-resource-update-validation.json" },
+    "resourceUpdateValidationSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "runtimePlan": { "const": "resource/dhe-runtime-plan.json" },
+    "runtimePlanSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "releaseLedger": { "type": ["string", "null"], "enum": ["resource/dhe-release-ledger.json", null] },
+    "releaseLedgerSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "schemaGate": { "const": "audit/dhe-schema-gate.json" },
+    "exactActiveBaseCoverage": { "const": true },
+    "unsupportedChangeCount": { "const": 0 },
+    "playerEvidenceRequired": { "const": true },
+    "resourceReleaseGateRequired": { "const": true },
+    "channelPromotionRequired": { "type": "boolean" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "Release" } }, "required": ["mode"] },
+      "then": {
+        "properties": {
+          "releaseReady": { "const": true },
+          "channelSnapshot": { "type": "string" },
+          "channelSnapshotSha256": { "type": "string" },
+          "releaseChannelId": { "type": "string" },
+          "releaseRevision": { "type": "integer" },
+          "releaseLedger": { "type": "string" },
+          "releaseLedgerSha256": { "type": "string" },
+          "channelPromotionRequired": { "const": true },
+          "warnings": { "maxItems": 0 }
+        }
+      },
+      "else": {
+        "properties": {
+          "releaseReady": { "const": false },
+          "channelSnapshot": { "type": "null" },
+          "channelSnapshotSha256": { "type": "null" },
+          "releaseChannelId": { "type": "null" },
+          "releaseRevision": { "type": "null" },
+          "parentReleaseLedgerSha256": { "type": "null" },
+          "releaseLedger": { "type": "null" },
+          "releaseLedgerSha256": { "type": "null" },
+          "channelPromotionRequired": { "const": false },
+          "warnings": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "registryDisposition": { "const": "reused" } }, "required": ["registryDisposition"] },
+      "then": { "properties": { "registry": { "type": "null" }, "addedBaseCount": { "const": 0 }, "retiredThisBuildCount": { "const": 0 } } },
+      "else": { "properties": { "registry": { "type": "string" } } }
+    }
+  ],
+  "$defs": {
+    "baseIds": {
+      "type": "array", "maxItems": 1024, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+    }
+  }
+}

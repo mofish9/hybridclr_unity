@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "format": "hybridclr.dhe-toolchain-evidence-authorities.json",
+  "policy": "explicit-package-id-set-v1",
+  "authorities": [
+    {
+      "toolchainVersion": "0.1.20",
+      "packageId": "7757d0b782bc97579d73d8398f1d886ab207b0c4c92e9302d2b7c45128b28c31",
+      "sourceHead": "049ca623e0afe94a5dcd4b86d01a226e510408e5",
+      "sourceTree": "8237437282112ae2c16e7267931b5455502cce53"
+    },
+    {
+      "toolchainVersion": "0.1.20",
+      "packageId": "3982eeb07d7204171fe5d2aa4b5435942e421bdbe8fe2e0e48c152fddda2183d",
+      "sourceHead": "87c86eb855d82b57125c7124610ce5689f37b932",
+      "sourceTree": "cab3d45f59c63b927cabfd3209612cd83bf6e03a"
+    },
+    {
+      "toolchainVersion": "0.1.21",
+      "packageId": "f17795a3f9105cae2112fce220e187f389638170f45cee3e700ed59782483e0c",
+      "sourceHead": "62db9b599b04a24088616941c3cdf88663cc3a19",
+      "sourceTree": "633dbfdfdd74ddcdc8521fc9a6b6fd0032067c1c"
+    },
+    {
+      "toolchainVersion": "0.1.22",
+      "packageId": "78299b3850296103114f866c46b681fcdcc8ef771a430e58a6a92e002e68887f",
+      "sourceHead": "085a0a92e4ec6757d211b76e8f79eb471f15f667",
+      "sourceTree": "41991692215a28422c67da26e886c33e49c5ca44"
+    },
+    {
+      "toolchainVersion": "0.1.23",
+      "packageId": "c8b496c6a126d80997b75c39f9e0c111c5d02f844c6f3234909884e1360027ba",
+      "sourceHead": "8c4e05b3e979607c17df0b6b8cc074f69c7c56b0",
+      "sourceTree": "8614bcb7679c372c9f2dcc3bfebb55762f9ebe08"
+    },
+    {
+      "toolchainVersion": "0.1.24",
+      "packageId": "4e9178bb897dbc0899e6bab3e510112c08c96a2531baf38a215292bfdc05a179",
+      "sourceHead": "3ec3fb738457926919034c56e2bae4bb8120f5d6",
+      "sourceTree": "a15a703d0a9aad6c4e0e5afb186ba775dc7fb691"
+    },
+    {
+      "toolchainVersion": "0.1.25",
+      "packageId": "7f5998a95c8474b46b0eb9487d7369bc055f52bf05e3e9bc5087e7a9902eb44d",
+      "sourceHead": "a927b8b0f497a842431789761c37256cf9a3b6f7",
+      "sourceTree": "a6fc5cd84247f8ec31a625ca6c7fe8929fef6d69"
+    },
+    {
+      "toolchainVersion": "0.1.26",
+      "packageId": "b23759fccd900ba6f5ff6f250d75676c3b539f9af400ae2644412678183a3cf9",
+      "sourceHead": "fa780ee9e8e8679d213f5a98dcf86ff578d365d4",
+      "sourceTree": "d142fc251ce830c73327c388c6e01670a392a4aa"
+    },
+    {
+      "toolchainVersion": "0.1.27",
+      "packageId": "3af3d63e986470de6556c6023c438374e030c240aea3c9f2b168c1a0837c76fc",
+      "sourceHead": "c7059691a2cb7c645f5e1072e958bce448250169",
+      "sourceTree": "333c0a13820e513a565162637f2e852d4efd3d88"
+    },
+    {
+      "toolchainVersion": "0.1.28",
+      "packageId": "b054796c7d97f8c6a7399e1d8b25fdb70fff664901f93248d5ab1afed32164fb",
+      "sourceHead": "f7f7eef4c8ad36e331d16d2a5e4bb4f65d533cef",
+      "sourceTree": "5bd0e6e1a7bd286c54ba863ea2bf7e1a75825a4f"
+    },
+    {
+      "toolchainVersion": "0.1.29",
+      "packageId": "0f91d04026c1c98e7ea4b311037f726a3515d3a033fa734d65be9aee0f1e6368",
+      "sourceHead": "b4d1c07eb7af91718882d5413f2d7e7a746ce5f2",
+      "sourceTree": "bf4a60924dbc8ddecb354179a18be72a31dc2dc0"
+    },
+    {
+      "toolchainVersion": "0.1.30",
+      "packageId": "aa7aef3ec649ad0cca34122bc357a7779d40d6262b45920609ebb222392d8e16",
+      "sourceHead": "610464ef0d31439f12bfcc6e18fd10e378cefc74",
+      "sourceTree": "b6ac07b91a8d29e967fc9c6eed6410ae573a29b2"
+    },
+    {
+      "toolchainVersion": "0.1.31",
+      "packageId": "5af090eca274468623a7b4e8bab3ceeb669f378f7293bfeb3d1498c69ba7d960",
+      "sourceHead": "84acc00b33b6277239c4f52a8dab14e572900497",
+      "sourceTree": "78dbaf3e35c388529808ef3a8844e58b60298bf9"
+    },
+    {
+      "toolchainVersion": "0.1.32",
+      "packageId": "8cbaad0764f4c265d05bfe61527677714ab6d2b78c62295a5684ef1ed563faa9",
+      "sourceHead": "34b26c445005e911bb5a289d43a492f5d6ca8192",
+      "sourceTree": "c819206a0aca61ec7e1d07b18e7421a700425c1f"
+    },
+    {
+      "toolchainVersion": "0.1.33",
+      "packageId": "1293dc857990633be5ac13d735d0e9012cc06c10923ddaf9cd8b247b6f63d3b7",
+      "sourceHead": "bfa74fddc86a61c220aa743b1348231380c8592b",
+      "sourceTree": "d550479fa2ec318ae9c22abc6f14904ffd2efa11"
+    },
+    {
+      "toolchainVersion": "0.1.34",
+      "packageId": "80b3d477927eb7018268f0e9951086ae1b59a4b2fbea0ffb5c006ad2ed481eb5",
+      "sourceHead": "00ef0b4d765f1f45801f98d35c20fa2a9757e308",
+      "sourceTree": "9de93f9d3b9d6bf36c17a88e31ac78c731449d9e"
+    }
+  ]
+}

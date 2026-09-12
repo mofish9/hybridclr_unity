@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/test-result.schema.json",
+  "title": "HybridCLR Lab Test Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "suiteId",
+    "runner",
+    "runtime",
+    "platform",
+    "architecture",
+    "startedAtUtc",
+    "manifestSha256",
+    "goldenContractSha256",
+    "managedAssemblySha256",
+    "summary",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "suiteId": { "type": "string", "minLength": 1 },
+    "runner": { "type": "string", "minLength": 1 },
+    "runtime": { "type": "string", "minLength": 1 },
+    "platform": { "type": "string", "minLength": 1 },
+    "architecture": { "type": "string", "minLength": 1 },
+    "startedAtUtc": { "type": "string", "format": "date-time" },
+    "manifestSha256": { "$ref": "#/$defs/sha256" },
+    "goldenContractSha256": { "$ref": "#/$defs/sha256" },
+    "managedAssemblySha256": { "$ref": "#/$defs/sha256" },
+    "processId": { "type": "integer", "minimum": 1 },
+    "aotMetadataMode": { "enum": ["supplemental", "none"] },
+    "aotMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileCount", "totalBytes", "loadNanoseconds"],
+      "properties": {
+        "fileCount": { "type": "integer", "minimum": 0 },
+        "totalBytes": { "type": "integer", "minimum": 0 },
+        "loadNanoseconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fullGenericSharingDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "dispatchCount", "interpreterInvokerCount"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "dispatchCount": { "type": "integer", "minimum": 0 },
+        "interpreterInvokerCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "buildIdentity": { "$ref": "#/$defs/buildIdentity" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "layer",
+          "features",
+          "status",
+          "returnValue",
+          "sideEffect",
+          "exceptionType",
+          "durationNanoseconds",
+          "fullGenericSharingAotBridgeCount",
+          "fullGenericSharingInterpreterInvokerCount",
+          "message"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "category": { "type": "string" },
+          "layer": { "enum": ["managed-core", "player-boundary"] },
+          "features": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "status": { "enum": ["passed", "failed"] },
+          "returnValue": { "type": ["string", "null"] },
+          "sideEffect": { "type": ["string", "null"] },
+          "exceptionType": { "type": ["string", "null"] },
+          "durationNanoseconds": { "type": "integer", "minimum": 0 },
+          "fullGenericSharingAotBridgeCount": { "type": "integer", "minimum": 0 },
+          "fullGenericSharingInterpreterInvokerCount": { "type": "integer", "minimum": 0 },
+          "message": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-F0-9]{64}$"
+    },
+    "buildIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "profile", "target", "architecture", "il2cppCodeGeneration", "aotMetadataPackaging", "fullGenericSharingDiagnostics", "stagedRuntimeSha256", "managedAssemblySha256"],
+      "properties": {
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "profile": { "type": "string", "minLength": 1 },
+        "target": { "enum": ["StandaloneWindows64", "Android"] },
+        "architecture": { "enum": ["x64", "arm64-v8a"] },
+        "il2cppCodeGeneration": { "enum": ["OptimizeSpeed", "OptimizeSize"] },
+        "aotMetadataPackaging": { "enum": ["include", "exclude"] },
+        "fullGenericSharingDiagnostics": { "type": "boolean" },
+        "stagedRuntimeSha256": { "$ref": "#/$defs/sha256" },
+        "managedAssemblySha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -1,0 +1,486 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-player-result.schema.json",
+  "title": "HybridCLR DHE Player Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "error"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-player-result.json" },
+    "passed": { "type": "boolean" },
+    "error": { "type": ["string", "null"] },
+    "loadError": { "type": ["string", "null"] },
+    "plannedDheAssemblies": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+    "loadedDheAssemblies": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+    "plannedDifferentialAssemblies": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+    "plannedInterpreterOnlyAssemblies": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+    "loadedInterpreterOnlyAssemblies": { "type": ["array", "null"], "items": { "type": "string", "minLength": 1 } },
+    "newHotfixPlanned": { "type": "boolean" },
+    "newHotfixLoaded": { "type": "boolean" },
+    "newHotfixExecuted": { "type": "boolean" },
+    "newHotfixResult": { "type": "integer" },
+    "changedMethodCount": { "type": "integer", "minimum": 0 },
+        "retryValidated": { "type": "boolean" },
+        "retryAssemblyName": { "type": ["string", "null"] },
+        "retryFailure": { "type": ["string", "null"] },
+        "transactionStatus": { "enum": ["validated", "notApplicable", "failed"] },
+    "assemblyValidations": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "hashValidated", "loadError"],
+          "properties": {
+            "assemblyName": { "type": "string", "minLength": 1 },
+          "executionMode": { "enum": ["dhe-differential", "interpreter-only"] },
+          "hashValidated": { "const": true },
+          "loadError": { "const": "OK" }
+        }
+      }
+    },
+    "multiAssemblyValidated": { "type": "boolean" },
+    "buildIdentityValidated": { "type": "boolean" },
+    "identityVersion": { "type": "integer" },
+    "engineWorkflow": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]+$" },
+    "il2cppCodeGeneration": { "type": ["string", "null"], "enum": ["OptimizeSpeed", "OptimizeSize", null] },
+    "aotSnapshotKind": { "type": ["string", "null"] },
+    "nativeGuardSourceSha256": { "type": ["string", "null"] },
+    "nativeManifestSha256": { "type": ["string", "null"] },
+    "target": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]+$" },
+    "selectedBaseId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "selectedAotMetadataSetId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "selectedPayloadVariantId": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+    "selectedPayloadCurrentAssemblySetSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "expectedChangedMethodCount": { "type": "integer", "minimum": 0 },
+    "dispatchProbeValidated": { "type": "boolean" },
+    "noOpAotBehaviorValidated": { "type": "boolean" },
+    "changedProbeChanged": { "type": "boolean" },
+    "unchangedProbeChanged": { "type": "boolean" },
+    "dispatchProbeError": { "type": ["string", "null"] },
+    "interpreterEntryCount": { "type": "integer", "minimum": 0 },
+    "aotEntryCount": { "type": "integer", "minimum": 0 },
+    "mainInterpreterEntryCount": { "type": "integer", "minimum": 0 },
+    "mainAotEntryCount": { "type": "integer", "minimum": 0 },
+    "mainAotBridgeCallCount": { "type": "integer", "minimum": 0 },
+    "structuralEntryDispatch": {
+      "type": ["object", "null"],
+      "required": ["methodIdentity", "methodStableId", "presentInBase", "expectedChanged", "nativeChanged", "executed", "interpreterEntries"],
+      "properties": {
+        "methodIdentity": { "type": "string" },
+        "methodStableId": { "type": "string" },
+        "presentInBase": { "type": "boolean" },
+        "expectedChanged": { "type": "boolean" },
+        "nativeChanged": { "type": "boolean" },
+        "executed": { "type": "boolean" },
+        "interpreterEntries": { "type": "integer", "minimum": 0 }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "methodIdentity": { "minLength": 1 },
+            "methodStableId": { "pattern": "^[0-9a-fA-F]{64}$" },
+            "executed": { "const": true }
+          }
+        },
+        {
+          "properties": {
+            "methodIdentity": { "const": "" },
+            "methodStableId": { "const": "" },
+            "presentInBase": { "const": false },
+            "expectedChanged": { "const": false },
+            "nativeChanged": { "const": false },
+            "executed": { "const": false },
+            "interpreterEntries": { "const": 0 }
+          }
+        }
+      ]
+    },
+    "structuralExpected": { "type": "boolean" },
+    "structuralDispatchExpected": { "type": "boolean" },
+    "structuralLegacyProbes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "anyOf": [{ "maxItems": 0 }, { "minItems": 8 }],
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check",
+          "methodStableId",
+          "applicable",
+          "executed",
+          "passed",
+          "reason",
+          "error"
+        ],
+        "properties": {
+          "check": {
+            "enum": [
+              "structuralRemovedMethodGuardValidated",
+              "structuralRemovedFieldGuardValidated",
+              "structuralRemovedPropertyGuardValidated",
+              "structuralReplacedPropertyGuardValidated",
+              "structuralRemovedEventGuardValidated",
+              "structuralReplacedEventGuardValidated",
+              "structuralRemovedTypeGuardValidated",
+              "structuralOldSignatureGuardValidated"
+            ]
+          },
+          "methodStableId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "applicable": {
+            "type": "boolean"
+          },
+          "executed": {
+            "type": "boolean"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "applicable": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "executed": {
+                  "const": true
+                },
+                "passed": {
+                  "const": true
+                },
+                "reason": {
+                  "const": "removed-from-base"
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "const": ""
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "executed": {
+                  "const": false
+                },
+                "passed": {
+                  "const": false
+                },
+                "reason": {
+                  "enum": [
+                    "absent-from-base",
+                    "retained-in-current"
+                  ]
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "const": ""
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "structuralPassed": { "type": "boolean" },
+    "structuralError": { "type": ["string", "null"] },
+    "structuralExistingEntryResult": { "type": "integer" },
+    "structuralAddedReferenceTypeFound": { "type": "boolean" },
+    "structuralAddedGenericTypeFound": { "type": "boolean" },
+    "structuralAddedNestedTypeFound": { "type": "boolean" },
+    "structuralNestedDeclaringTypeValidated": { "type": "boolean" },
+    "structuralAddedStaticMethodFound": { "type": "boolean" },
+    "structuralAddedInstanceMethodFound": { "type": "boolean" },
+    "structuralAddedStaticFieldsFound": { "type": "boolean" },
+    "structuralAddedStaticFieldDeclaringTypeValidated": { "type": "boolean" },
+    "structuralAddedStaticFieldReflectionValueValidated": { "type": "boolean" },
+    "structuralAddedInstanceFieldsFound": { "type": "boolean" },
+    "structuralAddedInstanceFieldDeclaringTypeValidated": { "type": "boolean" },
+    "structuralAddedInstanceFieldDefaultValueValidated": { "type": "boolean" },
+    "structuralAddedInstanceFieldReflectionValueValidated": { "type": "boolean" },
+    "structuralAddedInstanceFieldGcValidated": { "type": "boolean" },
+    "structuralRemovedMethodHidden": { "type": "boolean" },
+    "structuralRemovedMethodGuardValidated": { "type": "boolean" },
+    "structuralRemovedFieldsHidden": { "type": "boolean" },
+    "structuralRemovedFieldGuardValidated": { "type": "boolean" },
+    "structuralFieldSignatureReplacementVisible": { "type": "boolean" },
+    "structuralFieldSignatureReplacementRoundTripValidated": { "type": "boolean" },
+    "structuralLogicalPropertiesValidated": { "type": "boolean" },
+    "structuralLogicalPropertyRoundTripValidated": { "type": "boolean" },
+    "structuralLogicalEventsValidated": { "type": "boolean" },
+    "structuralLogicalEventRoundTripValidated": { "type": "boolean" },
+    "structuralLogicalEventAccessorsValidated": { "type": "boolean" },
+    "structuralLogicalAddedEventAccessorTouchValue": { "type": "integer" },
+    "structuralLogicalEvolvedEventAccessorTouchValue": { "type": "integer" },
+    "structuralLogicalAddedEventTouchValue": { "type": "integer" },
+    "structuralLogicalEvolvedEventTouchValue": { "type": "integer" },
+    "structuralRemovedPropertyGuardValidated": { "type": "boolean" },
+    "structuralReplacedPropertyGuardValidated": { "type": "boolean" },
+    "structuralRemovedEventGuardValidated": { "type": "boolean" },
+    "structuralReplacedEventGuardValidated": { "type": "boolean" },
+    "structuralRemovedTypeHidden": { "type": "boolean" },
+    "structuralRemovedTypeEnumerationHidden": { "type": "boolean" },
+    "structuralRemovedTypeGuardValidated": { "type": "boolean" },
+    "structuralOldSignatureHidden": { "type": "boolean" },
+    "structuralOldSignatureGuardValidated": { "type": "boolean" },
+    "structuralNewSignatureFound": { "type": "boolean" },
+    "structuralAssemblyEnumerationValidated": { "type": "boolean" },
+    "structuralTypeAssemblyMatchesBase": { "type": "boolean" },
+    "structuralAddedReferenceResult": { "type": "integer" },
+    "structuralAddedGenericResult": { "type": "integer" },
+    "structuralAddedNestedResult": { "type": "integer" },
+    "structuralAddedStaticResult": { "type": "integer" },
+    "structuralAddedInstanceResult": { "type": "integer" },
+    "structuralAddedStaticFieldDirectResult": { "type": "integer" },
+    "structuralAddedStaticFieldReflectionResult": { "type": "integer" },
+    "structuralAddedInstanceFieldDirectResult": { "type": "integer" },
+    "structuralAddedInstanceFieldReflectionResult": { "type": "integer" },
+    "structuralCurrentMemberDirectResult": { "type": "integer" },
+    "structuralNewSignatureResult": { "type": "integer" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["structuralEntryDispatch"],
+        "properties": {
+          "structuralEntryDispatch": {
+            "type": "object",
+            "required": ["executed"],
+            "properties": { "executed": { "const": false } }
+          }
+        }
+      },
+      "then": {
+        "required": ["structuralExpected", "structuralDispatchExpected"],
+        "properties": {
+          "structuralExpected": { "const": false },
+          "structuralDispatchExpected": { "const": false }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "passed": { "const": true } }, "required": ["passed"] },
+      "then": {
+        "required": ["loadError", "target", "plannedDheAssemblies", "loadedDheAssemblies", "plannedDifferentialAssemblies", "plannedInterpreterOnlyAssemblies", "loadedInterpreterOnlyAssemblies", "changedMethodCount", "retryValidated", "retryAssemblyName", "retryFailure", "transactionStatus", "assemblyValidations", "multiAssemblyValidated", "buildIdentityValidated", "identityVersion", "engineWorkflow", "il2cppCodeGeneration", "aotSnapshotKind", "nativeGuardSourceSha256", "nativeManifestSha256", "selectedBaseId", "selectedAotMetadataSetId", "selectedPayloadVariantId", "selectedPayloadCurrentAssemblySetSha256", "expectedChangedMethodCount", "dispatchProbeValidated", "noOpAotBehaviorValidated", "changedProbeChanged", "unchangedProbeChanged", "interpreterEntryCount", "aotEntryCount"],
+        "properties": {
+          "loadError": { "const": "OK" },
+          "plannedDheAssemblies": { "type": "array", "minItems": 1, "uniqueItems": true },
+          "loadedDheAssemblies": { "type": "array", "minItems": 1, "uniqueItems": true },
+          "transactionStatus": { "enum": ["validated", "notApplicable"] },
+          "assemblyValidations": { "type": "array", "minItems": 1 },
+          "multiAssemblyValidated": { "const": true },
+          "buildIdentityValidated": { "const": true },
+          "identityVersion": { "const": 1 },
+          "aotSnapshotKind": { "const": "managed-assembly-plus-generated-cpp-v1" },
+          "nativeGuardSourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "nativeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "selectedPayloadVariantId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "selectedPayloadCurrentAssemblySetSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+          "dispatchProbeValidated": { "const": true },
+          "changedProbeChanged": { "type": "boolean" },
+          "unchangedProbeChanged": { "type": "boolean" }
+        }
+      }
+    },
+      {
+        "if": {
+          "properties": { "structuralExpected": { "const": true } },
+          "required": ["structuralExpected"]
+        },
+        "then": {
+          "required": ["structuralPassed", "structuralError", "structuralExistingEntryResult", "structuralAddedReferenceTypeFound", "structuralAddedGenericTypeFound", "structuralAddedNestedTypeFound", "structuralNestedDeclaringTypeValidated", "structuralAddedStaticMethodFound", "structuralAddedInstanceMethodFound", "structuralAddedStaticFieldsFound", "structuralAddedStaticFieldDeclaringTypeValidated", "structuralAddedStaticFieldReflectionValueValidated", "structuralAddedInstanceFieldsFound", "structuralAddedInstanceFieldDeclaringTypeValidated", "structuralAddedInstanceFieldDefaultValueValidated", "structuralAddedInstanceFieldReflectionValueValidated", "structuralAddedInstanceFieldGcValidated", "structuralRemovedMethodHidden", "structuralRemovedMethodGuardValidated", "structuralRemovedFieldsHidden", "structuralRemovedFieldGuardValidated", "structuralFieldSignatureReplacementVisible", "structuralFieldSignatureReplacementRoundTripValidated", "structuralLogicalPropertiesValidated", "structuralLogicalPropertyRoundTripValidated", "structuralLogicalEventsValidated", "structuralLogicalEventRoundTripValidated", "structuralLogicalAddedEventTouchValue", "structuralLogicalEvolvedEventTouchValue", "structuralRemovedPropertyGuardValidated", "structuralReplacedPropertyGuardValidated", "structuralRemovedEventGuardValidated", "structuralReplacedEventGuardValidated", "structuralRemovedTypeHidden", "structuralRemovedTypeEnumerationHidden", "structuralRemovedTypeGuardValidated", "structuralOldSignatureHidden", "structuralOldSignatureGuardValidated", "structuralNewSignatureFound", "structuralAssemblyEnumerationValidated", "structuralTypeAssemblyMatchesBase", "structuralAddedReferenceResult", "structuralAddedGenericResult", "structuralAddedNestedResult", "structuralAddedStaticResult", "structuralAddedInstanceResult", "structuralAddedStaticFieldDirectResult", "structuralAddedStaticFieldReflectionResult", "structuralAddedInstanceFieldDirectResult", "structuralAddedInstanceFieldReflectionResult", "structuralCurrentMemberDirectResult", "structuralNewSignatureResult"],
+          "properties": {
+            "structuralPassed": { "const": true },
+            "structuralAddedReferenceTypeFound": { "const": true },
+            "structuralAddedGenericTypeFound": { "const": true },
+            "structuralAddedNestedTypeFound": { "const": true },
+            "structuralNestedDeclaringTypeValidated": { "const": true },
+            "structuralAddedStaticMethodFound": { "const": true },
+            "structuralAddedInstanceMethodFound": { "const": true },
+            "structuralAddedStaticFieldsFound": { "const": true },
+            "structuralAddedStaticFieldDeclaringTypeValidated": { "const": true },
+            "structuralAddedStaticFieldReflectionValueValidated": { "const": true },
+            "structuralAddedInstanceFieldsFound": { "const": true },
+            "structuralAddedInstanceFieldDeclaringTypeValidated": { "const": true },
+            "structuralAddedInstanceFieldDefaultValueValidated": { "const": true },
+            "structuralAddedInstanceFieldReflectionValueValidated": { "const": true },
+            "structuralAddedInstanceFieldGcValidated": { "const": true },
+            "structuralRemovedMethodHidden": { "const": true },
+            "structuralRemovedFieldsHidden": { "const": true },
+            "structuralFieldSignatureReplacementVisible": { "const": true },
+            "structuralFieldSignatureReplacementRoundTripValidated": { "const": true },
+            "structuralLogicalPropertiesValidated": { "const": true },
+            "structuralLogicalPropertyRoundTripValidated": { "const": true },
+            "structuralLogicalEventsValidated": { "const": true },
+            "structuralLogicalEventRoundTripValidated": { "const": true },
+            "structuralRemovedTypeHidden": { "const": true },
+            "structuralRemovedTypeEnumerationHidden": { "const": true },
+            "structuralOldSignatureHidden": { "const": true },
+            "structuralNewSignatureFound": { "const": true },
+            "structuralAssemblyEnumerationValidated": { "const": true },
+            "structuralTypeAssemblyMatchesBase": { "const": true }
+          },
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "structuralLegacyProbes"
+                ],
+                "properties": {
+                  "structuralLegacyProbes": {
+                    "type": "array"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "structuralLegacyProbes": { "minItems": 8 },
+                  "structuralRemovedMethodGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralRemovedFieldGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralRemovedPropertyGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralReplacedPropertyGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralRemovedEventGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralReplacedEventGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralRemovedTypeGuardValidated": {
+                    "type": "boolean"
+                  },
+                  "structuralOldSignatureGuardValidated": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "structuralRemovedMethodGuardValidated": {
+                    "const": true
+                  },
+                  "structuralRemovedFieldGuardValidated": {
+                    "const": true
+                  },
+                  "structuralRemovedPropertyGuardValidated": {
+                    "const": true
+                  },
+                  "structuralReplacedPropertyGuardValidated": {
+                    "const": true
+                  },
+                  "structuralRemovedEventGuardValidated": {
+                    "const": true
+                  },
+                  "structuralReplacedEventGuardValidated": {
+                    "const": true
+                  },
+                  "structuralRemovedTypeGuardValidated": {
+                    "const": true
+                  },
+                  "structuralOldSignatureGuardValidated": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "if": {
+          "properties": { "transactionStatus": { "const": "validated" } },
+          "required": ["transactionStatus"]
+        },
+        "then": {
+          "properties": {
+            "retryValidated": { "const": true },
+            "retryAssemblyName": { "type": "string", "minLength": 1 },
+            "retryFailure": { "const": "DHE_MV_REGISTRATION_FAILED" }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "transactionStatus": { "const": "notApplicable" } },
+          "required": ["transactionStatus"]
+        },
+        "then": {
+          "properties": {
+            "retryValidated": { "const": false },
+            "retryAssemblyName": { "anyOf": [{ "type": "null" }, { "const": "" }] },
+            "retryFailure": { "anyOf": [{ "type": "null" }, { "const": "" }] }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "changedMethodCount": { "const": 0 } },
+          "required": ["changedMethodCount"]
+        },
+        "then": {
+          "properties": {
+            "noOpAotBehaviorValidated": { "const": true },
+            "interpreterEntryCount": { "const": 0 }
+          }
+        },
+        "else": {
+          "properties": {
+            "noOpAotBehaviorValidated": { "const": false },
+            "interpreterEntryCount": { "minimum": 1 },
+            "aotEntryCount": { "minimum": 1 }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "transactionStatus": { "const": "failed" } },
+          "required": ["transactionStatus"]
+        },
+        "then": {
+          "properties": {
+            "passed": { "const": false },
+            "retryValidated": { "const": false }
+          }
+        }
+      }
+  ]
+}

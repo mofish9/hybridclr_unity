@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-source-boundary-gate.schema.json",
+  "title": "HybridCLR DHE Source Boundary Gate Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "manifest", "gitRoot", "untrackedCount", "unexpectedUntracked", "unexpectedTracked", "generatedPathsIgnored", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-source-boundary-gate.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "manifest": { "type": "string", "minLength": 1 },
+    "gitRoot": { "type": "string", "minLength": 1 },
+    "untrackedCount": { "type": "integer", "minimum": 0 },
+    "unexpectedUntracked": { "type": "array", "items": { "type": "string" } },
+    "unexpectedTracked": { "type": "array", "items": { "type": "string" } },
+    "generatedPathsIgnored": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

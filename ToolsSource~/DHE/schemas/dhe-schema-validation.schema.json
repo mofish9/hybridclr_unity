@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-schema-validation.schema.json",
+  "title": "HybridCLR DHE Schema Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "schema", "document", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-schema-validation.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "schema": { "type": "string", "minLength": 1 },
+    "document": { "type": "string", "minLength": 1 },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "passed": { "const": true } } },
+      "then": { "properties": { "errors": { "maxItems": 0 } } }
+    }
+  ]
+}

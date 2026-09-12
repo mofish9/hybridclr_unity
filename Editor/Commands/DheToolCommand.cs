@@ -24,7 +24,8 @@ namespace HybridCLR.Editor.Commands
             "stage-resource-update", "resource-release-plan", "resource-release-gate", "channel-state",
             "baseline-manifest", "aot-metadata-manifest", "preflight", "release-gate",
             "schema-validate", "schema-gate", "validate", "archive", "doctor", "verify-package",
-            "new-adapter", "new-config", "tree-hash", "file-hash"
+            "new-adapter", "new-config", "tree-hash", "file-hash",
+            "capture-installation", "verify-installation"
         };
 
         public static string ToolRoot

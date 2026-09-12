@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-project-plan.schema.json",
+  "title": "HybridCLR DHE Project Plan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "complete", "requireDheEqualsHotUpdate", "hotUpdateAssemblies", "dheAotAssemblies", "dheEqualsHotUpdate", "settingsFile", "baselineRoot", "currentRoot", "batchReport", "assemblies"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-project-plan.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "complete": { "type": "boolean" },
+    "requireDheEqualsHotUpdate": { "type": "boolean" },
+    "hotUpdateAssemblies": { "type": "array", "items": { "type": "string" } },
+    "dheAotAssemblies": { "type": "array", "items": { "type": "string" } },
+    "dheEqualsHotUpdate": { "type": ["boolean", "null"] },
+    "settingsFile": { "type": "string", "minLength": 1 },
+    "baselineRoot": { "type": "string", "minLength": 1 },
+    "currentRoot": { "type": "string", "minLength": 1 },
+    "batchReport": { "type": "string", "minLength": 1 },
+    "assemblies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assemblyName", "status", "baseline", "current", "baseMetaVersionJson", "baseMetaVersionBytes", "currentMetaVersionJson", "currentMetaVersionBytes", "changedMethodCount", "changedExistingTypeCount", "addedTypeCount", "removedTypeCount"],
+        "properties": {
+          "assemblyName": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["compatible", "incompatible", "missing", "error"] },
+          "baseline": { "type": "string", "minLength": 1 },
+          "current": { "type": "string", "minLength": 1 },
+          "baseMetaVersionJson": { "type": "string", "minLength": 1 },
+          "baseMetaVersionBytes": { "type": "string", "minLength": 1 },
+          "currentMetaVersionJson": { "type": "string", "minLength": 1 },
+          "currentMetaVersionBytes": { "type": "string", "minLength": 1 },
+          "baselineSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+          "currentSha256": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+          "changedMethodCount": { "type": "integer", "minimum": 0 },
+          "changedExistingTypeCount": { "type": "integer", "minimum": 0 },
+          "addedTypeCount": { "type": "integer", "minimum": 0 },
+          "removedTypeCount": { "type": "integer", "minimum": 0 },
+          "compatibility": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

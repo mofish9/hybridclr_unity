@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-workflow-report.schema.json",
+  "title": "HybridCLR DHE Workflow Report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "format", "passed", "validationPassed", "target", "engineWorkflow", "il2cppCodeGeneration", "mode", "coverageRequired", "coverageGatePassed", "releaseReady", "artifactValidationPassed", "buildIdentityReady", "identityVersion", "aotSnapshotKind", "nativeGuardSourceSha256", "nativeManifestSha256", "pathSemantics", "projectPlan", "projectPlanValidation", "batchReport", "runtimePlan", "runtimePlanProjectPath", "sourcePreflight", "cleanCheckoutGate", "resourceEvidence", "resourceBuildPolicy", "transaction", "assemblyScope", "capability", "nativeGuardCoverage", "player"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "pattern": "^hybridclr\\.dhe-[A-Za-z0-9._-]+-workflow\\.json$" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "validationPassed": { "type": "boolean" },
+    "target": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "engineWorkflow": { "enum": ["Unity2021Standard", "Unity2022Fgs", "Tuanjie2022Fgs"] },
+    "il2cppCodeGeneration": { "enum": ["OptimizeSpeed", "OptimizeSize"] },
+    "mode": { "enum": ["Release", "Exploratory"] },
+    "coverageRequired": { "type": "boolean" },
+    "coverageGatePassed": { "type": "boolean" },
+    "releaseReady": { "type": "boolean" },
+    "artifactValidationPassed": { "type": "boolean" },
+    "buildIdentityReady": { "type": "boolean" },
+    "identityVersion": { "const": 1 },
+    "aotSnapshotKind": { "const": "managed-assembly-plus-generated-cpp-v1" },
+    "nativeGuardSourceSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "nativeManifestSha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "yooAssetBuild": { "type": ["string", "null"] },
+    "resourceEvidence": { "type": "string", "minLength": 1 },
+    "resourceBuildPolicy": { "enum": ["required", "skip"] },
+    "pathSemantics": { "enum": ["workspace-absolute-v1", "archive-relative-v1"] },
+    "runtimeSource": { "type": ["string", "null"] },
+    "artifactValidation": { "type": ["string", "null"] },
+    "archiveManifest": { "type": ["string", "null"] },
+    "archiveGate": { "type": ["string", "null"] },
+    "runtimePlan": { "type": "string", "minLength": 1 },
+    "runtimePlanProjectPath": { "type": "string", "minLength": 1 },
+    "aotMetadataRoot": { "type": ["string", "null"] },
+    "aotMetadataSetId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "projectPlan": { "type": "string", "minLength": 1 },
+    "projectPlanValidation": { "type": "string", "minLength": 1 },
+    "batchReport": { "type": "string", "minLength": 1 },
+    "sourcePreflight": { "type": "string", "minLength": 1 },
+    "cleanCheckoutGate": { "type": "string", "minLength": 1 },
+    "transaction": {
+      "type": "object",
+      "required": ["status", "retryValidated", "retryAssemblyName", "retryFailure"],
+      "properties": {
+        "status": { "enum": ["validated", "notApplicable", "failed"] },
+        "retryValidated": { "type": "boolean" },
+        "retryAssemblyName": { "type": ["string", "null"] },
+        "retryFailure": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "validated" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "retryValidated": { "const": true },
+              "retryAssemblyName": { "type": "string", "minLength": 1 },
+              "retryFailure": { "const": "DHE_MV_REGISTRATION_FAILED" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "notApplicable" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "retryValidated": { "const": false },
+              "retryAssemblyName": { "anyOf": [{ "type": "null" }, { "const": "" }] },
+              "retryFailure": { "anyOf": [{ "type": "null" }, { "const": "" }] }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "retryValidated": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "assemblyScope": {
+      "type": "object",
+      "required": ["strategy", "aotAssemblies", "loadedDheAssemblies", "stagedDependencies", "stagedDependenciesLoadedAsDhe"],
+      "properties": {
+        "strategy": { "type": "string", "minLength": 1 },
+        "aotAssemblies": { "type": "array", "items": { "type": "string" } },
+        "loadedDheAssemblies": { "type": "array", "items": { "type": "string" } },
+        "stagedDependencies": { "type": "array", "items": { "type": "string" } },
+        "stagedDependenciesLoadedAsDhe": { "type": "boolean" },
+        "secondaryAssemblyChangedValidated": { "type": "boolean" },
+        "secondaryAssemblyDirectValidated": { "type": "boolean" }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "required": ["methodCount", "changedMethodCount", "typeChangeCount", "compatibility"],
+      "properties": {
+        "methodCount": { "type": "integer", "minimum": 0 },
+        "changedMethodCount": { "type": "integer", "minimum": 0 },
+        "typeChangeCount": { "type": "integer", "minimum": 0 },
+        "compatibility": { "enum": ["compatible", "incompatible"] }
+      }
+    },
+    "nativeGuardCoverage": {
+      "type": "object",
+      "required": ["manifestAvailable", "changedMethodCount", "supportedChangedMethodCount", "unsupportedChangedMethodCount", "nativeEntryCount", "guardedMethodCount", "complete"],
+      "properties": {
+        "manifestAvailable": { "type": "boolean" },
+        "changedMethodCount": { "type": "integer", "minimum": 0 },
+        "supportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+        "unsupportedChangedMethodCount": { "type": "integer", "minimum": 0 },
+        "nativeEntryCount": { "type": "integer", "minimum": 0 },
+        "guardedMethodCount": { "type": "integer", "minimum": 0 },
+        "complete": { "type": "boolean" }
+      }
+    },
+    "player": { "type": "object", "required": ["passed", "loadError"] }
+  }
+}

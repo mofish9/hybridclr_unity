@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>10.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <AssemblyName>HybridCLR.DheTool</AssemblyName>
+    <RootNamespace>HybridCLR.DheTool</RootNamespace>
+  </PropertyGroup>
+  <!-- The Unity package ships the exact dnlib build used by the editor.
+       Override DheDnlibPath when building the host outside this workspace. -->
+  <PropertyGroup>
+    <DheDnlibPath Condition="'$(DheDnlibPath)' == ''">$(MSBuildThisFileDirectory)../../Tools~/DHE/dnlib.dll</DheDnlibPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="fixtures/**/*.cs" />
+    <Compile Remove="templates/**/*.cs" />
+    <Reference Include="dnlib">
+      <HintPath>$(DheDnlibPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <None Update="templates/DheWorkflowBuild.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="templates/DheBuildIdentity.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

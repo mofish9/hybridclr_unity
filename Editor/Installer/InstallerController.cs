@@ -339,6 +339,18 @@ namespace HybridCLR.Editor.Installer
             if (HasInstalledHybridCLR())
             {
                 WriteLocalVersion();
+                if (version.major == 2022 && !version.isTuanjieEngine &&
+                    File.Exists(Path.Combine(SettingsUtil.ProjectDir, SettingsUtil.HybridCLRDataPathInPackage, "dhe-runtime-release.json")))
+                {
+                    // Record the actual installed sources and this Editor. No Lab
+                    // checkout or maintainer staging path is a project dependency.
+                    Debug.Log(Commands.DheToolCommand.Run("capture-installation",
+                        "-ProjectPath", SettingsUtil.ProjectDir,
+                        "-PackageRoot", Path.GetFullPath(Path.Combine(SettingsUtil.ProjectDir, SettingsUtil.PackagePathInProject)),
+                        "-EditorContents", EditorApplication.applicationContentsPath,
+                        "-EditorExecutable", EditorApplication.applicationPath,
+                        "-EditorVersion", Application.unityVersion));
+                }
                 Debug.Log("Install Sucessfully");
             }
             else

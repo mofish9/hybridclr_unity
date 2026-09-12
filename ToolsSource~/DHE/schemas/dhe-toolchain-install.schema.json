@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mofish9/hybridclr-lab/schemas/dhe-toolchain-install.schema.json",
+  "title": "HybridCLR DHE Toolchain Install Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "format", "generatedAtUtc", "passed", "sourcePackage", "destination", "operation", "previousVersion", "installedVersion", "contractVersion", "packageId", "expectedPackageId", "packageGatePassed", "errors", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "format": { "const": "hybridclr.dhe-toolchain-install.json" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "passed": { "type": "boolean" },
+    "sourcePackage": { "type": "string" },
+    "destination": { "type": "string" },
+    "operation": { "enum": ["install", "upgrade"] },
+    "previousVersion": { "type": ["string", "null"] },
+    "installedVersion": { "type": ["string", "null"] },
+    "contractVersion": { "type": ["integer", "null"] },
+    "packageId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "expectedPackageId": { "type": ["string", "null"], "pattern": "^[0-9a-fA-F]{64}$" },
+    "packageGatePassed": { "type": "boolean" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}
