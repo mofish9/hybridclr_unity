@@ -182,7 +182,8 @@ internal static class FrozenAotAdaptation
     internal static bool IsStorageIndependentEmptyValueMethod(MethodDef method) =>
         method.DeclaringType.IsValueType && !method.IsStatic && !method.IsConstructor &&
         method.DeclaringType.FindStaticConstructor() == null && method.HasBody && method.IsIL &&
-        !method.IsUnmanaged && !method.IsPinvokeImpl && !method.IsInternalCall &&
+        !method.IsUnmanaged && !method.IsPinvokeImpl && !method.IsInternalCall && !method.IsSynchronized &&
+        !method.HasDeclSecurities && !method.MethodSig.IsVarArg &&
         method.MethodSig.Params.Count == 0 && method.ReturnType.ElementType == ElementType.Void &&
         method.Body.ExceptionHandlers.Count == 0 && method.Body.Variables.Count == 0 &&
         method.Body.Instructions.Count > 0 && method.Body.Instructions[^1].OpCode.Code == dnlib.DotNet.Emit.Code.Ret &&
