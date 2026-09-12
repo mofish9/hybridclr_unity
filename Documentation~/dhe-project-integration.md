@@ -105,6 +105,13 @@ The opt5 tool is distributed as `Exploratory` for packaging trials. Its Release
 checks remain enabled and require separate qualification; an opt5 runtime tag
 alone does not qualify a project's Player, resources, or target device.
 
+The current package-delivery candidate has not passed its structural Player
+gate. Two Windows Bases accept the generated plan but fail while disposing a
+`List<T>.Enumerator` after the hotfix value layout changes, with "the old AOT ABI
+cannot be used". Generic caller closure fixes an earlier constructor boundary
+but does not resolve this remaining invocation boundary. Do not promote this
+candidate or infer structural readiness from method-only or managed-host tests.
+
 Structural updates are admitted per immutable Base. Full guards do not imply
 unrestricted storage migration: changing the layout of a value stored in an
 existing `[ThreadStatic]` field is rejected with
