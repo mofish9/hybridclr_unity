@@ -45,7 +45,7 @@ namespace __DHE_NAMESPACE__
             return new DheProjectWorkflowAdapter
             {
                 ProjectRoot = ProjectRoot(),
-                Workflow = "dhe-opt5",
+                Workflow = "dhe",
                 BuildIdentityAssetPath = "Assets/HybridCLRGenerated/DheBuildIdentity.cs",
                 IdentityNamespace = "__DHE_IDENTITY_NAMESPACE__",
                 IdentityClassName = "DheBuildIdentity",

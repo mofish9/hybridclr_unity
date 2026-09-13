@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-09-12T18:21:46.6891691+00:00",
+  "generatedAtUtc": "2026-09-13T13:33:46.7143642+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "74a4855640b1169c7a47a6cc2bde761bd173cc9c931a8a5cb8012fbac037d32b",
+  "packageId": "81f07c851487c43dfa7bdc4d1fb1a4ef0e025e1f8af3ed7520cfeb1410e8e53b",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -45,8 +45,8 @@
   ],
   "layoutSha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318",
   "sourceIdentity": {
-    "head": "ccc01f9b533a9782b380dc68f358a5b9085fd729",
-    "tree": "065f844789100c3b47591e7a9f5141827facbbe2",
+    "head": "339338efc968d1c29e24567e93042a5af5882d9a",
+    "tree": "f1d5ccc6fe5b2ca8267762475b6254886c4293c7",
     "clean": true,
     "tracked": true
   },
@@ -59,8 +59,8 @@
     },
     {
       "path": "HybridCLR.DheTool.dll",
-      "size": 1643008,
-      "sha256": "9812caf9f66eb30844698025d78bf33edb0076567ec603be32a99ed404a314ad"
+      "size": 1643520,
+      "sha256": "28cfec6ae2343232af9d1666bb018cce9c70c7f3d39fdd63957b0b19eeeb819e"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -70,7 +70,7 @@
     {
       "path": "build-provenance.json",
       "size": 973,
-      "sha256": "694f6b717d6b7e3e7e96a277c14bdf3f2e4fbae421b011754cc9dafe2cd93c5a"
+      "sha256": "7614a12a7f76752d5865e62465bf50097670a7983ccb704c33721efc002e5bab"
     },
     {
       "path": "dhe-source-boundary.json",
@@ -95,7 +95,7 @@
     {
       "path": "manifests/dhe-runtime-lock.json",
       "size": 574,
-      "sha256": "104da19703774aa806fcdcce8e51ed93dae30f15dd7e32ad1a30d07394f7b68f"
+      "sha256": "ff9573b32ea015f1edcb710bc3c20f99bb021740add8671cc22769d73e004f35"
     },
     {
       "path": "manifests/dhe-toolchain-evidence-authorities.json",
@@ -110,7 +110,7 @@
     {
       "path": "manifests/runtime-workflows.json",
       "size": 1140,
-      "sha256": "4e760598857f18aa67efa83e189c0ac2ec91c07bc692395dd950d92f18cf38ce"
+      "sha256": "02d79ed2718e6f7cd2052ee8b5ce78035930134d79f922abe9ba06b1fff98411"
     },
     {
       "path": "schemas/dhe-adapter-native-finalize.schema.json",
@@ -444,8 +444,8 @@
     },
     {
       "path": "templates/DheWorkflowBuild.cs",
-      "size": 3734,
-      "sha256": "b7293d151076071a36564a8835e22b998ec09d0a74a3dfbb25c5846fdf83ebc0"
+      "size": 3729,
+      "sha256": "27e402dfbb9c1b78099cd15baca1f080e7d429f52a93ee13041cd25ae85c4e3a"
     },
     {
       "path": "templates/dhe-base-runner-catalog.json",
