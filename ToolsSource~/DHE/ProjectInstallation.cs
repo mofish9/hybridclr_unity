@@ -34,6 +34,7 @@ internal static partial class Program
         JsonElement release = ReadJson<JsonElement>(file);
         if (GetInt(release, "schemaVersion") != 1 || GetString(release, "format") != "hybridclr.dhe-runtime-release.json" ||
             GetString(release, "engineWorkflow") != "Unity2022Fgs" ||
+            GetString(release, "runtimeContract") != ResourceUpdateCompatibility.CurrentNativeRuntimeContract ||
             !IsHex(GetString(release, "nativeSourceCanonicalSha256"), 64, 64) || GetInt(release, "nativeSourceFileCount") <= 0)
             throw new DheException("Package has no approved Unity 2022 runtime release.");
         JsonElement versions = ReadJson<JsonElement>(Path.Combine(package, "Data~/hybridclr_version.json"));
@@ -55,7 +56,7 @@ internal static partial class Program
         string canonical = LabCommands.CanonicalSourceTreeHash(installed, false, RuntimeGeneratedPaths);
         if (!identity.Passed || identity.SourceFileCount != GetInt(release, "nativeSourceFileCount") ||
             !canonical.Equals(GetString(release, "nativeSourceCanonicalSha256"), StringComparison.OrdinalIgnoreCase))
-            throw new DheException("Installed native sources do not match the package's approved opt5 runtime. Run HybridCLR Installer.");
+            throw new DheException("Installed native sources do not match the package's approved runtime release. Run HybridCLR Installer.");
         foreach (string generated in RuntimeGeneratedPaths.Take(3))
             RequireFile(Path.Combine(installed, generated), "Installed generator input");
         return identity;
@@ -139,7 +140,7 @@ internal static partial class Program
             integratedCommit = buildSourceCommit, pathBase = "project-root-v1", packagePath, treeSha256 = packageTree,
             treeHashKind = "canonical-source-v1", commitKind = "package-build-source",
             resolverSourceSha256 = Sha256File(Path.Combine(package, "Editor/Commands/DheBuildPipeline.cs")),
-            treeHashIgnoredPaths = PackageGeneratedPaths, patches = new[] { "package-owned-dhe-opt5" }
+            treeHashIgnoredPaths = PackageGeneratedPaths, patches = new[] { "package-owned-dhe" }
         });
         WriteJson(Path.Combine(output, "runtime-manifest.json"), manifest);
         Console.WriteLine("DHE installed runtime identity captured: " + Path.Combine(output, "runtime-manifest.json"));

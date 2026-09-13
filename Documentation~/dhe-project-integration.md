@@ -27,8 +27,8 @@ The package directory may retain a Unity version suffix such as
 
 Approved Unity 2022 upstream baselines are package/HybridCLR 8.13.0 and
 IL2CPP `v2022-8.11.0`. An opt release does not authorize an upstream upgrade.
-Use `v8.13.0-opt5` and `v2022-8.11.0-opt5`; the earlier
-`v2022-8.14.0-opt5` included an unapproved upstream merge and is superseded.
+Use `v8.13.0-opt6` and `v2022-8.11.0-opt6`. Opt5 is retired. Reinstall and build
+a new Base; an old Player cannot gain this native fix from managed resources.
 Repository URLs remain project settings. Baseline changes require an explicit
 decision and new source-bound validation, not merely a renamed tag.
 
@@ -39,7 +39,7 @@ come exclusively from this project's `HybridCLRSettings`:
 - `hybridclrRepoURL`: the project's HybridCLR fork or mirror.
 - `il2cppPlusRepoURL`: the project's IL2CPP fork or mirror.
 
-The configured repositories must contain the selected opt5 tags. Configure the
+The configured repositories must contain the selected opt6 tags. Configure the
 project to use the appropriate forks before installing; Installer does not
 override project settings or silently fall back to another repository. Clone
 failures stop installation. Exact commits and source hashes remain in release
@@ -50,7 +50,7 @@ locks/build provenance and are checked by the DHE build identity workflow.
 After updating the complete package, run ordinary Installer. It creates
 `HybridCLRData/DHE/runtime-manifest.json` and `package-lock.json` using the actual
 installed native files and the running Editor. `verify-installation` validates
-the package, opt5 runtime release, compiler and headers. All Base stages call
+the package, approved runtime release, compiler and headers. All Base stages call
 this check; a stale/mixed installation requires reinstalling before a new build.
 These are generated local records, not substitutes for the immutable Base archive
 or the project's package migration commit.
@@ -101,9 +101,16 @@ building; the package must not silently change the project's assembly ownership.
 
 ## Current trial qualification
 
-The opt5 tool is distributed as `Exploratory` for packaging trials. Its Release
-checks remain enabled and require separate qualification; an opt5 runtime tag
+The opt6 tool is distributed as `Exploratory` for packaging trials. Its Release
+checks remain enabled and require separate qualification; an opt6 runtime tag
 alone does not qualify a project's Player, resources, or target device.
+
+The new runtime selects Current methods using the receiver's physical execution
+owner and validates concrete call signatures, including boxed value enumerators.
+Physical-layout and conditional-generic updates require
+`physical-current-receiver-dispatch-v1`; archived Bases missing it are rejected
+during planning. Keep all still-supported Base archives built with the fixed
+runtime and validate the same Current payload against each Base.
 
 Structural updates are admitted per immutable Base. Existing hotfix thread-static
 value fields whose value layout evolves use physical Current fields and per-thread

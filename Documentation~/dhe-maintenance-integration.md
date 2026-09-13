@@ -2,16 +2,19 @@
 
 This package is based on upstream v8.13.0 and maintained on optimize/v8.13.0.
 It includes the full DHE execution plan, Delivery, asset provenance, AOT compiler
-and loading workflow. The runtime contract is dhe-runtime-v33. Package 65581c1
-was an incomplete rollback and must not be used for DHE trials.
+and loading workflow. The runtime contract is dhe-runtime-v34. Opt5 is retired;
+its Players cannot acquire the native receiver fix through a managed update.
 
 Install through the default Installer. Project HybridCLRSettings supplies the repository URLs;
 the Unity 2022 version list selects
-HybridCLR v8.13.0-opt5 (b0fe826f071332d109d2bde87c0aa2cc18b9f3c7) and
-IL2CPP v2022-8.11.0-opt5 (ecad8a09d1eb9b91a57c59fcdc69b268377bad59).
+HybridCLR v8.13.0-opt6 (04bd9b5cd5153a31e76815d65bc1a9b5655a5a05) and
+IL2CPP v2022-8.11.0-opt6 (57f3a065e84e3b1e7e13c1012752e27f23e4c041).
 These annotated tags are immutable. Upstream remains 8.13.0 / IL2CPP 8.11.0.
 Package consumers pin an audited distribution commit,
 never a package opt tag. Unity 2021 stays official; Tuanjie selection is unchanged.
+Export tracked files from that commit (for example, git archive); do not copy a
+maintenance worktree containing ignored bin/obj files. Keep the complete Tools~
+bundle and record the distribution commit/tree in the project's build manifest.
 
 The C# tool and runtime release lock ship in Tools~/DHE. Source and reproducible
 tool publication live in ToolsSource~/DHE in this package repository. Lab is for

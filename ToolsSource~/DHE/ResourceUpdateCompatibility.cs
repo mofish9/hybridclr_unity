@@ -17,9 +17,10 @@ internal sealed class ResourceUpdateCompatibility
     internal const string ParentMemberHandleCapability = "current-parent-member-handles-v1";
     internal const string FrozenFieldObjectValidationCapability = "frozen-field-object-validation-v1";
     internal const string FrozenBaseInstanceFrameCapability = "frozen-base-instance-frames-v1";
+    internal const string PhysicalReceiverDispatchCapability = "physical-current-receiver-dispatch-v1";
 	public const string Policy = "dhe-proven-safe-subset-v1";
 	public const string RuntimeProtocol = "dhe-runtime-protocol-v1";
-    public const string CurrentNativeRuntimeContract = "dhe-runtime-v33";
+    public const string CurrentNativeRuntimeContract = "dhe-runtime-v34";
     public static readonly string[] KnownRuntimeCapabilities =
     {
 		"aot-guard-v1",
@@ -45,6 +46,7 @@ internal sealed class ResourceUpdateCompatibility
         ParentMemberHandleCapability,
         FrozenFieldObjectValidationCapability,
         FrozenBaseInstanceFrameCapability,
+        PhysicalReceiverDispatchCapability,
         ResourceExecutionPlan.GenericContextCapability,
         "current-parameter-default-metadata-v1",
         "shared-type-initialization-v1",
@@ -352,6 +354,8 @@ internal sealed class ResourceUpdateCompatibility
         };
         if (current.HasEmbeddedNullStringDefaults)
             requiredCapabilities.Add("length-preserved-constant-strings-v1");
+        if (physicalTypes.Count != 0 || conditionalTokens.Length != 0)
+            requiredCapabilities.Add(PhysicalReceiverDispatchCapability);
         if (requiresPhysicalParentEvolution)
         {
             requiredCapabilities.Add(PhysicalParentEvolutionCapability);

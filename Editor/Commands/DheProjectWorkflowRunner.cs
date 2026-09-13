@@ -425,7 +425,7 @@ namespace HybridCLR.Editor.Commands
     public sealed class DheProjectWorkflowAdapter
     {
         public string ProjectRoot;
-        public string Workflow = "dhe-opt5";
+        public string Workflow = "dhe";
         public string BuildIdentityAssetPath;
         public string IdentityNamespace;
         public string IdentityClassName = "DheBuildIdentity";

@@ -1389,6 +1389,7 @@ internal static partial class Program
                     : FrozenAotSourcePlan.Materialize(aotAnalysis, frozen, baseId, outputRoot);
                 if (frozen.Assemblies.Length != 0)
                 {
+                    requiredRuntimeCapabilities.Add(ResourceUpdateCompatibility.PhysicalReceiverDispatchCapability);
                     frozenAdmission = FrozenAotAdmission.Validate(aotAnalysis, frozen, execution, nativeManifest);
                     unsupported.RemoveAll(reason => execution.UnsupportedChanges.Contains(reason, StringComparer.Ordinal));
                     unsupported.AddRange(frozenAdmission.UnsupportedChanges);

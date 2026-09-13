@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v33";
+        private const string NativeRuntimeContract = "dhe-runtime-v34";
         // The identity must describe the same inventory that the Player
         // validates. A second literal list can make a clean build unloadable.
         private static readonly string[] NativeRuntimeCapabilities =
@@ -622,6 +622,9 @@ namespace HybridCLR.Editor.Commands
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
             DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
                 Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
+            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
+                .Contains("#define HYBRIDCLR_DHE_HAS_PHYSICAL_RECEIVER_DISPATCH 1", StringComparison.Ordinal))
+                throw new BuildFailedException("DHE requires the physical receiver dispatch runtime. Reinstall the matching package runtime and rebuild the Base Player.");
             if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
                 .Contains("#define HYBRIDCLR_DHE_HAS_TRACKED_LOAD_PHASE 1", StringComparison.Ordinal))
                 throw new BuildFailedException("DHE public recovery requires the matching native load-phase API.");
