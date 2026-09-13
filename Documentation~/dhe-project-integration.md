@@ -231,7 +231,13 @@ with an `AfterCurrentGeneration` callback in `finally`. Projects that swap
 precompiled DHE inputs must restore the Base-compatible inputs there so a
 failed generation cannot leave the Unity project uncompilable.
 
-No Base DLL or Base MetaVersion is copied into this payload. Use the host
+Mutable hotfix Base DLLs and their embedded Base MetaVersions are not duplicated
+as Current payloads. When changed layouts affect ordinary AOT callers, the update
+also carries authenticated frozen ordinary AOT source DLLs and MetaVersions from
+each applicable Base snapshot under `payload/frozen-aot`. These are compatibility
+inputs, not new versions of ordinary AOT assemblies. Preserve them together with
+the complete generated resource manifest; do not package only the Current DLLs.
+Use the host
 `stage-resource-update` command before the project's YooAsset, Addressables,
 or custom catalog build, and pass the exact Player archive's
 `build-identity.json` with `-BaseBuildIdentity`. It validates the identity
