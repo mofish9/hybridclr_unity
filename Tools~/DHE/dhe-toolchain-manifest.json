@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-10-03T13:51:03.1109437+00:00",
+  "generatedAtUtc": "2026-10-03T16:16:08.6589758+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "8db4a084960cf32a67e195dc51b29742f68f8a68cb45923afd023a724bd73e30",
+  "packageId": "a07544784832e2178cd88b5ac8e79c40377165e512875bdf977598220f1f7d53",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -45,8 +45,8 @@
   ],
   "layoutSha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318",
   "sourceIdentity": {
-    "head": "8f19ab7dfbbd9018da4249a423f3de264b51dbbd",
-    "tree": "e499a8d2143709ba24bfabb1ddf24b0cf956f2bd",
+    "head": "0d23e4c38eb10d0a95862a65f25723295f5fdf0c",
+    "tree": "4ea074ce879e1d0d6ba869cfba5c4e768f1d9e01",
     "clean": true,
     "tracked": true
   },
@@ -60,7 +60,7 @@
     {
       "path": "HybridCLR.DheTool.dll",
       "size": 1643520,
-      "sha256": "f9cf7e8a56449121d47b46af897b392d2d2b80f6c9bd990b5a3bf20f71c80ac9"
+      "sha256": "5723551a67e6365cd9c2d745807c395624a7e8b77a022c1889f586b883b3b635"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -70,7 +70,7 @@
     {
       "path": "build-provenance.json",
       "size": 973,
-      "sha256": "51e2b34a03ae0050cf5fd424494efd534b542a8f2a4e0608c4c7da1535299e6b"
+      "sha256": "ca9e4593cc14a6e517d2d1ef42027ef021cfd4741b874888772d70f60e75aca1"
     },
     {
       "path": "dhe-source-boundary.json",
@@ -94,8 +94,8 @@
     },
     {
       "path": "manifests/dhe-runtime-lock.json",
-      "size": 625,
-      "sha256": "6ea04fd73de3bb513e6429a99872f9991b736564c1dc4f6561d257c5f10d92d7"
+      "size": 574,
+      "sha256": "d7c3a117ac41cedd131234e173765dc55779f45de897983ea98916a44240cb4b"
     },
     {
       "path": "manifests/dhe-toolchain-evidence-authorities.json",
