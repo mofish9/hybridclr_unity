@@ -4,16 +4,16 @@
   "engineWorkflow": "Unity2022Fgs",
   "packageUpstream": "8.13.0",
   "runtimeContract": "dhe-runtime-v34",
-  "nativeSourceCanonicalSha256": "C47C1B2DC0B812791E2ECC2795816CF3984047B7F9DF6C39841FFA5C5D77039F",
+  "nativeSourceCanonicalSha256": "21A8D9B6707FADFDD3802238AE587DDC86059C507B65CD2A4632D8FD275F1243",
   "nativeSourceFileCount": 927,
   "repositories": {
     "hybridclr": {
-      "tag": "236128de84c29958ce5f9aa3a404d416bb229f3c",
-      "commit": "236128de84c29958ce5f9aa3a404d416bb229f3c"
+      "tag": "a4807e563c0cb245519a44c6ea7cc633246dd337",
+      "commit": "a4807e563c0cb245519a44c6ea7cc633246dd337"
     },
     "il2cpp_plus": {
-      "tag": "v2022-8.11.0-opt6",
-      "commit": "57f3a065e84e3b1e7e13c1012752e27f23e4c041"
+      "tag": "a1ec0324a8a58cb8e175c7b86665d70b5afae57e",
+      "commit": "a1ec0324a8a58cb8e175c7b86665d70b5afae57e"
     }
   }
 }
