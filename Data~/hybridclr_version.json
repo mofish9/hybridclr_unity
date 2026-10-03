@@ -17,8 +17,8 @@
     },
     {
         "unity_version":"2022",
-        "hybridclr" : { "branch":"a4807e563c0cb245519a44c6ea7cc633246dd337"},
-        "il2cpp_plus": { "branch":"a1ec0324a8a58cb8e175c7b86665d70b5afae57e"}
+        "hybridclr" : { "branch":"v8.13.0-opt7"},
+        "il2cpp_plus": { "branch":"v2022-8.11.0-opt7"}
     },
     {
         "unity_version":"2022-tuanjie",

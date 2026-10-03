@@ -8,11 +8,11 @@
   "nativeSourceFileCount": 927,
   "repositories": {
     "hybridclr": {
-      "tag": "a4807e563c0cb245519a44c6ea7cc633246dd337",
+      "tag": "v8.13.0-opt7",
       "commit": "a4807e563c0cb245519a44c6ea7cc633246dd337"
     },
     "il2cpp_plus": {
-      "tag": "a1ec0324a8a58cb8e175c7b86665d70b5afae57e",
+      "tag": "v2022-8.11.0-opt7",
       "commit": "a1ec0324a8a58cb8e175c7b86665d70b5afae57e"
     }
   }
