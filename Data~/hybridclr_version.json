@@ -17,7 +17,7 @@
     },
     {
         "unity_version":"2022",
-        "hybridclr" : { "branch":"v8.13.0-opt6"},
+        "hybridclr" : { "branch":"236128de84c29958ce5f9aa3a404d416bb229f3c"},
         "il2cpp_plus": { "branch":"v2022-8.11.0-opt6"}
     },
     {
