@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-10-04T04:07:23.1694605+00:00",
+  "generatedAtUtc": "2026-10-04T06:12:59.4486602+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "51856dda04dbe6a2a4bbb07d9ca1cf394ec6ecceab057ba9e7fada72b1bfa1ae",
+  "packageId": "27ad24bca9a59a8e672578cee025c4a35737d498d8e45321f0aab81025e067d1",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -39,18 +39,16 @@
     "new-adapter",
     "new-config",
     "tree-hash",
-    "file-hash",
-    "capture-installation",
-    "verify-installation"
+    "file-hash"
   ],
-  "layoutSha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318",
+  "layoutSha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983",
   "sourceIdentity": {
-    "head": "9ecc57c3b5049d42f77679bf9e751775db2437d1",
-    "tree": "c51dccb925d307a18802bafac22f4d7a2f04888c",
+    "head": "01f080b94a2fe49ffd5f0f699ba55e129d3f89df",
+    "tree": "47c959a20b634bb74b4cfca295e9adadfac1fc04",
     "clean": true,
     "tracked": true
   },
-  "fileCount": 84,
+  "fileCount": 82,
   "files": [
     {
       "path": "HybridCLR.DheTool.deps.json",
@@ -59,8 +57,8 @@
     },
     {
       "path": "HybridCLR.DheTool.dll",
-      "size": 1643520,
-      "sha256": "fead575ebaf8d258041a1be01983be5af510808e7a1273bb708e998679a3b6d9"
+      "size": 1612800,
+      "sha256": "f5293b05ec8670166c38c0aa84b28caf221ccd9030436e361ba658fa5f291e42"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -70,7 +68,7 @@
     {
       "path": "build-provenance.json",
       "size": 973,
-      "sha256": "3c93244c1ec12a5f76ce9be63cc06e004a6848230f148b3428962aafd422ed26"
+      "sha256": "7efcafbd3c9350a7132c4bd641f557cb219665a6053c4797a839d854a0568e4b"
     },
     {
       "path": "dhe-source-boundary.json",
@@ -89,13 +87,8 @@
     },
     {
       "path": "docs/THIRD-PARTY-NOTICES.md",
-      "size": 1474,
-      "sha256": "c632d64fad48b6a2eeaed416fb4d8fedee91a0a9a4c5791b48a8cdffefad00ce"
-    },
-    {
-      "path": "manifests/dhe-runtime-lock.json",
-      "size": 620,
-      "sha256": "16a86a9953f7530370a473b9a7200aac4c4902061ce94a705d5fe3f83242c49f"
+      "size": 1397,
+      "sha256": "aa996d654bf6d0dd8ac72354f2760a7b5e766fb0a25ee2306b9d015038473809"
     },
     {
       "path": "manifests/dhe-toolchain-evidence-authorities.json",
@@ -104,8 +97,8 @@
     },
     {
       "path": "manifests/dhe-toolchain-layout.json",
-      "size": 1277,
-      "sha256": "a405ad67a47f9a4e194041fdfcec2b37df52fc789728a7753e627edeb9416318"
+      "size": 1220,
+      "sha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983"
     },
     {
       "path": "manifests/runtime-workflows.json",
@@ -358,11 +351,6 @@
       "sha256": "a7c51b88471f9e921444a9246411cd85d3155b5ca0a969a5188c0dab2f86a308"
     },
     {
-      "path": "schemas/dhe-runtime-release.schema.json",
-      "size": 1446,
-      "sha256": "8d3e3c25f03d079ce86842313dd47c41a903b3d0d86af0d2845a7ed26ad42f10"
-    },
-    {
       "path": "schemas/dhe-schema-gate.schema.json",
       "size": 2619,
       "sha256": "609df6e8e0b31cd02a6808ca3d049a3b59c61c0933aa7e5a9c38dbb5eced9256"
@@ -469,8 +457,8 @@
     },
     {
       "path": "templates/dhe-workflow-config.json",
-      "size": 832,
-      "sha256": "c49ddb8b0c81955995f635010f4f2194295c8594e15b8c48432690de1d6f856a"
+      "size": 704,
+      "sha256": "f296a93c1c92bc05f952361103ac6549464bedc483f98e38c06b89730ab5471a"
     }
   ]
 }

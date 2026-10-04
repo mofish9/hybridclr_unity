@@ -1,9 +1,8 @@
 # Third-Party Notices
 
-The files under `patches/dhe-lite/` contain changes derived from the HybridCLR
-runtime and Unity package repositories. Their exact upstream repositories and
-base commits are recorded in `manifests/dhe-runtime-lock.json` and the portable
-`manifests/repo-lock.json` generated in each toolchain package.
+The DHE tool contains code derived from the HybridCLR Unity package and Lab
+repositories. Source history records their upstream origins; the bundled
+`build-provenance.json` records the package source used to build the tool.
 
 HybridCLR is distributed under the MIT License:
 

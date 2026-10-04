@@ -6,8 +6,6 @@
   "outputRoot": "artifacts/dhe-workflow",
   "baselineAotRoot": "releases/previous/stripped-aot",
   "baselineManifestPath": "releases/previous/stripped-aot/dhe-baseline-manifest.json",
-  "runtimeManifestPath": "HybridCLRData/DHE/runtime-manifest.json",
-  "packageLockPath": "HybridCLRData/DHE/package-lock.json",
   "sourceBoundaryPath": "ProjectSettings/DHE/dhe-source-boundary.json",
   "archiveRoot": "artifacts/dhe-workflow-archive",
   "target": "Android",
