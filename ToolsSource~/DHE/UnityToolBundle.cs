@@ -14,7 +14,6 @@ internal static partial class Program
         "baseline-manifest", "aot-metadata-manifest", "preflight", "workflow",
         "release-gate", "schema-validate", "schema-gate", "validate", "archive",
         "doctor", "verify-package", "new-adapter", "new-config", "tree-hash", "file-hash"
-        , "capture-installation", "verify-installation"
     };
 
     // Compiled into the project distribution. Research commands remain available
@@ -30,9 +29,6 @@ internal static partial class Program
         if (!UnityToolCommands.Contains(cli.Command, StringComparer.OrdinalIgnoreCase))
             throw new DheException("This command belongs to the Lab, not the Unity package: " + cli.Command);
         string root = Path.GetFullPath(AppContext.BaseDirectory);
-        var inspection = InspectPackage(root, null, false);
-        if (!inspection.Passed)
-            throw new DheException("Bundled tool integrity check failed: " + string.Join("; ", inspection.Errors));
         // CLI values win over configuration; defaults are applied only after
         // configuration has been read. ProductionWorkflow may read it again,
         // but its merge is idempotent and preserves the resolved values.
@@ -97,8 +93,6 @@ internal static partial class Program
                 if (relative.StartsWith("schemas/", StringComparison.Ordinal) || relative.StartsWith("templates/", StringComparison.Ordinal))
                     CopyRelative(toolSource, output, relative);
             CopyRelative(toolSource, output, "manifests/runtime-workflows.json");
-            string runtimeRelease = Path.Combine(root, "Data~/dhe-runtime-release.json");
-            File.Copy(runtimeRelease, Path.Combine(output, "manifests/dhe-runtime-lock.json"));
             CopyRelative(toolSource, output, "manifests/dhe-toolchain-evidence-authorities.json");
             CopyRelative(toolSource, output, "docs/THIRD-PARTY-NOTICES.md");
             CopyRelative(toolSource, output, "docs/DHE-Tool-Binary-Notices.md");

@@ -327,7 +327,6 @@ namespace HybridCLR.Editor.Commands
                 string.IsNullOrWhiteSpace(adapter.IdentityNamespace) ||
                 string.IsNullOrWhiteSpace(adapter.IdentityClassName))
                 throw new BuildFailedException("DHE project workflow adapter is incomplete.");
-            DheToolCommand.Run("verify-installation", "-ProjectPath", adapter.ProjectRoot);
         }
 
         private static void RequireContext(DheProjectWorkflowContext context, bool requirePlan)

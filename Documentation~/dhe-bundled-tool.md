@@ -25,6 +25,7 @@ be outside the immutable tool bundle. Nonzero exits and the default five-minute
 timeout throw `BuildFailedException`; use `RunWithTimeout` for a different bound.
 
 `HybridCLR > DHE > Verify Bundled Tool` verifies the distribution and host.
+Ordinary commands do not scan the bundle inventory before every invocation.
 The C# entry uses `EditorApplication.applicationContentsPath/NetCoreRuntime/dotnet`
 (`dotnet.exe` on Windows). Windows Unity 2022 is the validation target; macOS path
 resolution is implemented but still requires a real macOS run.
@@ -49,12 +50,12 @@ It does not turn the project's ordinary build/loader into DHE: configure the
 DHE assembly set and implement the project adapter/provider as described in
 `dhe-project-integration.md`.
 
-The tool manifest records its package-repository build source and exact payload hashes; the
-project source lock records the containing package commit. These identities
-serve different purposes. Package/repository locks and device evidence for a
-particular qualified build remain build inputs, not baked-in references to an
-older package commit. Pass the matching `ValidationSourceRoot` when running
-Release qualification. Missing evidence continues to fail the existing gates.
+The tool manifest records its package-repository build source and exact payload
+hashes. No separate project source lock or runtime release lock is required.
+Record the migrated package commit in build provenance. Package/repository
+evidence and device results for Release qualification are supplied explicitly.
+Pass the matching Lab `ValidationSourceRoot` when running Release qualification.
+Missing evidence continues to fail the existing qualification gates.
 The current distribution is Exploratory, not mobile production-qualified.
 Maintainers can now publish a Release binary distribution with:
 

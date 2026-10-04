@@ -28,7 +28,7 @@ internal static partial class Program
         var toolManifest = Path.Combine(toolRoot, "dhe-toolchain-manifest.json");
         string? toolchainGate = null;
         var toolchainPassed = !release;
-        if (File.Exists(toolManifest))
+        if ((release || !string.IsNullOrWhiteSpace(expectedPackageId)) && File.Exists(toolManifest))
         {
             toolchainGate = Path.Combine(outputRoot, "toolchain-gate.json");
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -63,20 +63,18 @@ internal static partial class Program
         AddCheck(checks, errors, "settings:dhe-coverage", sets.Hot.Length > 0 && SetEquals(sets.Hot, sets.Dhe),
             "hotUpdateAssemblies and dheAotAssemblies must be non-empty and equal.");
         var explicitPackageLockPath = cli.Optional("packagelockpath");
-        var packageLockPath = ResolveOptionalFile(explicitPackageLockPath, project, "HybridCLRData/DHE/package-lock.json") ??
-            ResolveOptionalFile(explicitPackageLockPath, project,
-            Path.Combine("ProjectSettings", "DHE", "dhe-package-lock.json")) ??
-            (string.IsNullOrWhiteSpace(explicitPackageLockPath)
-                ? ResolveOptionalFile(null, project,
-                    Path.Combine("Assets", "Editor", "DHE", "dhe-package-lock.json"))
-                : null);
+        // Source evidence belongs to explicitly requested qualification runs.
+        // Ordinary project builds trust the user's HybridCLR installation.
+        var packageLockPath = string.IsNullOrWhiteSpace(explicitPackageLockPath) ? null :
+            RequireFile(explicitPackageLockPath, "Package lock");
         var bootstrap = cli.Has("bootstrap");
         var baselineManifestPath = bootstrap ? null : ResolveOptionalFile(
             cli.Optional("baselinemanifestpath"), baselineRoot, "dhe-baseline-manifest.json");
         if (bootstrap && !string.IsNullOrWhiteSpace(cli.Optional("baselinemanifestpath")))
             warnings.Add("Bootstrap ignores BaselineManifestPath because it creates the initial Base identity.");
-        runtimeManifestPath = ResolveOptionalFile(cli.Optional("runtimemanifestpath"), project, "HybridCLRData/DHE/runtime-manifest.json") ??
-            (string.IsNullOrWhiteSpace(cli.Optional("runtimemanifestpath")) ? ResolveOptionalFile(null, project, "runtime-manifest.json") : null);
+        var explicitRuntimeManifestPath = cli.Optional("runtimemanifestpath");
+        runtimeManifestPath = string.IsNullOrWhiteSpace(explicitRuntimeManifestPath) ? null :
+            RequireFile(explicitRuntimeManifestPath, "Runtime manifest");
         if (release && packageLockPath == null) errors.Add("Release requires PackageLockPath.");
         if (release && !bootstrap && baselineManifestPath == null)
             errors.Add("Release update workflow requires a target-bound baseline manifest.");
@@ -200,11 +198,6 @@ internal static partial class Program
         Cli cli, bool release, List<string> errors, out bool? externalSurrogate)
     {
         externalSurrogate = null;
-        if (IsProjectInstallation(runtime))
-        {
-            try { ValidateProjectInstallation(runtime, project); externalSurrogate = false; return true; }
-            catch (Exception error) { errors.Add("Project installation: " + error.Message); return false; }
-        }
         var valid = true;
         if (GetInt(runtime, "schemaVersion") != 1 || GetString(runtime, "format") != "hybridclr.dhe-runtime-manifest.json" ||
             GetString(runtime, "pathSemantics") != "workspace-absolute-v1" || !GetBool(runtime, "dheEnabled") ||
@@ -334,7 +327,6 @@ internal static partial class Program
     {
         if (manifestPath == null) return;
         var runtime = ReadJson<JsonElement>(manifestPath);
-        if (IsProjectInstallation(runtime)) { ValidateProjectInstallation(runtime, project); return; }
         string source = RequireDirectory(GetString(runtime, "stagedLibil2cpp") ?? "",
             "Manifest-bound DHE runtime source");
         if (!TreeHashForRelease(source, Array.Empty<string>()).Equals(

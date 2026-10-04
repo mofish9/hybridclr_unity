@@ -24,8 +24,7 @@ namespace HybridCLR.Editor.Commands
             "stage-resource-update", "resource-release-plan", "resource-release-gate", "channel-state",
             "baseline-manifest", "aot-metadata-manifest", "preflight", "release-gate",
             "schema-validate", "schema-gate", "validate", "archive", "doctor", "verify-package",
-            "new-adapter", "new-config", "tree-hash", "file-hash",
-            "capture-installation", "verify-installation"
+            "new-adapter", "new-config", "tree-hash", "file-hash"
         };
 
         public static string ToolRoot
@@ -51,7 +50,7 @@ namespace HybridCLR.Editor.Commands
                 throw new BuildFailedException("Unsupported in-Editor DHE command. Full workflows must run outside Unity: " + command);
             if (timeoutMilliseconds <= 0) throw new ArgumentOutOfRangeException(nameof(timeoutMilliseconds));
             string root = ToolRoot;
-            VerifyBundle(root);
+            if (command.Equals("verify-package", StringComparison.OrdinalIgnoreCase)) VerifyBundle(root);
             string host = ResolveDotnetHost();
             var args = new List<string> { Path.Combine(root, "HybridCLR.DheTool.dll"), command };
             if (arguments != null) args.AddRange(arguments);

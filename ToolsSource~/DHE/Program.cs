@@ -166,8 +166,6 @@ internal static partial class Program
             return cli.Command.ToLowerInvariant() switch
             {
                 "version" => Version(cli),
-                "capture-installation" => CaptureProjectInstallation(cli),
-                "verify-installation" => VerifyProjectInstallation(cli),
                 "mv" or "metaversion" => GenerateMetaVersion(cli),
                 "batch" => Batch(cli),
                 "base-registry" => BuildBaseRegistry(cli),
@@ -2948,9 +2946,7 @@ internal static partial class Program
         {
             string stagedRuntime = RequireDirectory(GetString(runtime, "stagedLibil2cpp") ??
                 string.Empty, "Managed Player staged runtime");
-            if (IsProjectInstallation(runtime))
-                ValidateProjectInstallation(runtime, GetString(report, "projectPath") ?? throw new DheException("Missing project path."));
-            else if (!TreeHashForRelease(stagedRuntime, Array.Empty<string>()).Equals(
+            if (!TreeHashForRelease(stagedRuntime, Array.Empty<string>()).Equals(
                     GetString(runtime, "stagedRuntimeSha256"),
                     StringComparison.OrdinalIgnoreCase))
                 throw new DheException("Managed Player staged runtime tree has changed.");
@@ -2992,9 +2988,8 @@ internal static partial class Program
             !GetBool(clean, "trackedSourcesRequired") || !GetBool(clean, "trackedSourcesComplete"))
             throw new DheException("Managed Player evidence is not bound to clean tracked project and tool sources.");
 
-        bool installedProject = IsProjectInstallation(runtime);
-        JsonElement repoLock = installedProject ? ReadJson<JsonElement>(currentRuntimeLock) :
-            ReadJson<JsonElement>(RequireFile(Path.Combine(contractRoot, "manifests", "repo-lock.json"), "Managed Player repository lock"));
+        JsonElement repoLock = ReadJson<JsonElement>(RequireFile(Path.Combine(contractRoot,
+            "manifests", "repo-lock.json"), "Managed Player repository lock"));
         JsonElement workflowLock = ReadJson<JsonElement>(RequireFile(Path.Combine(contractRoot, "manifests",
             "runtime-workflows.json"), "Managed Player runtime workflows"));
         string workflowId = GetString(runtime, "engineWorkflow") ?? string.Empty;
@@ -3002,14 +2997,12 @@ internal static partial class Program
             GetString(item, "id") == workflowId);
         if (workflow.ValueKind == JsonValueKind.Undefined)
             throw new DheException("Managed Player runtime workflow is not locked by the release source.");
-        if (!installedProject && !externalTree.Equals(GetString(workflow.GetProperty("engine"),
+        if (!externalTree.Equals(GetString(workflow.GetProperty("engine"),
                 "externalHeadersTreeSha256"), StringComparison.OrdinalIgnoreCase))
             throw new DheException("Managed Player headers do not match the locked engine workflow.");
         JsonElement sources = runtime.GetProperty("source");
-        if (installedProject) ValidateProjectRuntimeSourceRecords(runtime, repoLock, contractRoot);
         foreach (string repository in new[] { "hybridclr", "il2cpp_plus", "hybridclr_unity" })
         {
-            if (installedProject) continue; // Validated against the authenticated release and package tool above.
             string? expected = repository == "il2cpp_plus"
                 ? GetString(workflow.GetProperty("il2cppPlus"), "commit")
                 : GetString(repoLock.GetProperty("repositories").GetProperty(repository), "commit");
@@ -4272,12 +4265,9 @@ internal static partial class Program
             outputRoot = Path.Combine(project, "artifacts/dhe-workflow"),
             baselineAotRoot = Path.Combine(project, "releases/previous/stripped-aot"),
             baselineManifestPath = Path.Combine(project, "releases/previous/stripped-aot/dhe-baseline-manifest.json"),
-            runtimeManifestPath = Path.Combine(project, "HybridCLRData/DHE/runtime-manifest.json"),
-            packageLockPath = Path.Combine(project, "HybridCLRData/DHE/package-lock.json"),
             sourceBoundaryPath = Path.Combine(project, "ProjectSettings/DHE/dhe-source-boundary.json"),
             archiveRoot = Path.Combine(project, "artifacts/dhe-workflow-archive"),
             toolchainRoot = toolRoot,
-            expectedToolchainPackageId = packageId,
             target = "Android",
             adapterMethod = "YourGame.Editor.DheWorkflowBuild.Prepare",
             mode = "Exploratory",

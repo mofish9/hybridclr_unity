@@ -18,7 +18,6 @@ Do not copy a separate `tools/hybridclr-dhe` source distribution into the projec
 - The generated zero BuildIdentity template under `Assets`.
 - One runtime bootstrap call at the existing hot-update load point.
 - Project source boundary and release policy under `ProjectSettings/DHE`.
-  Installer owns the generated package/runtime identity under `HybridCLRData/DHE`.
 
 The package directory may retain a Unity version suffix such as
 `com.code-philosophy.hybridclr@8.13.0`; do not rename it.
@@ -27,8 +26,9 @@ The package directory may retain a Unity version suffix such as
 
 Approved Unity 2022 upstream baselines are package/HybridCLR 8.13.0 and
 IL2CPP `v2022-8.11.0`. An opt release does not authorize an upstream upgrade.
-Use `v8.13.0-opt6` and `v2022-8.11.0-opt6`. Opt5 is retired. Reinstall and build
-a new Base; an old Player cannot gain this native fix from managed resources.
+Use the Unity 2022 refs selected by `Data~/hybridclr_version.json`. After updating
+the runtime, reinstall and build a new Base; an old Player cannot gain native
+fixes from managed resources.
 Repository URLs remain project settings. Baseline changes require an explicit
 decision and new source-bound validation, not merely a renamed tag.
 
@@ -39,21 +39,20 @@ come exclusively from this project's `HybridCLRSettings`:
 - `hybridclrRepoURL`: the project's HybridCLR fork or mirror.
 - `il2cppPlusRepoURL`: the project's IL2CPP fork or mirror.
 
-The configured repositories must contain the selected opt6 tags. Configure the
+The configured repositories must contain the selected refs. Configure the
 project to use the appropriate forks before installing; Installer does not
 override project settings or silently fall back to another repository. Clone
-failures stop installation. Exact commits and source hashes remain in release
-locks/build provenance and are checked by the DHE build identity workflow.
+failures stop installation. Users are responsible for installing the selected
+runtime before building. DHE does not maintain a second runtime version list or
+validate that the installed sources match the selected refs.
 
 ## Base Player adapter
 
-After updating the complete package, run ordinary Installer. It creates
-`HybridCLRData/DHE/runtime-manifest.json` and `package-lock.json` using the actual
-installed native files and the running Editor. `verify-installation` validates
-the package, approved runtime release, compiler and headers. All Base stages call
-this check; a stale/mixed installation requires reinstalling before a new build.
-These are generated local records, not substitutes for the immutable Base archive
-or the project's package migration commit.
+After updating the complete package, run ordinary Installer. DHE builds use that
+installation directly, without installation receipts or repeated source/compiler/
+header scans. Archived Base identities and resource compatibility checks remain
+part of the DHE workflow. Lab qualification may supply explicit runtime/package
+source evidence; it is not an ordinary project build prerequisite.
 
 Existing project C# build scripts can use explicit inputs without `-dhe*`
 command-line arguments:
@@ -101,8 +100,8 @@ building; the package must not silently change the project's assembly ownership.
 
 ## Current trial qualification
 
-The opt6 tool is distributed as `Exploratory` for packaging trials. Its Release
-checks remain enabled and require separate qualification; an opt6 runtime tag
+The tool is distributed as `Exploratory` for packaging trials. Its Release
+checks remain enabled and require separate qualification; a runtime tag
 alone does not qualify a project's Player, resources, or target device.
 
 The new runtime selects Current methods using the receiver's physical execution
