@@ -522,7 +522,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             BuildTargetGroup group = EnsureActiveBuildTarget(options.Target);
-            using var diagnostics = new DispatchDiagnosticsBuildScope(options.Target, options.EnableDispatchDiagnostics);
+            using var diagnostics = EnterDispatchDiagnostics(options.Target, options.EnableDispatchDiagnostics);
             using var compiler = DheAotCompiler.Enter();
             if (options.CleanBuild)
             {
@@ -610,24 +610,29 @@ namespace HybridCLR.Editor.Commands
             }
         }
 
+        internal static IDisposable EnterDispatchDiagnostics(BuildTarget target, bool enabled)
+            => new DispatchDiagnosticsBuildScope(target, enabled);
+
         private sealed class DispatchDiagnosticsBuildScope : IDisposable
         {
-            private readonly bool enabled;
+            private readonly bool changed;
             private readonly string previousArguments;
             public DispatchDiagnosticsBuildScope(BuildTarget target, bool enabled)
             {
-                this.enabled = enabled;
                 if (!enabled) return;
                 previousArguments = PlayerSettings.GetAdditionalIl2CppArgs();
-                if ((previousArguments ?? string.Empty).Contains("--compiler-flags", StringComparison.Ordinal))
-                    throw new BuildFailedException("DHE diagnostics require a separate native compiler-flags option; consolidate existing compiler flags first.");
                 string define = target == BuildTarget.StandaloneWindows64 || target == BuildTarget.StandaloneWindows
                     ? "/DHYBRIDCLR_DHE_DIAGNOSTICS=1" : "-DHYBRIDCLR_DHE_DIAGNOSTICS=1";
-                PlayerSettings.SetAdditionalIl2CppArgs(previousArguments + " --compiler-flags=\"" + define + "\"");
+                string option = "--compiler-flags=\"" + define + "\"";
+                if ((previousArguments ?? string.Empty).Contains(option, StringComparison.Ordinal)) return;
+                if ((previousArguments ?? string.Empty).Contains("--compiler-flags", StringComparison.Ordinal))
+                    throw new BuildFailedException("DHE diagnostics require a separate native compiler-flags option; consolidate existing compiler flags first.");
+                PlayerSettings.SetAdditionalIl2CppArgs(previousArguments + " " + option);
+                changed = true;
             }
             public void Dispose()
             {
-                if (enabled) PlayerSettings.SetAdditionalIl2CppArgs(previousArguments);
+                if (changed) PlayerSettings.SetAdditionalIl2CppArgs(previousArguments);
             }
         }
 

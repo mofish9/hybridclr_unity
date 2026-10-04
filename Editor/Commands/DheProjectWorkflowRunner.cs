@@ -123,6 +123,7 @@ namespace HybridCLR.Editor.Commands
             RequireAdapter(adapter);
             RequireContext(context, true);
             context.EnsureTarget();
+            using var diagnostics = DheBuildPipeline.EnterDispatchDiagnostics(context.Target, adapter.EnableDispatchDiagnostics);
             BuildPlayer(adapter, context, BuildOptions.BuildScriptsOnly);
             DheProjectNativeOptions nativeOptions = CreateNativeOptions(adapter, context);
             DheNativeFinalizeResult result = DheBuildPipeline.FinalizeProjectNativeCode(
