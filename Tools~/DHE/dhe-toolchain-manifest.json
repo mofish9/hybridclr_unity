@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-10-04T06:12:59.4486602+00:00",
+  "generatedAtUtc": "2026-10-04T07:12:29.4786016+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "27ad24bca9a59a8e672578cee025c4a35737d498d8e45321f0aab81025e067d1",
+  "packageId": "24acb390ca9794c87a4742442afc60e5420b27703c75bdbec1adf51467d381b8",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -43,8 +43,8 @@
   ],
   "layoutSha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983",
   "sourceIdentity": {
-    "head": "01f080b94a2fe49ffd5f0f699ba55e129d3f89df",
-    "tree": "47c959a20b634bb74b4cfca295e9adadfac1fc04",
+    "head": "79ce466ac179146504ad62a83cc424eb1b6beb5c",
+    "tree": "6e0cc07eb4f9837e23f65c88f33bbb112e73eb0a",
     "clean": true,
     "tracked": true
   },
@@ -57,8 +57,8 @@
     },
     {
       "path": "HybridCLR.DheTool.dll",
-      "size": 1612800,
-      "sha256": "f5293b05ec8670166c38c0aa84b28caf221ccd9030436e361ba658fa5f291e42"
+      "size": 1613824,
+      "sha256": "0cc72f27a608e9ff6ef6b4c8535100dca2d5d05553732eac1490c8a704f0ff6a"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -68,7 +68,7 @@
     {
       "path": "build-provenance.json",
       "size": 973,
-      "sha256": "7efcafbd3c9350a7132c4bd641f557cb219665a6053c4797a839d854a0568e4b"
+      "sha256": "9b137926c608658c5f85f1a6b6271354995358ea5f54dc5a04604c546e65cf91"
     },
     {
       "path": "dhe-source-boundary.json",

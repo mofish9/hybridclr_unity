@@ -1,7 +1,7 @@
 {
   "sourceRepository": "https://github.com/mofish9/hybridclr_unity.git",
-  "sourceCommit": "01f080b94a2fe49ffd5f0f699ba55e129d3f89df",
-  "sourceTree": "47c959a20b634bb74b4cfca295e9adadfac1fc04",
+  "sourceCommit": "79ce466ac179146504ad62a83cc424eb1b6beb5c",
+  "sourceTree": "6e0cc07eb4f9837e23f65c88f33bbb112e73eb0a",
   "project": "ToolsSource~/DHE/HybridCLR.DheTool.csproj",
   "projectSha256": "a7622708395acabaa78335a1ac4c45b01f9bb45e9cfc176f48a538538c743b1f",
   "dnlibSha256": "bb83dedc11d6ec41a4ae8f289cc1a35231be7e53e09fd7359c5c10dfbb9bfe5c",
