@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "format": "hybridclr.dhe-toolchain-manifest.json",
-  "generatedAtUtc": "2026-10-04T10:18:51.8272108+00:00",
+  "generatedAtUtc": "2026-10-04T10:23:41.3996707+00:00",
   "toolchainVersion": "0.1.35",
   "contractVersion": 1,
   "mode": "Exploratory",
   "releaseReady": false,
   "pathSemantics": "package-relative-v1",
   "packageIdAlgorithm": "sha256-canonical-manifest-v2",
-  "packageId": "a1ef070c7c55c5d277dc539c138d66f1947e93c6c1414700d649a0785305f92c",
+  "packageId": "60b4e30f86f95c2d03f67bdf3590fe3af6b1794e159bde429bb2d2e26101100e",
   "entryPoint": "HybridCLR.DheTool.dll",
   "commands": [
     "version",
@@ -43,8 +43,8 @@
   ],
   "layoutSha256": "ed9ecf904ad6a163652ddbfc6b0ef8817b3a478323abb2d933654217d0155983",
   "sourceIdentity": {
-    "head": "933ae93680755be3b1e5345ed3f9c56ca9c4d045",
-    "tree": "a718eab14f1baa89a12f421d2c49fa47046dabe0",
+    "head": "62d8d39401fac3cedbdcc4e6aa7aaaeb34d2474c",
+    "tree": "106d0681a871f8eefb8d28c1bdecd24cf1b0563b",
     "clean": true,
     "tracked": true
   },
@@ -58,7 +58,7 @@
     {
       "path": "HybridCLR.DheTool.dll",
       "size": 1613824,
-      "sha256": "b244763cdd530afe0128dd80332994f08bf3d3befd6d32ed91968fde74c2ae99"
+      "sha256": "2aeccd09caba9f45822e95c64ac122ea67c9b68c2842ab2cae46ee2ebe29e00b"
     },
     {
       "path": "HybridCLR.DheTool.runtimeconfig.json",
@@ -68,7 +68,7 @@
     {
       "path": "build-provenance.json",
       "size": 973,
-      "sha256": "95f3e4797fcd9b78261a9acb3dccc5815de992ea439636f7676a0b88ec1173ba"
+      "sha256": "3360a44dc43cccbe9da8c6e7bd8668ae3272c5d188b4e4f5b8f4c730457e9c65"
     },
     {
       "path": "dhe-source-boundary.json",
@@ -103,7 +103,7 @@
     {
       "path": "manifests/runtime-workflows.json",
       "size": 1140,
-      "sha256": "02d79ed2718e6f7cd2052ee8b5ce78035930134d79f922abe9ba06b1fff98411"
+      "sha256": "5a988eb894b6875d51f3d2fdabb89769ce4b38e7c0c21a97d024c4cf795e039f"
     },
     {
       "path": "schemas/dhe-adapter-native-finalize.schema.json",
