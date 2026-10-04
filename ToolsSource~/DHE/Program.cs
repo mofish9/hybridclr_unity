@@ -2467,7 +2467,10 @@ internal static partial class Program
 
     private static int ReleaseEvidence(Cli cli)
     {
-        var sourceRoot = RequireDirectory(cli.Optional("labroot") ?? cli.Root, "DHE release source root");
+        var sourceRoot = RequireDirectory(cli.Optional("toolsourceroot") ??
+            cli.Optional("labroot") ?? cli.Root, "DHE tool release source root");
+        string validationSourceRoot = Path.GetFullPath(cli.Optional("validationsourceroot") ??
+            cli.Optional("labroot") ?? cli.Root);
         var sourceHead = GitValue(sourceRoot, "rev-parse", "HEAD");
         var sourceTree = GitValue(sourceRoot, "rev-parse", "HEAD^{tree}");
         var sourceClean = !string.IsNullOrWhiteSpace(sourceHead) &&
@@ -2567,14 +2570,17 @@ internal static partial class Program
             .Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        ValidateEvidenceFiles(evidence, outputRoot, sourceRoot, configuredEvidenceRoots);
+        ValidateEvidenceFiles(evidence, outputRoot, sourceRoot, configuredEvidenceRoots,
+            validationSourceRoot);
         Console.WriteLine("DHE release evidence: " + evidencePath);
         return 0;
     }
 
     private static void ValidateEvidenceFiles(JsonElement evidence, string baseDirectory,
-        string sourceRoot, IEnumerable<string>? additionalPackageRoots = null)
+        string sourceRoot, IEnumerable<string>? additionalPackageRoots = null,
+        string? validationSourceRoot = null)
     {
+        string runtimeContractRoot = Path.GetFullPath(validationSourceRoot ?? sourceRoot);
         if (!evidence.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array ||
             files.GetArrayLength() < RequiredStaticReleaseEvidenceRoles.Length +
                 RequiredPlayerEngineWorkflows.Length ||
@@ -2634,7 +2640,7 @@ internal static partial class Program
             var report = ReadJson<JsonElement>(full);
             if (!GetBool(report, "passed")) throw new DheException("Release evidence report is not a passing result: " + path);
             ValidateEvidenceRole(role, report, full, sourceHead!, sourceTree!, sourceRoot,
-                managedContractRoots);
+                managedContractRoots, runtimeContractRoot);
             string key = GetReleaseEvidenceKey(item, report, full);
             if (!evidenceHashes.TryAdd(key, expected!))
                 throw new DheException("Release evidence contains a duplicate identity: " + key + ".");
@@ -2675,7 +2681,7 @@ internal static partial class Program
 
     private static void ValidateEvidenceRole(string role, JsonElement report, string reportPath,
         string sourceHead, string sourceTree, string sourceRoot,
-        IEnumerable<string> managedContractRoots)
+        IEnumerable<string> managedContractRoots, string runtimeContractRoot)
     {
         switch (role)
         {
@@ -2740,7 +2746,7 @@ internal static partial class Program
                     if (!resolverRoles.Add(resolverRole) || !Sha256File(resolverPath).Equals(
                             GetString(resolver, "sha256"), StringComparison.OrdinalIgnoreCase))
                         throw new DheException("Regression resolver output identity is invalid: " + resolverRole);
-                    ValidateResolverEvidence(resolverRole, ReadJson<JsonElement>(resolverPath), sourceRoot);
+                    ValidateResolverEvidence(resolverRole, ReadJson<JsonElement>(resolverPath), runtimeContractRoot);
                 }
                 if (!resolverRoles.SetEquals(RequiredStaticReleaseEvidenceRoles.Where(
                     required => required.StartsWith("resolver-", StringComparison.Ordinal))))
@@ -2756,7 +2762,8 @@ internal static partial class Program
                     throw new DheException(role + " evidence did not pass validation and coverage.");
                 ValidateEvidenceToolIdentity(report, reportPath, sourceRoot, sourceHead,
                     sourceTree, managedContractRoots);
-                ValidateManagedReleaseEvidence(report, reportPath, managedContractRoots);
+                ValidateManagedReleaseEvidence(report, reportPath, managedContractRoots,
+                    runtimeContractRoot);
                 var changed = GetInt(report.GetProperty("capability"), "changedMethodCount");
                 var player = report.GetProperty("player");
                 if (changedRole)
@@ -2794,13 +2801,13 @@ internal static partial class Program
                     "native-unity2022" => (Profile: "DHE-Unity2022", Workflow: "Unity2022Fgs"),
                     _ => (Profile: "DHE-Unity2021", Workflow: "Unity2021Standard")
                 };
-                ValidateNativeReleaseEvidence(report, reportPath, sourceRoot,
+                ValidateNativeReleaseEvidence(report, reportPath, runtimeContractRoot,
                     nativeRequirement.Profile, nativeRequirement.Workflow);
                 break;
             case "resolver-tuanjie2022":
             case "resolver-unity2022":
             case "resolver-unity2021":
-                ValidateResolverEvidence(role, report, sourceRoot);
+                ValidateResolverEvidence(role, report, runtimeContractRoot);
                 break;
             default:
                 throw new DheException("Unknown release evidence role: " + role);
@@ -2905,7 +2912,7 @@ internal static partial class Program
     }
 
     private static string ValidateManagedReleaseEvidence(JsonElement report, string reportPath,
-        IEnumerable<string>? additionalContractRoots = null)
+        IEnumerable<string>? additionalContractRoots = null, string? validationSourceRoot = null)
     {
         if (!string.Equals(GetString(report, "mode"), "Release", StringComparison.Ordinal) ||
             !GetBool(report, "releaseReady"))
@@ -2914,8 +2921,8 @@ internal static partial class Program
         bool archivedBase = ValidateResourceBaseArchive(report, reportPath);
         string reportRoot = Path.GetDirectoryName(reportPath)!;
         // A supported Base can outlive the toolchain that built it. Validate its
-        // runtime locks against that Base's authenticated Release package; the
-        // current package separately authorizes the historical Package ID.
+        // tool package separately from the runtime contract in Lab (or in a
+        // legacy bundle). The current package authorizes historical Package IDs.
         string evidenceContractRoot = ResolveManagedEvidenceContractRoot(report, reportPath,
             additionalContractRoots);
         string runtimePath = ResolveEvidencePath(GetString(report, "runtimeSource"), reportRoot,
@@ -2930,7 +2937,9 @@ internal static partial class Program
         if (!GetBool(runtime, "dheEnabled") || GetString(runtime, "dheRuntimeSourceMode") != "integrated")
             throw new DheException("Managed Player runtime evidence is not an integrated DHE runtime.");
         string contractRoot = ResolveManagedRuntimeContractRoot(runtime,
-            evidenceContractRoot, additionalContractRoots, reportPath);
+            evidenceContractRoot, (additionalContractRoots ?? Array.Empty<string>())
+                .Concat(validationSourceRoot == null ? Array.Empty<string>() :
+                    new[] { validationSourceRoot }), reportPath);
         JsonElement headers = runtime.GetProperty("externalHeaders");
         if (GetBool(headers, "surrogate") || GetBool(headers, "explicitlyAllowed"))
             throw new DheException("Managed Player runtime evidence uses surrogate external headers.");

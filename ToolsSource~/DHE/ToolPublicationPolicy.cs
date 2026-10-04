@@ -33,7 +33,8 @@ internal static partial class Program
         if (!string.Equals(GetString(evidence, "sourceHead"), sourceHead, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(GetString(evidence, "sourceTree"), sourceTree, StringComparison.OrdinalIgnoreCase))
             throw new DheException("Toolchain release evidence does not match the source HEAD/tree being published.");
-        ValidateEvidenceFiles(evidence, Path.GetDirectoryName(path)!, root, cli.GetList("evidencetoolchainroots"));
+        ValidateEvidenceFiles(evidence, Path.GetDirectoryName(path)!, root,
+            cli.GetList("evidencetoolchainroots"), cli.Optional("validationsourceroot"));
         if (!Sha256File(path).Equals(evidenceHash, StringComparison.OrdinalIgnoreCase))
             throw new DheException("Toolchain release evidence changed during validation.");
         return new ToolPublicationPolicy(mode, true, path, evidenceHash);

@@ -55,12 +55,19 @@ hashes. No separate project source lock or runtime release lock is required.
 Record the migrated package commit in build provenance. Package/repository
 evidence and device results for Release qualification are supplied explicitly.
 Pass the matching Lab `ValidationSourceRoot` when running Release qualification.
+This root supplies runtime/repository locks and engine evidence; it does not need
+to contain package Git commits. Tool provenance remains bound to the authenticated
+bundle. Legacy historical tool evidence without explicit Package ID authorization
+still requires a checkout containing the tool's Git ancestry.
+When generating `regression` and `release-evidence` in Lab, pass
+`-ToolSourceRoot <package>/ToolsSource~/DHE` to bind their source HEAD/tree to
+the package being published; workload fixtures remain under the Lab `-Root`.
 Missing evidence continues to fail the existing qualification gates.
 The current distribution is Exploratory, not mobile production-qualified.
 Maintainers can now publish a Release binary distribution with:
 
 ```text
-dotnet <source-host>/HybridCLR.DheTool.dll publish-unity-tool -PackageSourceRoot <clean committed package> -OutputRoot <new external directory> -Mode Release -ReleaseEvidence <evidence.json>
+dotnet <source-host>/HybridCLR.DheTool.dll publish-unity-tool -PackageSourceRoot <clean committed package> -OutputRoot <new external directory> -Mode Release -ReleaseEvidence <evidence.json> -ValidationSourceRoot <matching Lab checkout>
 ```
 
 This uses the same complete evidence validation policy, rechecks the package

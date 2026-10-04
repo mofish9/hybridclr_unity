@@ -82,11 +82,6 @@ internal static partial class Program
             : GitValue(validationSourceRoot, "rev-parse", "HEAD^{tree}");
         if (!IsHex(currentHead, 40, 64) || !IsHex(currentTree, 40, 64))
             throw new DheException("Resource release validation source identity is invalid.");
-        if (!string.IsNullOrWhiteSpace(validationSourceOption) &&
-            (!GitCommitHasTree(validationSourceRoot, authorityHead, authorityTree) ||
-             !GitCommitIsAncestor(validationSourceRoot, authorityHead, currentHead)))
-            throw new DheException("Release toolchain authority is not an ancestor of the " +
-                "resource release validation source.");
 
         var reports = new List<(JsonElement Report, string Path)>();
         var playerAuthorityModes = new Dictionary<string, string>(
@@ -110,23 +105,12 @@ internal static partial class Program
                 throw new DheException("Resource release Player did not pass workflow gates: " + path);
             ValidateResourcePlayerEvidenceBindings(report, path);
             string runtimeContractRoot = ValidateManagedReleaseEvidence(report, path,
-                evidenceToolchainPackages.Values.Append(toolchainRoot));
-            string runtimeContractPackageId;
-            if (Path.GetFullPath(runtimeContractRoot).Equals(toolchainRoot,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                runtimeContractPackageId = authority.PackageId!;
-            }
-            else
-            {
-                runtimeContractPackageId = evidenceToolchainPackages.SingleOrDefault(item =>
-                    Path.GetFullPath(item.Value).Equals(Path.GetFullPath(runtimeContractRoot),
-                        StringComparison.OrdinalIgnoreCase)).Key ?? string.Empty;
-                if (!IsHex(runtimeContractPackageId, 64, 64))
-                    throw new DheException("Managed Player runtime contract did not resolve " +
-                        "to an authenticated evidence toolchain package.");
-            }
-            if (!runtimeContractAuthorities.ContainsKey(runtimeContractPackageId))
+                evidenceToolchainPackages.Values.Append(toolchainRoot), validationSourceRoot);
+            string? runtimeContractPackageId = ResolveRuntimeContractPackageId(
+                runtimeContractRoot, validationSourceRoot, toolchainRoot,
+                authority.PackageId!, evidenceToolchainPackages);
+            if (runtimeContractPackageId != null &&
+                !runtimeContractAuthorities.ContainsKey(runtimeContractPackageId))
                 runtimeContractAuthorities.Add(runtimeContractPackageId,
                     InspectReleaseToolchainAuthority(runtimeContractRoot,
                         runtimeContractPackageId,
@@ -160,11 +144,10 @@ internal static partial class Program
                 if (evidenceAuthoritySet.Policy != "none")
                     throw new DheException("Historical Player toolchain package is not " +
                         "authorized by the current Release package: " + reportPackageId + ".");
-                if (string.IsNullOrWhiteSpace(validationSourceOption))
-                    throw new DheException("Historical Player toolchain evidence requires " +
-                        "ValidationSourceRoot ancestry validation.");
-                ValidateEvidenceToolIdentity(report, path, validationSourceRoot,
-                    currentHead, currentTree, evidenceToolchainPackages.Values);
+                var toolSource = ResolveResourceReleaseToolSource(toolchainRoot,
+                    validationSourceRoot, authorityHead, authorityTree);
+                ValidateEvidenceToolIdentity(report, path, toolSource.Root,
+                    toolSource.Head, toolSource.Tree, evidenceToolchainPackages.Values);
                 playerAuthorities.Add(path, ValidateExactPlayerToolchainAuthority(
                     report, path, reportPackageId,
                     evidenceToolchainPackages.TryGetValue(reportPackageId,
@@ -376,6 +359,43 @@ internal static partial class Program
         }
         Console.WriteLine("DHE resource release gate passed: " + output);
         return 0;
+    }
+
+    private static string? ResolveRuntimeContractPackageId(string runtimeContractRoot,
+        string validationSourceRoot, string toolchainRoot, string currentPackageId,
+        IReadOnlyDictionary<string, string> evidenceToolchainPackages)
+    {
+        string root = Path.GetFullPath(runtimeContractRoot);
+        if (root.Equals(Path.GetFullPath(toolchainRoot), StringComparison.OrdinalIgnoreCase))
+            return currentPackageId;
+        string? packageId = evidenceToolchainPackages.SingleOrDefault(item =>
+            Path.GetFullPath(item.Value).Equals(root, StringComparison.OrdinalIgnoreCase)).Key;
+        if (packageId != null) return packageId;
+        // Runtime contracts can live in an independent Lab checkout. They are
+        // validated by their evidence hashes and runtime identities, not a tool Package ID.
+        if (root.Equals(Path.GetFullPath(validationSourceRoot), StringComparison.OrdinalIgnoreCase))
+            return null;
+        throw new DheException("Managed Player runtime contract did not resolve to the " +
+            "validation source or an authenticated evidence toolchain package.");
+    }
+
+    private static (string Root, string Head, string Tree) ResolveResourceReleaseToolSource(
+        string toolchainRoot, string validationSourceRoot, string authorityHead, string authorityTree)
+    {
+        // Legacy packages without an explicit historical authority set need Git
+        // ancestry in the tool repository. A Lab repository cannot supply it.
+        foreach (string root in new[] { toolchainRoot, validationSourceRoot }
+                     .Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!GitCommitHasTree(root, authorityHead, authorityTree)) continue;
+            string head = GitValue(root, "rev-parse", "HEAD");
+            string tree = GitValue(root, "rev-parse", "HEAD^{tree}");
+            if (IsHex(head, 40, 64) && IsHex(tree, 40, 64) &&
+                GitCommitIsAncestor(root, authorityHead, head))
+                return (root, head, tree);
+        }
+        throw new DheException("Historical Player toolchain evidence requires the tool " +
+            "Git source chain or explicit historical Package ID authorization.");
     }
 
     private static PlayerToolchainAuthority ValidateExactPlayerToolchainAuthority(JsonElement report,

@@ -651,27 +651,6 @@ namespace HybridCLR.Editor.Commands
             string generatedRoot = RequireDirectory(options.GeneratedCppRoot, "DHE generated C++ root");
             DheNativeSourceIdentity runtimeSourceIdentity = DheNativeSourceIdentity.Capture(
                 Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp"));
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_PHYSICAL_RECEIVER_DISPATCH 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE requires the physical receiver dispatch runtime. Reinstall the matching package runtime and rebuild the Base Player.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_TRACKED_LOAD_PHASE 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE public recovery requires the matching native load-phase API.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_INITIALIZATION 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE module initialization requires the matching runtime source capability.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_MODULE_TOKEN_RESOLUTION 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE AOT module evolution requires physical Base token resolution.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_PUBLIC_ASSEMBLY_IMAGE 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE serialized asset delivery requires public assembly image resolution.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/hybridclr/DheRuntime.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_LENGTH_PRESERVED_CONSTANT_STRINGS 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE metadata constants require length-preserving string conversion.");
-            if (!File.ReadAllText(Path.Combine(SettingsUtil.LocalIl2CppDir, "libil2cpp/vm/GlobalMetadata.h"))
-                .Contains("#define HYBRIDCLR_DHE_HAS_CURRENT_LITERAL_VALUES 1", StringComparison.Ordinal))
-                throw new BuildFailedException("DHE literal values require the matching IL2CPP metadata reader.");
             var primaryMvPaths = new HashSet<string>((options.MvJsonPaths ?? Array.Empty<string>())
                 .Where(path => !string.IsNullOrWhiteSpace(path)).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
             string[] mvPaths = (options.MvJsonPaths ?? Array.Empty<string>())

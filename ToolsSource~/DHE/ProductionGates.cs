@@ -24,7 +24,6 @@ internal static partial class Program
         var release = mode == "Release";
         var expectedPackageId = cli.Optional("expectedtoolchainpackageid");
         var toolRoot = Path.GetFullPath(cli.Optional("toolchainroot") ?? cli.Root);
-        var validationSourceRoot = Path.GetFullPath(cli.Optional("validationsourceroot") ?? toolRoot);
         var toolManifest = Path.Combine(toolRoot, "dhe-toolchain-manifest.json");
         string? toolchainGate = null;
         var toolchainPassed = !release;
@@ -47,7 +46,7 @@ internal static partial class Program
         var sourcePassed = WriteSourcePreflight(cli, release, project, settingsPath, baselineRoot, target, sourcePath, out var runtimeManifest);
         if (!sourcePassed) throw new DheException("DHE source preflight failed: " + sourcePath);
         var cleanPath = Path.Combine(outputRoot, "clean-checkout", "clean-checkout-gate-report.json");
-        var cleanPassed = WriteCleanCheckout(cli, release, project, validationSourceRoot, cleanPath);
+        var cleanPassed = WriteCleanCheckout(cli, release, project, toolRoot, cleanPath);
         if (!cleanPassed) throw new DheException("DHE clean checkout gate failed: " + cleanPath);
         return new ProductionEvidence(toolchainPassed && sourcePassed && cleanPassed, toolchainPassed,
             sourcePassed, cleanPassed, toolchainGate, sourcePath, cleanPath, expectedPackageId, runtimeManifest);
@@ -1750,7 +1749,7 @@ internal static partial class Program
             using var wrongRole = JsonDocument.Parse("{\"schemaVersion\":1,\"format\":\"hybridclr.dhe-regression.json\",\"passed\":true}");
             ValidateEvidenceRole("native-tuanjie2022", wrongRole.RootElement, output,
                 new string('a', 40), new string('b', 40), cli.Root,
-                Array.Empty<string>());
+                Array.Empty<string>(), cli.Root);
         }
         catch { roleRejected = true; }
         AddRegressionCheck(checks, errors, "evidence-role-format", roleRejected,
@@ -1769,7 +1768,7 @@ internal static partial class Program
                 "\"nativeExitCode\":0,\"surrogateHeadersAllowed\":false,\"errors\":[]}");
             ValidateEvidenceRole("native-tuanjie2022", unboundNative.RootElement, output,
                 new string('a', 40), new string('b', 40), cli.Root,
-                Array.Empty<string>());
+                Array.Empty<string>(), cli.Root);
         }
         catch { unboundNativeRejected = true; }
         AddRegressionCheck(checks, errors, "evidence-native-runtime-binding", unboundNativeRejected,
@@ -2850,9 +2849,10 @@ internal static partial class Program
             !ResourcePlayerReleaseReady(incompleteResourceBase.RootElement) &&
             !ResourcePlayerReleaseReady(exploratoryResourceBase.RootElement),
             "resource-only changed evidence inherits readiness only from a Release-ready Base workflow");
-        var sourceHead = GitValue(cli.Root, "rev-parse", "HEAD");
-        var sourceTree = GitValue(cli.Root, "rev-parse", "HEAD^{tree}");
-        var sourceClean = !string.IsNullOrWhiteSpace(sourceHead) && string.IsNullOrWhiteSpace(GitValue(cli.Root, "status", "--porcelain"));
+        string toolSourceRoot = Path.GetFullPath(cli.Optional("toolsourceroot") ?? cli.Root);
+        var sourceHead = GitValue(toolSourceRoot, "rev-parse", "HEAD");
+        var sourceTree = GitValue(toolSourceRoot, "rev-parse", "HEAD^{tree}");
+        var sourceClean = !string.IsNullOrWhiteSpace(sourceHead) && string.IsNullOrWhiteSpace(GitValue(toolSourceRoot, "status", "--porcelain"));
         var passed = errors.Count == 0;
         WriteJson(output, new { schemaVersion = 1, format = "hybridclr.dhe-regression.json", generatedAtUtc = DateTimeOffset.UtcNow, sourceHead, sourceTree, sourceClean, passed, realWorkflowOutputsValidated, workflowOutputs, validatedResourceRelease, realResolverOutputsValidated, resolverOutputs, checks, errors, warnings = Array.Empty<string>() });
         Console.WriteLine("DHE regression " + (passed ? "passed: " : "failed: ") + output);
