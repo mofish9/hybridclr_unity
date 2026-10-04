@@ -29,8 +29,9 @@ Windows trial evidence is reported separately from Android/iOS qualification.
 Runtime modifications require rebuilding the Base; existing Players can roll
 back only to a compatible archived delivery with a process restart.
 
-The v35 candidate caches direct AOT guard token decisions, including misses,
-against an immutable publication snapshot. It adds a fixed 64-entry thread cache
+The v35 candidate keeps guard registries of up to four assemblies on a bounded
+short scan. Larger registries cache direct AOT guard token decisions, including
+misses, against an immutable publication snapshot. It adds a fixed 64-entry thread cache
 (about 3.5 KiB per thread on Windows x64, plus owned long-name buffers). Hits do
 not allocate or acquire a shared lock. New publications invalidate both positive
 and negative decisions. Production builds keep dispatch diagnostics disabled
