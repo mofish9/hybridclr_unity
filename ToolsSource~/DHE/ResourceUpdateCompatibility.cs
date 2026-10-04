@@ -20,7 +20,7 @@ internal sealed class ResourceUpdateCompatibility
     internal const string PhysicalReceiverDispatchCapability = "physical-current-receiver-dispatch-v1";
 	public const string Policy = "dhe-proven-safe-subset-v1";
 	public const string RuntimeProtocol = "dhe-runtime-protocol-v1";
-    public const string CurrentNativeRuntimeContract = "dhe-runtime-v34";
+    public const string CurrentNativeRuntimeContract = "dhe-runtime-v35";
     public static readonly string[] KnownRuntimeCapabilities =
     {
 		"aot-guard-v1",

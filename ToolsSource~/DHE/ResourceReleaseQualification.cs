@@ -153,25 +153,11 @@ internal static partial class Program
 
             string[] playerReports = evidence.Select(item => item.PlayerWorkflowReport)
                 .ToArray();
-            var gateArguments = new Dictionary<string, string>(
-                StringComparer.OrdinalIgnoreCase)
-            {
-                ["toolchainroot"] = toolchainRoot,
-                ["expectedtoolchainpackageid"] = config.ExpectedToolchainPackageId,
-                ["schemaroot"] = toolchainRoot,
-                ["resourceupdateroot"] = config.ResourceUpdateRoot,
-                ["channelsnapshot"] = config.ChannelSnapshot,
-                ["expectedchannelsnapshotsha256"] =
-                    config.ExpectedChannelSnapshotSha256,
-                ["expectedreleaseledgersha256"] = ledger.Sha256,
-                ["changedplayers"] = string.Join(',', playerReports),
-                ["output"] = gatePath,
-            };
-            if (config.RequireEngineMatrix)
-                gateArguments["requireenginematrix"] = "true";
-            if (config.EvidenceToolchainRoots.Length != 0)
-                gateArguments["evidencetoolchainroots"] = string.Join(',',
-                    config.EvidenceToolchainRoots);
+            var gateArguments = CreateQualificationGateArguments(cli, toolchainRoot,
+                config.ExpectedToolchainPackageId, config.ResourceUpdateRoot,
+                config.ChannelSnapshot, config.ExpectedChannelSnapshotSha256,
+                ledger.Sha256, playerReports, gatePath, config.RequireEngineMatrix,
+                config.EvidenceToolchainRoots);
             if (ResourceReleaseGate(new Cli("resource-release-gate", gateArguments)) != 0)
                 throw new DheException("Resource release aggregate gate failed.");
 
@@ -274,6 +260,33 @@ internal static partial class Program
             if (File.Exists(gatePath)) File.Delete(gatePath);
             throw;
         }
+    }
+
+    private static Dictionary<string, string> CreateQualificationGateArguments(Cli cli,
+        string toolchainRoot, string expectedPackageId, string updateRoot,
+        string snapshot, string snapshotSha256, string ledgerSha256,
+        string[] playerReports, string output, bool requireEngineMatrix,
+        string[] evidenceToolchainRoots)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["toolchainroot"] = toolchainRoot,
+            ["expectedtoolchainpackageid"] = expectedPackageId,
+            ["schemaroot"] = toolchainRoot,
+            ["resourceupdateroot"] = updateRoot,
+            ["channelsnapshot"] = snapshot,
+            ["expectedchannelsnapshotsha256"] = snapshotSha256,
+            ["expectedreleaseledgersha256"] = ledgerSha256,
+            ["changedplayers"] = string.Join(',', playerReports),
+            ["output"] = output,
+        };
+        string? validationSource = cli.Optional("validationsourceroot");
+        if (!string.IsNullOrWhiteSpace(validationSource))
+            values["validationsourceroot"] = Path.GetFullPath(validationSource);
+        if (requireEngineMatrix) values["requireenginematrix"] = "true";
+        if (evidenceToolchainRoots.Length != 0)
+            values["evidencetoolchainroots"] = string.Join(',', evidenceToolchainRoots);
+        return values;
     }
 
     private static ResourceReleaseQualificationConfig

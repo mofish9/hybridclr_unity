@@ -27,7 +27,7 @@ namespace HybridCLR.Editor.Commands
         private const string BuildPhaseEnvironmentVariable = "HYBRIDCLR_DHE_BUILD_PHASE";
         private const string NativeGuardHashContract = "guard-block-set-v1";
 		private const string NativeRuntimeProtocol = "dhe-runtime-protocol-v1";
-        private const string NativeRuntimeContract = "dhe-runtime-v34";
+        private const string NativeRuntimeContract = "dhe-runtime-v35";
         // The identity must describe the same inventory that the Player
         // validates. A second literal list can make a clean build unloadable.
         private static readonly string[] NativeRuntimeCapabilities =
