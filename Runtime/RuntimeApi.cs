@@ -181,11 +181,15 @@ namespace HybridCLR
 
         /// <summary>Returns diagnostic counters for DHE dispatch.</summary>
 #if UNITY_EDITOR
+        public static bool AreDifferentialDispatchDiagnosticsEnabled() { return false; }
         public static int GetDifferentialInterpreterEntryCount() { return 0; }
         public static int GetDifferentialAotBridgeCallCount() { return 0; }
         public static int GetDifferentialAotEntryCount() { return 0; }
         public static void ResetDifferentialDispatchCounters() { }
 #else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern bool AreDifferentialDispatchDiagnosticsEnabled();
+
         [MethodImpl(MethodImplOptions.InternalCall)]
         public static extern int GetDifferentialInterpreterEntryCount();
 

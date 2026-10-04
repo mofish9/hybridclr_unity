@@ -522,6 +522,7 @@ namespace HybridCLR.Editor.Commands
             }
 
             BuildTargetGroup group = EnsureActiveBuildTarget(options.Target);
+            using var diagnostics = new DispatchDiagnosticsBuildScope(options.Target, options.EnableDispatchDiagnostics);
             using var compiler = DheAotCompiler.Enter();
             if (options.CleanBuild)
             {
@@ -541,7 +542,9 @@ namespace HybridCLR.Editor.Commands
                     target = options.Target,
                     targetGroup = group,
 #if UNITY_2021_2_OR_NEWER
-                    extraScriptingDefines = new[] { BasePlayerScriptingDefine },
+                    extraScriptingDefines = options.EnableDispatchDiagnostics
+                        ? new[] { BasePlayerScriptingDefine, "HYBRIDCLR_DHE_DIAGNOSTICS" }
+                        : new[] { BasePlayerScriptingDefine },
 #endif
                     // Tuanjie 1.10 (Unity 2022.3 lineage) exposes
                     // CleanBuildCache rather than Unity's newer CleanBuild
@@ -604,6 +607,27 @@ namespace HybridCLR.Editor.Commands
                     Environment.SetEnvironmentVariable(BaselineEnvironmentVariable, previousBaseline);
                     Environment.SetEnvironmentVariable(BuildPhaseEnvironmentVariable, previousPhase);
                 }
+            }
+        }
+
+        private sealed class DispatchDiagnosticsBuildScope : IDisposable
+        {
+            private readonly bool enabled;
+            private readonly string previousArguments;
+            public DispatchDiagnosticsBuildScope(BuildTarget target, bool enabled)
+            {
+                this.enabled = enabled;
+                if (!enabled) return;
+                previousArguments = PlayerSettings.GetAdditionalIl2CppArgs();
+                if ((previousArguments ?? string.Empty).Contains("--compiler-flags", StringComparison.Ordinal))
+                    throw new BuildFailedException("DHE diagnostics require a separate native compiler-flags option; consolidate existing compiler flags first.");
+                string define = target == BuildTarget.StandaloneWindows64 || target == BuildTarget.StandaloneWindows
+                    ? "/DHYBRIDCLR_DHE_DIAGNOSTICS=1" : "-DHYBRIDCLR_DHE_DIAGNOSTICS=1";
+                PlayerSettings.SetAdditionalIl2CppArgs(previousArguments + " --compiler-flags=\"" + define + "\"");
+            }
+            public void Dispose()
+            {
+                if (enabled) PlayerSettings.SetAdditionalIl2CppArgs(previousArguments);
             }
         }
 
@@ -2661,7 +2685,9 @@ namespace HybridCLR.Editor.Commands
                 ? "    dheMethod = hybridclr::dhe::ResolveNativeReferenceInvokeMethod(dheMethod, reinterpret_cast<void*>(__this));\r\n"
                 : string.Empty;
             return "    // " + beginMarker + "\r\n" + deferredModuleGuard +
+                "#if HYBRIDCLR_DHE_DIAGNOSTICS\r\n" +
                 "    hybridclr::dhe::RecordAotEntry();\r\n" +
+                "#endif\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
                 "        dheMethod = hybridclr::dhe::ResolveAotGuardMethodByToken(\"" +
@@ -3665,6 +3691,8 @@ namespace HybridCLR.Editor.Commands
 
     public sealed class DhePlayerBuildOptions
     {
+        /// <summary>Explicit diagnostic Player only. Production leaves counters and smoke code out.</summary>
+        public bool EnableDispatchDiagnostics;
         public string OutputPath;
         public string BaselineAotRoot;
         public BuildTarget Target;

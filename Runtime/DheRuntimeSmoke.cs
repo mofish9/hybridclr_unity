@@ -1,3 +1,4 @@
+#if UNITY_EDITOR || HYBRIDCLR_DHE_DIAGNOSTICS
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -238,6 +239,9 @@ namespace HybridCLR
             error = string.Empty;
             try
             {
+                if (!RuntimeApi.AreDifferentialDispatchDiagnosticsEnabled())
+                    throw new InvalidOperationException(
+                        "DHE dispatch smoke requires a diagnostic Player. Production dispatch counters are disabled.");
                 if (config == null || config.schemaVersion != 1 || config.changedProbe == null ||
                     config.unchangedProbe == null)
                     throw new InvalidDataException(
@@ -409,3 +413,4 @@ namespace HybridCLR
         }
     }
 }
+#endif

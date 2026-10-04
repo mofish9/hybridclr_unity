@@ -1352,7 +1352,7 @@ namespace HybridCLR
                     new[] { artifact.MetaVersion }, new[] { artifact });
                 if (code == LoadImageErrorCode.OK)
                 {
-                    artifact.Current = currentDll == null ? null : (byte[])currentDll.Clone();
+                    RememberCurrentPayloadForProbes(artifact, currentDll);
                     LoadedAssemblies.Add(normalizedName);
                     LoadedMutableAssemblies.Add(normalizedName);
                     return true;
@@ -1412,7 +1412,7 @@ namespace HybridCLR
                 if (code != LoadImageErrorCode.OK) { error = "DHE mixed source batch returned " + code + "."; return false; }
                 foreach (string name in frozen.Concat(differential).Concat(added)) LoadedAssemblies.Add(name);
                 foreach (string name in differential) LoadedMutableAssemblies.Add(name);
-                foreach (var pair in inputs) Artifacts[pair.Key].Current = (byte[])pair.Value.Clone();
+                foreach (var pair in inputs) RememberCurrentPayloadForProbes(Artifacts[pair.Key], pair.Value);
                 foreach (string name in frozen) FrozenAotSources.Remove(name);
                 return true;
             }
@@ -1507,7 +1507,7 @@ namespace HybridCLR
                     }
                     foreach (string name in allNames) LoadedAssemblies.Add(name);
                     for (int index = 0; index < artifacts.Length; ++index)
-                        artifacts[index].Current = (byte[])currentDlls[index].Clone();
+                        RememberCurrentPayloadForProbes(artifacts[index], currentDlls[index]);
                     foreach (string name in normalizedNames) LoadedMutableAssemblies.Add(name);
                     foreach (string name in frozenNames) FrozenAotSources.Remove(name);
                     return true;
@@ -1545,7 +1545,7 @@ namespace HybridCLR
                 }
                 for (int index = 0; index < normalizedNames.Length; index++)
                 {
-                    artifacts[index].Current = (byte[])currentDlls[index].Clone();
+                    RememberCurrentPayloadForProbes(artifacts[index], currentDlls[index]);
                     LoadedAssemblies.Add(normalizedNames[index]);
                     LoadedMutableAssemblies.Add(normalizedNames[index]);
                 }
@@ -1605,7 +1605,7 @@ namespace HybridCLR
                     error = "Interpreter-only assembly identity mismatch: " + normalizedName;
                     return false;
                 }
-                artifact.Current = (byte[])currentDll.Clone();
+                RememberCurrentPayloadForProbes(artifact, currentDll);
                 LoadedAssemblies.Add(normalizedName);
                 code = LoadImageErrorCode.OK;
                 nativeLoadPhase = 4;
@@ -1648,7 +1648,7 @@ namespace HybridCLR
                     return false;
                 }
 
-                artifact.Current = currentDll == null ? null : (byte[])currentDll.Clone();
+                RememberCurrentPayloadForProbes(artifact, currentDll);
                 LoadedAssemblies.Add(assemblyName);
                 transactionRetryValidated = true;
                 return true;
@@ -1659,6 +1659,14 @@ namespace HybridCLR
                 error = exception.Message;
                 return false;
             }
+        }
+
+        private static void RememberCurrentPayloadForProbes(DheAssemblyArtifact artifact, byte[] currentDll)
+        {
+            // Native image loading owns its input. Only explicit transaction
+            // diagnostics need managed DLL bytes after the synchronous call.
+            if (validationProbesEnabled && artifact.Current == null && currentDll != null)
+                artifact.Current = (byte[])currentDll.Clone();
         }
 
         private static bool RunTransactionProbeCore(out string error)

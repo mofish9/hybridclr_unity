@@ -248,6 +248,7 @@ namespace HybridCLR.Editor.Commands
                 BuildOptions = buildOptions,
                 CleanBuild = scriptsOnly,
                 Scenes = adapter.GetScenes(),
+                EnableDispatchDiagnostics = adapter.EnableDispatchDiagnostics,
                 BuildPlayerCallback = adapter.BuildPlayer,
                 NativeFinalizeOptions = scriptsOnly ? null :
                     DheProjectBuildSupport.CreateNativeFinalizeOptions(
@@ -424,6 +425,7 @@ namespace HybridCLR.Editor.Commands
 
     public sealed class DheProjectWorkflowAdapter
     {
+        public bool EnableDispatchDiagnostics;
         public string ProjectRoot;
         public string Workflow = "dhe";
         public string BuildIdentityAssetPath;

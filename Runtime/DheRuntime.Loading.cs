@@ -96,9 +96,16 @@ namespace HybridCLR
                         string name = NormalizeAssemblyName(names[index]);
                         if (Artifacts.TryGetValue(name, out var artifact))
                         {
-                            artifact.Current = (byte[])dlls[index].Clone();
+                            RememberCurrentPayloadForProbes(artifact, dlls[index]);
                             if (IsDifferentialArtifact(artifact)) LoadedMutableAssemblies.Add(name);
                         }
+                    }
+                    if (trackedNativeBatch)
+                    {
+                        // Phase 3 is irrevocably committed even if module
+                        // initialization fails. Native images own their bytes.
+                        FrozenAotSourceBytes.Clear();
+                        FrozenAotBaseMetaVersionBytes.Clear();
                     }
                 }
                 if (!accepted && (nativeLoadPhase == 1 || nativeLoadPhase >= 3))
@@ -162,13 +169,18 @@ namespace HybridCLR
             return accepted;
         }
 
-        public static bool RunTransactionProbe(out string error) => ExecuteLoad(PlannedAssemblyNames,
-            PlannedAssemblyNames.Select(name => Artifacts[name].Current).ToArray(),
-            (out LoadImageErrorCode code, out string message) =>
-            {
-                bool accepted = RunTransactionProbeCore(out message);
-                code = accepted ? LoadImageErrorCode.OK : transactionFailureCode;
-                return accepted;
-            }, out _, out error);
+        public static bool RunTransactionProbe(out string error)
+        {
+            if (!validationProbesEnabled)
+            { error = "DHE transaction probes require enableValidationProbes=true."; return false; }
+            return ExecuteLoad(PlannedAssemblyNames,
+                PlannedAssemblyNames.Select(name => Artifacts[name].Current).ToArray(),
+                (out LoadImageErrorCode code, out string message) =>
+                {
+                    bool accepted = RunTransactionProbeCore(out message);
+                    code = accepted ? LoadImageErrorCode.OK : transactionFailureCode;
+                    return accepted;
+                }, out _, out error);
+        }
     }
 }
