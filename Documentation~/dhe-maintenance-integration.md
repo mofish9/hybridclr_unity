@@ -8,6 +8,10 @@ its Players cannot acquire the native receiver fix through a managed update.
 Install through the default Installer. Project HybridCLRSettings supplies the repository URLs;
 `Data~/hybridclr_version.json` is the only runtime version selection list.
 Published annotated runtime tags are immutable. Upstream remains 8.13.0 / IL2CPP 8.11.0.
+Unity 2022 opt8 selects HybridCLR v8.13.0-opt8 (9c607a3) and
+IL2CPP v2022-8.11.0-opt8 (e426adc). The IL2CPP source tree matches opt7;
+its new commit records this release pairing. Other engine selections stay at
+their previous versions for this Unity 2022 release.
 Package consumers pin an audited distribution commit,
 never a package opt tag. Unity 2021 stays official; Tuanjie selection is unchanged.
 Export tracked files from that commit (for example, git archive); do not copy a
@@ -29,7 +33,7 @@ Windows trial evidence is reported separately from Android/iOS qualification.
 Runtime modifications require rebuilding the Base; existing Players can roll
 back only to a compatible archived delivery with a process restart.
 
-The v35 candidate keeps guard registries of up to four assemblies on a bounded
+The opt8/v35 implementation keeps guard registries of up to four assemblies on a bounded
 short scan. Larger registries cache direct AOT guard token decisions, including
 misses, against an immutable publication snapshot. It adds a fixed 64-entry thread cache
 (about 3.5 KiB per thread on Windows x64, plus owned long-name buffers). Hits do
@@ -37,14 +41,15 @@ not allocate or acquire a shared lock. New publications invalidate both positive
 and negative decisions. Production builds keep dispatch diagnostics disabled
 and do not include the smoke workload.
 
-This candidate requires a new Base; do not relabel a v34 build identity. To roll
+Opt8 requires a new Base; do not relabel a v34 build identity. To roll
 back the implementation, restore the audited v34 package distribution and its
 matching native runtime, then rebuild the Base. Resource-only rollback still
 requires a compatible archived resource and a fresh process. The candidate
-runtime commit in the version list must be published on the maintenance branch
-and replaced by its immutable runtime tag before public package delivery.
+runtime tags in the version list are published on their maintenance branches
+and resolve to the reviewed source commits.
 
 Lab qualification can pass -ValidationSourceRoot explicitly through
 resource-release-qualify. Ordinary project builds do not require a Lab checkout
-or an installation receipt. Windows validation is conditional; ARM64 device,
+or an installation receipt. The opt8 tool bundle retains Exploratory mode;
+Windows validation is conditional. ARM64 device,
 performance, memory and P99 qualification remain separate release gates.
