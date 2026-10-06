@@ -10,24 +10,36 @@ namespace HybridCLR.Editor.BuildProcessors
 {
     // Deferred components may be created after loading Current. What cannot be
     // deferred is a script identity serialized into the Base Player itself.
-    internal sealed class AotModeAssetValidator : IProcessSceneWithReport, IPreprocessBuildWithReport
+    internal sealed class AotModeAssetValidator : IProcessSceneWithReport, IPreprocessBuildWithReport, IPostprocessBuildWithReport
     {
+        const string PlayerReportKey = "HybridCLR.AotMode.PlayerBuildReport";
         public int callbackOrder => 10;
 
         public void OnProcessScene(Scene scene, BuildReport report)
         {
-            if (!Enabled) return;
-            Validate(EditorUtility.CollectDependencies(scene.GetRootGameObjects()), scene.path);
+            // Bundle builds also set isBuildingPlayer and supply a report. Only
+            // Player builds run our preprocess callback. SessionState survives
+            // the script reload Unity may perform between these callbacks.
+            if (!Enabled || report == null || report.GetInstanceID() != SessionState.GetInt(PlayerReportKey, 0)) return;
+            ValidateScene(scene);
         }
+
+        internal static void ValidateScene(Scene scene) =>
+            Validate(EditorUtility.CollectDependencies(scene.GetRootGameObjects()), scene.path);
 
         public void OnPreprocessBuild(BuildReport report)
         {
+            SessionState.EraseInt(PlayerReportKey);
             if (!Enabled) return;
+            if (report != null) SessionState.SetInt(PlayerReportKey, report.GetInstanceID());
             Validate(EditorUtility.CollectDependencies(PlayerSettings.GetPreloadedAssets()), "Player preloaded assets");
             foreach (string path in AssetDatabase.GetAllAssetPaths())
-                if (path.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase) >= 0 && !AssetDatabase.IsValidFolder(path))
+                if (path.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    path.IndexOf("/Editor/", StringComparison.OrdinalIgnoreCase) < 0 && !AssetDatabase.IsValidFolder(path))
                     Validate(EditorUtility.CollectDependencies(AssetDatabase.LoadAllAssetsAtPath(path)), path);
         }
+
+        public void OnPostprocessBuild(BuildReport report) => SessionState.EraseInt(PlayerReportKey);
 
         static bool Enabled => Settings.HybridCLRSettings.Instance.enable &&
             Settings.HybridCLRSettings.Instance.enableAotModeSelection;
@@ -46,14 +58,20 @@ namespace HybridCLR.Editor.BuildProcessors
                 using (var serialized = new SerializedObject(value))
                 {
                     var property = serialized.GetIterator();
-                    while (property.Next(true))
+                    var visited = new HashSet<long>();
+                    bool enterChildren = true;
+                    while (property.Next(enterChildren))
+                    {
+                        enterChildren = true;
                         if (property.propertyType == SerializedPropertyType.ManagedReference)
                         {
                             string fullName = property.managedReferenceFullTypename ?? string.Empty;
                             int separator = fullName.IndexOf(' ');
                             if (separator > 0 && deferred.Contains(fullName.Substring(0, separator)))
                                 throw new BuildFailedException($"AOT mode selection: '{source}' contains deferred managed reference '{fullName}'. Load this asset after Current.");
+                            enterChildren = visited.Add(property.managedReferenceId);
                         }
+                    }
                 }
             }
         }
