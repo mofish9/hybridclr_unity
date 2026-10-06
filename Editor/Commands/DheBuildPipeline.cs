@@ -2574,6 +2574,12 @@ namespace HybridCLR.Editor.Commands
 
         private static string CreateGuard(DheNativeManifestMethod method)
         {
+            // Deferred Base code is executable only after DHE selection. Bind
+            // its guards directly; ordinary AOT guards must still honor the
+            // selected table because they also execute in Interpreter mode.
+            bool directDhe = Settings.HybridCLRSettings.Instance.enableAotModeSelection &&
+                SettingsUtil.DheAotAssemblyNames.Contains(method.assemblyName, StringComparer.Ordinal);
+            string guardApi = "hybridclr::dhe::" + (directDhe ? "DheImpl_" : string.Empty);
             string beginMarker = GetGuardMarker(NativeGuardBeginPrefix, method);
             string endMarker = GetGuardMarker(NativeGuardEndPrefix, method);
             string[] allNames = method.parameters.Select(parameter => parameter.Name).ToArray();
@@ -2674,10 +2680,10 @@ namespace HybridCLR.Editor.Commands
                 "#endif\r\n" +
                 "    const RuntimeMethod* dheMethod = method;\r\n" +
                 "    if (dheMethod == nullptr)\r\n    {\r\n" +
-                "        dheMethod = hybridclr::dhe::ResolveAotGuardMethodByToken(\"" +
+                "        dheMethod = " + guardApi + "ResolveAotGuardMethodByToken(\"" +
                 method.assemblyName.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) +
                 "\", " + method.methodToken + ");\r\n    }\r\n" + receiverSelection +
-                "    if (hybridclr::dhe::ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
+                "    if (" + guardApi + "ShouldDispatchToInterpreter(dheMethod))\r\n    {\r\n" +
                 "        dheMethod = hybridclr::dhe::ResolveInterpreterMethod(dheMethod);\r\n" +
                 "        " + helper.Replace("\r\n", "\r\n        ", StringComparison.Ordinal) + "\r\n    }\r\n" +
                 "    // " + endMarker;
