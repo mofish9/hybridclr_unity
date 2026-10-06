@@ -10,3 +10,11 @@ namespace hybridclr
 		nullptr,
 	};
 }
+
+namespace hybridclr { namespace startup {
+    extern const char* const g_deferredAssemblies[] = {
+        //!!!{{DEFERRED_ASSEMBLIES
+        //!!!}}DEFERRED_ASSEMBLIES
+        nullptr,
+    };
+}}

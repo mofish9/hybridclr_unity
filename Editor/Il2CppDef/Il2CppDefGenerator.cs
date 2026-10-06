@@ -16,6 +16,8 @@ namespace HybridCLR.Editor.Il2CppDef
         public class Options
         {
             public List<string> HotUpdateAssemblies { get; set; }
+            public bool EnableAotModeSelection { get; set; }
+            public List<string> DeferredAssemblies { get; set; }
 
             public string UnityVersionTemplateFile { get; set; }
 
@@ -48,6 +50,8 @@ namespace HybridCLR.Editor.Il2CppDef
             var frr = new FileRegionReplace(File.ReadAllText(_options.UnityVersionTemplateFile));
 
             List<string> lines = new List<string>();
+
+            lines.Add($"#define HYBRIDCLR_ENABLE_AOT_SELECTION {(_options.EnableAotModeSelection ? 1 : 0)}");
 
             var match = s_unityVersionPat.Matches(_options.UnityVersion)[0];
             int majorVer = int.Parse(match.Groups[1].Value);
@@ -99,6 +103,14 @@ namespace HybridCLR.Editor.Il2CppDef
             }
 
             frr.Replace("PLACE_HOLDER", string.Join("\n", lines));
+
+            var deferred = _options.DeferredAssemblies ?? new List<string>();
+            if (_options.EnableAotModeSelection && deferred.Count == 0)
+                throw new InvalidOperationException("AOT mode selection requires configured DHE AOT assemblies.");
+            foreach (string name in deferred)
+                if (string.IsNullOrEmpty(name) || !Regex.IsMatch(name, @"^[A-Za-z0-9_.-]+$"))
+                    throw new InvalidOperationException("Unsupported deferred assembly name: " + name);
+            frr.Replace("DEFERRED_ASSEMBLIES", string.Join("\n", deferred.Select(name => $"        \"{name}\",")));
 
             frr.Commit(_options.AssemblyManifestOutputFile);
             Debug.Log($"[HybridCLR.Editor.Il2CppDef.Generator] output:{_options.AssemblyManifestOutputFile}");

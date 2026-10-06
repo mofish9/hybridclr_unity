@@ -14,6 +14,22 @@ namespace HybridCLR
     [Preserve]
     public static class RuntimeApi
     {
+        /// <summary>
+        /// Call from ordinary AOT before loading any managed hot-update assembly.
+        /// The Base build must enable AOT mode selection. Every later call is rejected,
+        /// including the same choice. Save a next-start choice in project-owned storage.
+        /// </summary>
+#if UNITY_EDITOR
+        public static ExecutionModeSelectionResult SelectExecutionMode(ExecutionMode mode)
+        { return ExecutionModeSelectionResult.NotSupported; }
+        public static ExecutionMode GetExecutionMode() { return ExecutionMode.Unselected; }
+#else
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern ExecutionModeSelectionResult SelectExecutionMode(ExecutionMode mode);
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        public static extern ExecutionMode GetExecutionMode();
+#endif
+
 #if UNITY_EDITOR
         // Keep editor-only shims' argument contract aligned with the native
         // internal calls. This matters for manifest validation tests and avoids

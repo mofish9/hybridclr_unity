@@ -28,6 +28,9 @@ namespace HybridCLR.Editor.Settings
         [Tooltip("DHE hot update assemblies that must also be retained in the AOT player")]
         public string[] dheAotAssemblies;
 
+        [Tooltip("Allow ordinary AOT startup to choose DHE or traditional interpretation once per process. Requires a matching runtime and no static AOT references to deferred hotfix assemblies.")]
+        public bool enableAotModeSelection;
+
         [Tooltip("Non-DHE AOT assemblies retained in full for future hotfix API calls. This increases Base size.")]
         public string[] dhePreserveAotAssemblies = { "mscorlib", "System", "System.Core" };
 

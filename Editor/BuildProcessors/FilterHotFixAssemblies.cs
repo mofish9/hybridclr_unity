@@ -151,6 +151,11 @@ namespace HybridCLR.Editor.BuildProcessors
                     }
                 }
             }
+            if (Settings.HybridCLRSettings.Instance.enableAotModeSelection)
+            {
+                try { AotModeDependencyValidator.Validate(result, dheAotDllSet); }
+                catch (Exception error) { throw new BuildFailedException(error.Message); }
+            }
             return result.ToArray();
         }
     }
