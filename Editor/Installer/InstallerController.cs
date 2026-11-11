@@ -58,7 +58,7 @@ namespace HybridCLR.Editor.Installer
 
         private PackageInfo LoadPackageInfo()
         {
-            string packageJson = $"{SettingsUtil.ProjectDir}/Packages/{SettingsUtil.PackageName}/package.json";
+            string packageJson = Path.Combine(SettingsUtil.ProjectDir, SettingsUtil.PackagePathInProject, "package.json");
             return JsonUtility.FromJson<PackageInfo>(File.ReadAllText(packageJson, Encoding.UTF8));
         }
 
@@ -245,7 +245,8 @@ namespace HybridCLR.Editor.Installer
         void CloneBranch(string workDir, string repoUrl, string branch, string repoDir)
         {
             BashUtil.RemoveDir(repoDir);
-            BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", branch, "--depth", "1", repoUrl, repoDir});
+            int cloneCode = BashUtil.RunCommand(workDir, "git", new string[] {"clone", "-b", branch, "--depth", "1", repoUrl, repoDir});
+            if (cloneCode != 0) throw new Exception($"clone repository fail. url: {repoUrl}, branch: {branch}");
         }
 
         private string PrepareLibil2cppWithHybridclrFromGitRepo()

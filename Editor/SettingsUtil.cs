@@ -24,7 +24,38 @@ namespace HybridCLR.Editor
 
         public static string PackageName { get; } = "com.code-philosophy.hybridclr";
 
-        public static string HybridCLRDataPathInPackage => $"Packages/{PackageName}/Data~";
+        /// <summary>
+        /// Resolves the embedded package directory while preserving Unity's
+        /// optional version suffix (for example @8.13.0).
+        /// </summary>
+        public static string PackagePathInProject
+        {
+            get
+            {
+                string packagesRoot = Path.Combine(ProjectDir, "Packages");
+                string unversionedPath = Path.Combine(packagesRoot, PackageName);
+                if (Directory.Exists(unversionedPath))
+                {
+                    return ("Packages/" + PackageName).Replace('\\', '/');
+                }
+
+                string[] versionedPaths = Directory.Exists(packagesRoot)
+                    ? Directory.GetDirectories(packagesRoot, PackageName + "@*")
+                    : Array.Empty<string>();
+                if (versionedPaths.Length == 1)
+                {
+                    return ("Packages/" + Path.GetFileName(versionedPaths[0])).Replace('\\', '/');
+                }
+                if (versionedPaths.Length > 1)
+                {
+                    throw new InvalidOperationException(
+                        "Multiple embedded HybridCLR package directories were found under " + packagesRoot + ".");
+                }
+                return ("Packages/" + PackageName).Replace('\\', '/');
+            }
+        }
+
+        public static string HybridCLRDataPathInPackage => $"{PackagePathInProject}/Data~";
 
         public static string TemplatePathInPackage => $"{HybridCLRDataPathInPackage}/Templates";
 
